@@ -1,8 +1,9 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use lurklet_api::application;
+use lurklet_api::{StaticHost, application};
 use std::io::{self, Write};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::process::ExitCode;
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
@@ -17,6 +18,9 @@ struct Arguments {
     /// Address on which to serve HTTP.
     #[arg(long, env = "LURKLET_BIND", default_value = "127.0.0.1:3000")]
     bind: SocketAddr,
+    /// Directory containing the built website and its precompressed files.
+    #[arg(long, env = "LURKLET_STATIC_DIR", default_value = "lurklet-api/static")]
+    static_dir: PathBuf,
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -67,6 +71,10 @@ async fn main() -> ExitCode {
             Some(Command::HealthCheck) => health_check::check(arguments.bind).await,
             None => {
                 let (app, _) = application();
+                let static_host = StaticHost::new(&arguments.static_dir)
+                    .await
+                    .context("failed to initialize static hosting")?;
+                let app = app.fallback_service(static_host.router());
                 let listener = TcpListener::bind(arguments.bind)
                     .await
                     .context("failed to bind the API listener")?;

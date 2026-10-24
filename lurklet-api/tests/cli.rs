@@ -18,6 +18,7 @@ fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract()
         .arg("--bind")
         .arg(listener.local_addr().unwrap().to_string())
         .arg("export-openapi")
+        .env("LURKLET_STATIC_DIR", "/missing-static-directory")
         .timeout(Duration::from_secs(10))
         .env_remove("RUST_LOG")
         .env_remove("LURKLET_BIND");
@@ -63,6 +64,10 @@ fn when_listener_cannot_bind_then_default_logs_should_report_failure_without_det
     let mut command = Command::new(cargo_bin!("lurklet-api"));
     command
         .env("LURKLET_BIND", &address)
+        .env(
+            "LURKLET_STATIC_DIR",
+            concat!(env!("CARGO_MANIFEST_DIR"), "/static"),
+        )
         .env_remove("RUST_LOG")
         .timeout(Duration::from_secs(10));
 
@@ -110,6 +115,7 @@ async fn when_health_check_is_requested_then_command_should_probe_directly_and_s
     command
         .arg("health-check")
         .env("LURKLET_BIND", format!("0.0.0.0:{}", address.port()))
+        .env("LURKLET_STATIC_DIR", "/missing-static-directory")
         .env("RUST_LOG", "trace")
         .env("HTTP_PROXY", "http://127.0.0.1:9")
         .env("http_proxy", "http://127.0.0.1:9")
@@ -146,4 +152,25 @@ fn when_health_check_fails_then_command_should_exit_unsuccessfully_without_sensi
 
     assert!(output.stdout.is_empty());
     assert_eq!(output.stderr, b"Health check failed\n");
+}
+
+#[test]
+fn when_static_index_is_missing_then_server_should_fail_before_binding() {
+    let directory = assert_fs::TempDir::new().unwrap();
+    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    command
+        .arg("--static-dir")
+        .arg(directory.path())
+        .env("LURKLET_BIND", "127.0.0.1:0")
+        .env("RUST_LOG", "debug")
+        .timeout(Duration::from_secs(5));
+
+    let output = command.assert().failure().get_output().clone();
+
+    assert!(output.stdout.is_empty());
+    assert!(
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .contains("static index.html is missing")
+    );
 }

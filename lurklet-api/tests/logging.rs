@@ -1,8 +1,9 @@
 //! Isolate tracing callsite state from concurrent router tests.
 
+use assert_fs::prelude::*;
 use axum::body::{Body, to_bytes};
 use axum::http::{Method, Request, header};
-use lurklet_api::application;
+use lurklet_api::{StaticHost, application};
 use std::sync::Mutex;
 use tower::ServiceExt;
 use tracing::Level;
@@ -10,6 +11,8 @@ use tracing::instrument::WithSubscriber;
 
 #[tokio::test]
 async fn when_requests_are_logged_then_details_should_follow_the_configured_level() {
+    let directory = assert_fs::TempDir::new().unwrap();
+    directory.child("index.html").write_str("site").unwrap();
     for level in [Level::INFO, Level::DEBUG, Level::TRACE] {
         let subscriber = tracing::Dispatch::new(
             tracing_subscriber::fmt()
@@ -21,11 +24,14 @@ async fn when_requests_are_logged_then_details_should_follow_the_configured_leve
 
         async {
             let (app, _) = application();
+            let app =
+                app.fallback_service(StaticHost::new(directory.path()).await.unwrap().router());
             tracing::info!("Operator event");
             for (method, path) in [
                 (Method::GET, "/api/health?query=private-query"),
                 (Method::GET, "/api/private-path?query=private-query"),
                 (Method::POST, "/api/health?query=private-query"),
+                (Method::GET, "/private-navigation?query=private-query"),
             ] {
                 let request = Request::builder()
                     .method(method)
@@ -58,6 +64,10 @@ async fn when_requests_are_logged_then_details_should_follow_the_configured_leve
         } else {
             assert!(logs.contains("method=GET"), "{logs}");
             assert!(logs.contains("method=POST"), "{logs}");
+            assert!(
+                logs.contains("/private-navigation?query=private-query"),
+                "{logs}"
+            );
             assert!(logs.contains("/api/health?query=private-query"), "{logs}");
             assert!(
                 logs.contains("/api/private-path?query=private-query"),
