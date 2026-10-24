@@ -1,0 +1,19 @@
+{
+  "name": "lurklet",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b && pnpm --filter lurklet-web build",
+    "publish:web": "pnpm run build && pnpm --filter lurklet-web compress",
+    "dev": "pnpm --filter lurklet-web dev",
+    "test": "pnpm --filter lurklet-web test",
+    "lint": "tsc -b && oxlint",
+    "fmt": "oxfmt"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.74.0",
+    "oxlint": "^1.89.0",
+    "typescript": "^7.0.2"
+  },
+  "packageManager": "pnpm@12.15.0+sha512.b3951d6d6ff4a9f13dc7cf56cd28d2b8eb37dbcc9c68e52e1e1191873ea9f82a017287ab50baadc5ccc494f036c67c0e47eb13608c2fa36f47711b61ea128e61"
+}

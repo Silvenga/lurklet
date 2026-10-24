@@ -28,6 +28,6 @@ that `info` and higher log levels can be publicly uploaded.
 
 After relevant code changes:
 
-- Format: `cargo fmt`
-- Lint: `cargo clippy`
-- Test: `cargo test`
+- Format: `cargo fmt` or `pnpm fmt`
+- Lint: `cargo clippy` or `pnpm lint`
+- Test: `cargo test` or `pnpm test`
