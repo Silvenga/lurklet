@@ -1,8 +1,14 @@
 use assert_cmd::Command;
 use assert_cmd::cargo::cargo_bin;
+use axum::Router;
+use axum::http::{HeaderMap, StatusCode, header};
+use axum::routing::get;
 use serde_json::Value;
+use std::future::IntoFuture;
 use std::net::TcpListener;
 use std::time::Duration;
+use tokio::net::TcpListener as AsyncTcpListener;
+use tokio::task;
 
 #[test]
 fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract() {
@@ -86,4 +92,58 @@ fn when_openapi_export_flag_is_used_then_command_should_reject_it() {
             .unwrap()
             .contains("unexpected argument")
     );
+}
+
+#[tokio::test]
+async fn when_health_check_is_requested_then_command_should_probe_directly_and_succeed_silently() {
+    let listener = AsyncTcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let app = Router::new().route(
+        "/api/health",
+        get(move |headers: HeaderMap| async move {
+            assert_eq!(headers[header::HOST], address.to_string());
+            StatusCode::OK
+        }),
+    );
+    let server = tokio::spawn(axum::serve(listener, app).into_future());
+    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    command
+        .arg("health-check")
+        .env("LURKLET_BIND", format!("0.0.0.0:{}", address.port()))
+        .env("RUST_LOG", "trace")
+        .env("HTTP_PROXY", "http://127.0.0.1:9")
+        .env("http_proxy", "http://127.0.0.1:9")
+        .env("HTTPS_PROXY", "http://127.0.0.1:9")
+        .env("https_proxy", "http://127.0.0.1:9")
+        .env("ALL_PROXY", "http://127.0.0.1:9")
+        .env("all_proxy", "http://127.0.0.1:9")
+        .env("NO_PROXY", "")
+        .env("no_proxy", "")
+        .timeout(Duration::from_secs(5));
+
+    let output = task::spawn_blocking(move || command.assert().success().get_output().clone())
+        .await
+        .unwrap();
+    server.abort();
+
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn when_health_check_fails_then_command_should_exit_unsuccessfully_without_sensitive_details() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    drop(listener);
+    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    command
+        .arg("health-check")
+        .env("LURKLET_BIND", address.to_string())
+        .env("RUST_LOG", "trace")
+        .timeout(Duration::from_secs(5));
+
+    let output = command.assert().failure().get_output().clone();
+
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"Health check failed\n");
 }

@@ -1,0 +1,12 @@
+**
+!Cargo.toml
+!Cargo.lock
+!README.md
+!LICENSE
+!.config/insta.yaml
+!lurklet-api/Cargo.toml
+!lurklet-api/src/**
+!lurklet-api/tests/**
+!lurklet-reddit/Cargo.toml
+!lurklet-reddit/src/**
+!lurklet-reddit/tests/**
