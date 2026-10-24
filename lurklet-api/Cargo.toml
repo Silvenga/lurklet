@@ -30,7 +30,7 @@ wreq.workspace = true
 [dev-dependencies]
 assert_cmd.workspace = true
 assert_fs = "1.1.4"
-brotli = "8.0.4"
+brotli = "9.0.0"
 flate2 = "1.1.10"
 insta.workspace = true
 tokio = { workspace = true, features = ["io-util", "sync", "time"] }

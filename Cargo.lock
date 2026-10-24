@@ -1170,7 +1170,7 @@ dependencies = [
  "assert_cmd",
  "assert_fs",
  "axum",
- "brotli 8.0.4",
+ "brotli 9.0.0",
  "clap",
  "flate2",
  "insta",
