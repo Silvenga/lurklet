@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": {
+    "data": {
+      "contractProbe": {
+        "id": "fixture",
+        "message": "Synthetic offline harness response"
+      }
+    }
+  }
+}

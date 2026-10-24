@@ -4,3 +4,24 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "A reusable Reddit communication library"
+repository = "https://github.com/Silvenga/lurklet"
+readme = "../README.md"
+keywords = ["reddit", "client", "async"]
+categories = ["api-bindings", "asynchronous"]
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true
+wreq.workspace = true
+
+[dev-dependencies]
+http.workspace = true
+insta.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tower.workspace = true
+wiremock.workspace = true
