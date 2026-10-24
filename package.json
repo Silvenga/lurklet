@@ -7,6 +7,9 @@
     "build": "tsc -b && pnpm --filter lurklet-web build",
     "publish:web": "pnpm run build && pnpm --filter lurklet-web compress",
     "dev": "pnpm --filter lurklet-web dev",
+    "dev:mock": "pnpm --filter lurklet-web dev --mode mock",
+    "generate:api": "pnpm --filter lurklet-web generate:api",
+    "postinstall": "pnpm generate:api",
     "test": "pnpm --filter lurklet-web test",
     "lint": "tsc -b && oxlint",
     "fmt": "oxfmt"
@@ -14,7 +17,7 @@
   "devDependencies": {
     "oxfmt": "^0.74.0",
     "oxlint": "^1.89.0",
-    "typescript": "^7.0.2"
+    "typescript": "^6.0.3"
   },
   "devEngines": {
     "runtime": {

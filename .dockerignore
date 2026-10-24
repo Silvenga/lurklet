@@ -5,6 +5,7 @@
 !LICENSE
 !.config/insta.yaml
 !lurklet-api/Cargo.toml
+!lurklet-api/openapi-spec.json
 !lurklet-api/src/**
 !lurklet-api/tests/**
 !lurklet-api/static/**
@@ -26,5 +27,6 @@
 !lurklet-web/index.html
 !lurklet-web/tsconfig*.json
 !lurklet-web/vite.config.ts
+!lurklet-web/openapi-ts.config.ts
 !lurklet-web/src/**
 !lurklet-web/scripts/**

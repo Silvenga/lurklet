@@ -22,5 +22,11 @@
     "erasableSyntaxOnly": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["vite.config.ts", "scripts", "../oxlint.config.ts", "../oxfmt.config.ts"]
+  "include": [
+    "vite.config.ts",
+    "openapi-ts.config.ts",
+    "scripts",
+    "../oxlint.config.ts",
+    "../oxfmt.config.ts"
+  ]
 }

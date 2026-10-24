@@ -7,7 +7,13 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN set -xe \
     && pnpm fetch --frozen-lockfile
 
-COPY --parents package.json lurklet-web/package.json ./
+COPY --parents \
+    package.json \
+    lurklet-api/openapi-spec.json \
+    lurklet-web/package.json \
+    lurklet-web/openapi-ts.config.ts \
+    lurklet-web/tsconfig.app.json \
+    ./
 
 RUN set -xe \
     && pnpm install --offline --frozen-lockfile

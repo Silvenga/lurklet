@@ -1,10 +1,15 @@
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import { msw } from "msw/vite";
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
+export default defineConfig(({ command, mode }) => ({
+  plugins: [
+    react(),
+    tailwindcss(),
+    command === "serve" && mode === "mock" && msw({ mode: "worker-only" }),
+  ],
   build: {
     sourcemap: true,
   },
@@ -23,4 +28,4 @@ export default defineConfig({
     setupFiles: ["./src/_tests/setup.ts"],
     include: ["src/**/*.tests.{ts,tsx}", "scripts/**/*.tests.ts"],
   },
-});
+}));
