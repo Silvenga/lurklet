@@ -1,0 +1,30 @@
+[package]
+name = "lurklet-reddit-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Diagnostic CLI for the lurklet Reddit client"
+repository = "https://github.com/Silvenga/lurklet"
+readme = "../README.md"
+keywords = ["reddit", "cli", "diagnostics"]
+categories = ["command-line-utilities"]
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+clap.workspace = true
+lurklet-reddit.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile = "3.27.0"
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+wreq-util = { version = "0.2.0", features = ["emulation-serde"] }
+
+[dev-dependencies]
+assert_cmd.workspace = true
+assert_fs = "1.1.4"

@@ -1,4 +1,4 @@
-use crate::{MobileBackend, RedditBackend, RedditClientBuilder};
+use crate::{AnonymousSession, Error, MobileBackend, RedditBackend, RedditClientBuilder};
 use std::sync::Arc;
 
 /// A Reddit client backed by a replaceable operation implementation.
@@ -14,6 +14,11 @@ impl RedditClient {
 }
 
 impl<B: RedditBackend> RedditClient<B> {
+    /// Ensures an anonymous session is available without logging in.
+    pub async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
+        self.backend.bootstrap().await
+    }
+
     /// Creates a client from a custom backend without initializing HTTP transport.
     pub fn from_backend(backend: B) -> Self {
         Self {
@@ -41,7 +46,11 @@ mod tests {
 
     struct FakeBackend;
 
-    impl RedditBackend for FakeBackend {}
+    impl RedditBackend for FakeBackend {
+        async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
+            Err(Error::SessionChanged)
+        }
+    }
 
     #[test]
     fn when_a_custom_backend_is_provided_then_construction_should_use_it() {

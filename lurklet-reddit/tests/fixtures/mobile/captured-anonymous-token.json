@@ -1,0 +1,24 @@
+{
+  "provenance": {
+    "source": "live curl response",
+    "captured_on": "2026-10-24",
+    "sanitized": [
+      "access_token replaced with a synthetic, non-verifiable token",
+      "expiry_ts normalized to a fixed test clock",
+      "LOID and session headers replaced with fixture values"
+    ]
+  },
+  "status": 200,
+  "headers": {
+    "content-type": "application/json",
+    "x-reddit-loid": "opaque-fixture-loid",
+    "x-reddit-session": "must-not-be-replayed"
+  },
+  "body": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJsb2lkIn0.c3ludGhldGlj",
+    "expires_in": 86399,
+    "expiry_ts": 1700086399,
+    "scope": ["*", "email", "pii", "adsread", "adsedit"],
+    "token_type": "bearer"
+  }
+}

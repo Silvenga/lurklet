@@ -1,5 +1,5 @@
 [workspace]
-members = ["lurklet-api", "lurklet-reddit"]
+members = ["lurklet-api", "lurklet-reddit", "lurklet-reddit-cli"]
 resolver = "3"
 
 [workspace.package]

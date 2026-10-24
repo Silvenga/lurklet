@@ -1,0 +1,78 @@
+use super::support::{TOKEN, cached_command, command, state, write_state};
+use assert_fs::TempDir;
+use serde_json::{Value, json};
+use std::fs;
+
+#[test]
+fn when_no_command_is_supplied_then_the_cli_should_show_help_without_side_effects() {
+    let directory = TempDir::new().unwrap();
+
+    let output = command().current_dir(directory.path()).output().unwrap();
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("bootstrap"));
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn when_a_cached_session_exists_then_the_cli_should_emit_redacted_json_without_network_access() {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("session.json");
+    let expected = state();
+    write_state(&path, &expected);
+
+    let output = cached_command(&path).output().unwrap();
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let restored: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        result,
+        json!({"ok": true, "captures_written": 0, "result": {"access_token": "[REDACTED]", "expires_at_ms": 10000}})
+    );
+    assert_eq!(restored, expected);
+    assert!(String::from_utf8_lossy(&output.stderr).contains("TRACE"));
+    for secret in [
+        TOKEN,
+        "private-fixture-loid",
+        "12345678-1234-4234-8234-123456789abc",
+    ] {
+        assert!(!String::from_utf8_lossy(&output.stdout).contains(secret));
+        assert!(!String::from_utf8_lossy(&output.stderr).contains(secret));
+    }
+}
+
+#[test]
+fn when_secret_output_is_enabled_then_only_stdout_should_contain_the_token() {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("session.json");
+    write_state(&path, &state());
+
+    let output = cached_command(&path)
+        .arg("--show-secrets")
+        .output()
+        .unwrap();
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+
+    assert!(output.status.success());
+    assert_eq!(result["result"]["access_token"], TOKEN);
+    assert!(!String::from_utf8_lossy(&output.stderr).contains(TOKEN));
+}
+
+#[test]
+fn when_logging_configuration_is_invalid_then_the_cli_should_emit_a_structured_error() {
+    let output = command()
+        .env("RUST_LOG", "invalid[syntax")
+        .arg("bootstrap")
+        .output()
+        .unwrap();
+
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(result["error"]["kind"], "logging");
+}

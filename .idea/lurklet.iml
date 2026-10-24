@@ -6,6 +6,8 @@
       <sourceFolder url="file://$MODULE_DIR$/lurklet-api/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/lurklet-reddit/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/lurklet-reddit/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/lurklet-reddit-cli/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/lurklet-reddit-cli/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

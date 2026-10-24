@@ -1,15 +1,114 @@
-use crate::RedditBackend;
+use super::Config;
+use super::token::validate_subject;
+use crate::{
+    AnonymousSession, Clock, Error, InMemoryStore, Installation, RedditBackend, ResponseObserver,
+    StateSnapshot, StateStore, Storage,
+};
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
+use uuid::Uuid;
 
 /// Backend for Reddit's native mobile API.
-pub struct MobileBackend {
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "Mobile API operations are not implemented yet.")
-    )]
+pub struct MobileBackend<S: StateStore = InMemoryStore> {
     pub(crate) http: wreq::Client,
+    pub(crate) config: Config,
+    pub(crate) storage: Storage<S>,
+    pub(crate) clock: Arc<dyn Clock>,
+    pub(crate) observer: Option<Arc<dyn ResponseObserver>>,
 }
 
-impl RedditBackend for MobileBackend {}
+impl<S: StateStore> MobileBackend<S> {
+    fn cached_session(
+        &self,
+        snapshot: &StateSnapshot,
+        now: u64,
+    ) -> Result<Option<AnonymousSession>, Error> {
+        match &snapshot.state.installation {
+            Some(installation) if installation.id.get_version_num() != 4 => {
+                return Err(Error::InvalidState {
+                    field: "installation_id",
+                });
+            }
+            None if snapshot.state.authentication.session.is_some()
+                || snapshot.state.authentication.loid.is_some() =>
+            {
+                return Err(Error::InvalidState {
+                    field: "installation",
+                });
+            }
+            Some(_) | None => {}
+        }
+        if let Some(session) = &snapshot.state.authentication.session
+            && session.expires_at_ms > now
+        {
+            validate_subject(session.access_token.expose_secret()).map_err(|_| {
+                tracing::debug!("Stored token failed anonymous-subject validation");
+                Error::InvalidState {
+                    field: "access_token",
+                }
+            })?;
+            return Ok(Some(session.clone()));
+        }
+        if snapshot.state.authentication.session.is_some() {
+            tracing::trace!("Stored anonymous session has expired");
+        }
+        Ok(None)
+    }
+}
+
+impl<S: StateStore> RedditBackend for MobileBackend<S> {
+    async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
+        let observed = self.storage.completed.load(Ordering::Acquire);
+        let snapshot = self.storage.store().load().await?;
+        if let Some(session) = self.cached_session(&snapshot, self.clock.now_ms()?)? {
+            tracing::trace!("Reusing cached anonymous session");
+            return Ok(session);
+        }
+
+        tracing::trace!("No valid cached session; entering acquisition coordination");
+        let mut acquisition = self.storage.acquisition.lock().await;
+        let mut snapshot = self.storage.store().load().await?;
+        if let Some(session) = self.cached_session(&snapshot, self.clock.now_ms()?)? {
+            tracing::trace!("Reusing session published by another caller");
+            return Ok(session);
+        }
+        if self.storage.completed.load(Ordering::Acquire) != observed
+            && let Some((revision, error)) = acquisition.as_ref()
+            && *revision == snapshot.revision
+        {
+            tracing::trace!("Sharing the failed acquisition result with a waiting caller");
+            return Err(error.clone());
+        }
+
+        if snapshot.state.installation.is_none() {
+            tracing::debug!("Creating installation identity in caller-provided storage");
+            let mut state = snapshot.state.clone();
+            state.installation = Some(Installation {
+                id: Uuid::new_v4(),
+                created_at_ms: self.clock.now_ms()?,
+            });
+            snapshot = self
+                .storage
+                .store()
+                .compare_exchange(snapshot.revision, state)
+                .await?
+                .ok_or(Error::SessionChanged)?;
+        }
+
+        let revision = snapshot.revision;
+        let result = self.acquire(snapshot).await;
+        if let Err(error) = &result {
+            tracing::debug!(error = %error, "Anonymous session acquisition failed; authentication state was not replaced");
+        }
+        *acquisition = result
+            .as_ref()
+            .err()
+            .cloned()
+            .map(|error| (revision, error));
+        self.storage.completed.fetch_add(1, Ordering::Release);
+        result
+    }
+}
 
 #[cfg(test)]
 mod tests {
