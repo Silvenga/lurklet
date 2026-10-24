@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use lurklet_api::{StaticHost, application};
+use lurklet_api::{RateLimit, RateLimitOptions, StaticHost, application};
 use std::io::{self, Write};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -21,6 +21,8 @@ struct Arguments {
     /// Directory containing the built website and its precompressed files.
     #[arg(long, env = "LURKLET_STATIC_DIR", default_value = "lurklet-api/static")]
     static_dir: PathBuf,
+    #[command(flatten)]
+    rate_limit: RateLimitOptions,
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -61,7 +63,7 @@ async fn main() -> ExitCode {
     let result: anyhow::Result<()> = async {
         match arguments.command {
             Some(Command::ExportOpenApi) => {
-                let (_, specification) = application();
+                let (_, specification) = application(&RateLimit::new(arguments.rate_limit));
                 let mut output = io::stdout().lock();
                 serde_json::to_writer_pretty(&mut output, &specification)
                     .context("failed to serialize the OpenAPI document")?;
@@ -70,7 +72,8 @@ async fn main() -> ExitCode {
             }
             Some(Command::HealthCheck) => health_check::check(arguments.bind).await,
             None => {
-                let (app, _) = application();
+                let rate_limit = RateLimit::new(arguments.rate_limit);
+                let (app, _) = application(&rate_limit);
                 let static_host = StaticHost::new(&arguments.static_dir)
                     .await
                     .context("failed to initialize static hosting")?;
@@ -79,7 +82,7 @@ async fn main() -> ExitCode {
                     .await
                     .context("failed to bind the API listener")?;
 
-                server::serve(listener, app).await
+                server::serve(listener, app, rate_limit).await
             }
         }
     }
@@ -96,5 +99,29 @@ async fn main() -> ExitCode {
             }
             ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Arguments;
+    use clap::Parser;
+    use lurklet_api::{ClientIpSource, RateLimitOptions};
+
+    #[test]
+    fn when_defaults_are_used_then_cli_and_library_quotas_should_match() {
+        let arguments = Arguments::try_parse_from(["lurklet-api"]).unwrap();
+        let defaults = RateLimitOptions::default();
+
+        assert_eq!(arguments.rate_limit.rate_limit_rps, defaults.rate_limit_rps);
+        assert_eq!(
+            arguments.rate_limit.rate_limit_burst,
+            defaults.rate_limit_burst
+        );
+        assert!(matches!(
+            arguments.rate_limit.client_ip_source,
+            ClientIpSource::Peer
+        ));
+        assert!(arguments.rate_limit.trusted_proxies.is_empty());
     }
 }

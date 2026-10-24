@@ -49,7 +49,29 @@ mod tests {
     use axum::Router;
     use axum::body::{Body, to_bytes};
     use axum::http::{Method, Request, StatusCode, header};
+    use serde_json::{Value, json};
     use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn when_health_is_requested_then_response_should_report_ok() {
+        let app: Router = router().into();
+        let request = Request::builder()
+            .uri("/health")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+        let status = response.status();
+        let headers = response.headers().clone();
+        let body = to_bytes(response.into_body(), 4096).await.unwrap();
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(headers[header::CONTENT_TYPE], "application/json");
+        assert_eq!(
+            serde_json::from_slice::<Value>(&body).unwrap(),
+            json!({"health": "ok"})
+        );
+    }
 
     #[tokio::test]
     async fn when_health_is_requested_with_head_then_response_should_have_no_body() {

@@ -1,9 +1,18 @@
 use anyhow::Context;
 use axum::Router;
+use lurklet_api::RateLimit;
+use std::future::IntoFuture;
+use std::net::SocketAddr;
+use std::time::Duration;
 use tokio::net::TcpListener;
+use tokio::time::{MissedTickBehavior, interval};
 
 /// Serves HTTP until shutdown is requested, then drains in-flight requests.
-pub async fn serve(listener: TcpListener, app: Router) -> anyhow::Result<()> {
+pub async fn serve(
+    listener: TcpListener,
+    app: Router,
+    rate_limit: RateLimit,
+) -> anyhow::Result<()> {
     #[cfg(unix)]
     let shutdown = {
         use tokio::signal::unix::{SignalKind, signal};
@@ -34,10 +43,24 @@ pub async fn serve(listener: TcpListener, app: Router) -> anyhow::Result<()> {
         .context("failed to read the API listener address")?;
     tracing::info!("API server started");
     tracing::debug!(%address, "API listener bound");
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown)
-        .await
-        .context("API server failed")?;
+    let server = axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown)
+    .into_future();
+    tokio::pin!(server);
+    let mut cleanup = interval(Duration::from_secs(60));
+    cleanup.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    loop {
+        tokio::select! {
+            result = &mut server => {
+                result.context("API server failed")?;
+                break;
+            }
+            _ = cleanup.tick() => rate_limit.retain_recent(),
+        }
+    }
     tracing::info!("API server stopped");
 
     Ok(())
@@ -48,6 +71,7 @@ mod tests {
     use super::serve;
     use axum::Router;
     use axum::routing::get;
+    use lurklet_api::RateLimit;
     use std::process::{self, Command};
     use std::sync::Arc;
     use std::time::Duration;
@@ -78,7 +102,7 @@ mod tests {
         );
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
-        let server = tokio::spawn(serve(listener, app));
+        let server = tokio::spawn(serve(listener, app, RateLimit::default()));
         let mut connection = TcpStream::connect(address).await.unwrap();
         connection
             .write_all(b"GET /slow HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")

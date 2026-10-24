@@ -19,6 +19,28 @@ pub async fn api_cache_policy(request: Request, next: Next) -> Response {
             .or_insert(HeaderValue::from_static("no-store"));
     }
 
+    let uncacheable = response
+        .headers()
+        .get_all(header::CACHE_CONTROL)
+        .iter()
+        .any(|value| {
+            value.to_str().is_ok_and(|value| {
+                value
+                    .split(',')
+                    .any(|directive| directive.trim().eq_ignore_ascii_case("no-store"))
+            })
+        });
+    if !uncacheable {
+        // A shared cache must not replay one client's quota snapshot to another.
+        for name in [
+            "x-ratelimit-limit",
+            "x-ratelimit-remaining",
+            "x-ratelimit-after",
+        ] {
+            response.headers_mut().remove(name);
+        }
+    }
+
     response
 }
 
@@ -31,6 +53,54 @@ mod tests {
     use axum::middleware;
     use axum::routing::get;
     use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn when_a_response_can_be_cached_then_quota_headers_should_not_be_replayed() {
+        for (policy, retain_quota) in [
+            ("public, max-age=60", false),
+            ("private, max-age=60", false),
+            ("no-cache", false),
+            ("no-store", true),
+            ("PUBLIC, NO-STORE", true),
+        ] {
+            let app = Router::new()
+                .route(
+                    "/cached",
+                    get(move || async move {
+                        (
+                            [
+                                ("cache-control", policy),
+                                ("x-ratelimit-limit", "10"),
+                                ("x-ratelimit-remaining", "9"),
+                                ("x-ratelimit-after", "1"),
+                            ],
+                            "cached",
+                        )
+                    }),
+                )
+                .layer(middleware::from_fn(api_cache_policy));
+            let request = Request::builder()
+                .uri("/cached")
+                .body(Body::empty())
+                .unwrap();
+
+            let response = app.oneshot(request).await.unwrap();
+
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()[header::CACHE_CONTROL], policy);
+            for name in [
+                "x-ratelimit-limit",
+                "x-ratelimit-remaining",
+                "x-ratelimit-after",
+            ] {
+                assert_eq!(
+                    response.headers().contains_key(name),
+                    retain_quota,
+                    "{policy}: {name}"
+                );
+            }
+        }
+    }
 
     #[tokio::test]
     async fn when_resource_sets_cache_policy_then_middleware_should_preserve_it() {

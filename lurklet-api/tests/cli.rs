@@ -9,6 +9,7 @@ use std::net::TcpListener;
 use std::time::Duration;
 use tokio::net::TcpListener as AsyncTcpListener;
 use tokio::task;
+use tokio::time::{sleep, timeout};
 
 #[test]
 fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract() {
@@ -134,6 +135,158 @@ async fn when_health_check_is_requested_then_command_should_probe_directly_and_s
 
     assert!(output.stdout.is_empty());
     assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn when_rate_limit_configuration_is_invalid_then_command_should_reject_it() {
+    for (option, value) in [
+        ("--rate-limit-rps", "0"),
+        ("--rate-limit-burst", "0"),
+        ("--client-ip-source", "automatic"),
+        ("--trusted-proxies", "not-a-cidr"),
+    ] {
+        let mut command = Command::new(cargo_bin!("lurklet-api"));
+        command
+            .args([option, value, "export-openapi"])
+            .timeout(Duration::from_secs(5));
+
+        let output = command.assert().failure().get_output().clone();
+
+        assert!(output.stdout.is_empty());
+        assert!(
+            String::from_utf8(output.stderr)
+                .unwrap()
+                .contains("invalid value")
+        );
+    }
+}
+
+#[tokio::test]
+async fn when_the_server_is_started_then_socket_and_forwarded_ips_should_enforce_the_configured_policy()
+ {
+    use std::io::Read;
+    use std::process::{Child, Command as ProcessCommand, Stdio};
+
+    struct ServerProcess(Child);
+
+    impl Drop for ServerProcess {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
+    let client = wreq::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .unwrap();
+    for (source, trusted, separate_clients) in [
+        ("peer", "", false),
+        ("x-real-ip", "", true),
+        ("x-real-ip", "127.0.0.1/32", true),
+        ("x-real-ip", "192.0.2.0/24", false),
+        ("x-forwarded-for", "", true),
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        drop(listener);
+        let mut command = ProcessCommand::new(cargo_bin!("lurklet-api"));
+        command
+            .args([
+                "--bind",
+                &address.to_string(),
+                "--rate-limit-burst",
+                "1",
+                "--rate-limit-rps",
+                "1",
+                "--client-ip-source",
+                source,
+            ])
+            .env_remove("LURKLET_TRUSTED_PROXIES")
+            .env(
+                "LURKLET_STATIC_DIR",
+                concat!(env!("CARGO_MANIFEST_DIR"), "/static"),
+            )
+            .env_remove("RUST_LOG")
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped());
+        if !trusted.is_empty() {
+            command.env("LURKLET_TRUSTED_PROXIES", trusted);
+        }
+        let mut server = ServerProcess(command.spawn().unwrap());
+        let root = format!("http://{address}");
+        timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(status) = server.0.try_wait().unwrap() {
+                    let mut stderr = String::new();
+                    server
+                        .0
+                        .stderr
+                        .as_mut()
+                        .unwrap()
+                        .read_to_string(&mut stderr)
+                        .unwrap();
+                    panic!("server exited before becoming ready: {status}: {stderr}");
+                }
+                if let Ok(response) = client.get(format!("{root}/api/health")).send().await {
+                    assert_eq!(response.status(), StatusCode::OK);
+                    break;
+                }
+                sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+
+        let first = client
+            .get(format!("{root}/api/one"))
+            .header("connection", "close")
+            .header("x-real-ip", "198.51.100.1")
+            .header("x-forwarded-for", "203.0.113.1, 198.51.100.1")
+            .send()
+            .await
+            .unwrap();
+        let same = client
+            .get(format!("{root}/api/two"))
+            .header("connection", "close")
+            .header("x-real-ip", "198.51.100.1")
+            .header("x-forwarded-for", "203.0.113.2, 198.51.100.1")
+            .send()
+            .await
+            .unwrap();
+        let other = client
+            .get(format!("{root}/api/three"))
+            .header("connection", "close")
+            .header("x-real-ip", "198.51.100.2")
+            .header("x-forwarded-for", "203.0.113.3, 198.51.100.2")
+            .send()
+            .await
+            .unwrap();
+
+        assert_eq!(first.status(), StatusCode::NOT_FOUND, "{source}, {trusted}");
+        assert_eq!(
+            same.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "{source}, {trusted}"
+        );
+        assert_eq!(same.headers()[header::RETRY_AFTER], "1");
+        assert_eq!(same.headers()[header::CACHE_CONTROL], "no-store");
+        assert_eq!(
+            other.status(),
+            if separate_clients {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::TOO_MANY_REQUESTS
+            },
+            "{source}, {trusted}"
+        );
+        for path in ["/api/health", "/robots.txt", "/"] {
+            let response = client.get(format!("{root}{path}")).send().await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{path}");
+            assert!(!response.headers().contains_key("x-ratelimit-limit"));
+        }
+    }
 }
 
 #[test]

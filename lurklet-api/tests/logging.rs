@@ -2,8 +2,10 @@
 
 use assert_fs::prelude::*;
 use axum::body::{Body, to_bytes};
+use axum::extract::ConnectInfo;
 use axum::http::{Method, Request, header};
-use lurklet_api::{StaticHost, application};
+use lurklet_api::{RateLimit, RateLimitOptions, StaticHost, application};
+use std::net::SocketAddr;
 use std::sync::Mutex;
 use tower::ServiceExt;
 use tracing::Level;
@@ -23,12 +25,17 @@ async fn when_requests_are_logged_then_details_should_follow_the_configured_leve
         );
 
         async {
-            let (app, _) = application();
+            let limiter = RateLimit::new(RateLimitOptions {
+                rate_limit_burst: 1.try_into().unwrap(),
+                ..RateLimitOptions::default()
+            });
+            let (app, _) = application(&limiter);
             let app =
                 app.fallback_service(StaticHost::new(directory.path()).await.unwrap().router());
             tracing::info!("Operator event");
             for (method, path) in [
                 (Method::GET, "/api/health?query=private-query"),
+                (Method::GET, "/api/private-path?query=private-query"),
                 (Method::GET, "/api/private-path?query=private-query"),
                 (Method::POST, "/api/health?query=private-query"),
                 (Method::GET, "/private-navigation?query=private-query"),
@@ -38,6 +45,10 @@ async fn when_requests_are_logged_then_details_should_follow_the_configured_leve
                     .uri(path)
                     .header(header::AUTHORIZATION, "Bearer private-token")
                     .header(header::COOKIE, "session=private-cookie")
+                    .header("x-forwarded-for", "198.51.100.123")
+                    .extension(ConnectInfo(
+                        "192.0.2.123:1234".parse::<SocketAddr>().unwrap(),
+                    ))
                     .body(Body::from("private-body"))
                     .unwrap();
                 let response = app.clone().oneshot(request).await.unwrap();
@@ -61,6 +72,8 @@ async fn when_requests_are_logged_then_details_should_follow_the_configured_leve
         if level == Level::INFO {
             assert!(!logs.contains("private-"), "{logs}");
             assert!(!logs.contains("HTTP request completed"), "{logs}");
+            assert!(!logs.contains("192.0.2.123"), "{logs}");
+            assert!(!logs.contains("198.51.100.123"), "{logs}");
         } else {
             assert!(logs.contains("method=GET"), "{logs}");
             assert!(logs.contains("method=POST"), "{logs}");
@@ -73,7 +86,7 @@ async fn when_requests_are_logged_then_details_should_follow_the_configured_leve
                 logs.contains("/api/private-path?query=private-query"),
                 "{logs}"
             );
-            for status in [200, 404, 405] {
+            for status in [200, 404, 405, 429] {
                 assert!(logs.contains(&format!("status={status}")), "{logs}");
             }
             assert!(logs.contains("duration_ms="), "{logs}");

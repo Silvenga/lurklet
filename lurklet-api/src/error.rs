@@ -11,6 +11,10 @@ pub enum ApiError {
     NotFound,
     #[error("method not allowed")]
     MethodNotAllowed,
+    #[error("too many requests")]
+    TooManyRequests,
+    #[error("internal server error")]
+    InternalServerError,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -26,6 +30,10 @@ impl IntoResponse for ApiError {
         let (status, title) = match self {
             Self::NotFound => (StatusCode::NOT_FOUND, "Not Found"),
             Self::MethodNotAllowed => (StatusCode::METHOD_NOT_ALLOWED, "Method Not Allowed"),
+            Self::TooManyRequests => (StatusCode::TOO_MANY_REQUESTS, "Too Many Requests"),
+            Self::InternalServerError => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
+            }
         };
 
         (

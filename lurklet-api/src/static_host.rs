@@ -96,7 +96,6 @@ fn accepts_html(headers: &HeaderMap) -> bool {
 #[cfg(test)]
 mod tests {
     use super::StaticHost;
-    use crate::application;
     use assert_fs::TempDir;
     use assert_fs::prelude::*;
     use axum::Router;
@@ -148,8 +147,7 @@ mod tests {
     }
 
     async fn app(directory: &TempDir) -> Router {
-        let (app, _) = application();
-        app.fallback_service(StaticHost::new(directory.path()).await.unwrap().router())
+        StaticHost::new(directory.path()).await.unwrap().router()
     }
 
     #[tokio::test]
