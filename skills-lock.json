@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "conventions-code-rust": {
+      "source": "Silvenga/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/conventions-code-rust/SKILL.md",
+      "computedHash": "f874f28eba494a5e9aca2305c40272c85cbfb1b1c46ffd520e9beeca397c167a"
+    }
+  }
+}

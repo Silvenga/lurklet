@@ -1,0 +1,40 @@
+[workspace]
+members = ["lurklet-api", "lurklet-reddit"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-only"
+
+[workspace.lints.clippy]
+allow_attributes = "warn"
+allow_attributes_without_reason = "warn"
+create_dir = "warn"
+else_if_without_else = "warn"
+filetype_is_file = "warn"
+infinite_loop = "warn"
+undocumented_unsafe_blocks = "warn"
+unnecessary_safety_comment = "warn"
+unnecessary_safety_doc = "warn"
+
+# Pedantic
+empty_enum_variants_with_brackets = "warn"
+empty_structs_with_brackets = "warn"
+get_unwrap = "warn"
+iter_over_hash_type = "warn"
+print_stderr = "warn"
+print_stdout = "warn"
+redundant_test_prefix = "warn"
+redundant_type_annotations = "warn"
+str_to_string = "warn"
+todo = "warn"
+unneeded_field_pattern = "warn"
+wildcard_dependencies = "warn"
+redundant_feature_names = "warn"
+negative_feature_names = "warn"
+cargo_common_metadata = "warn"
+absolute_paths = "warn"
+
+[workspace.dependencies]
+lurklet-reddit = { path = "lurklet-reddit", version = "0.1.0" }

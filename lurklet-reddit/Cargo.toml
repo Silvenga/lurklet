@@ -1,0 +1,6 @@
+[package]
+name = "lurklet-reddit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "A reusable Reddit communication library"

@@ -1,0 +1,10 @@
+[package]
+name = "lurklet-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The lurklet API server"
+publish = false
+
+[dependencies]
+lurklet-reddit.workspace = true
