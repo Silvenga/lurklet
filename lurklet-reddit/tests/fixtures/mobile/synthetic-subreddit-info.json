@@ -1,0 +1,43 @@
+{
+  "data": {
+    "subredditInfoByName": {
+      "__typename": "Subreddit",
+      "id": "t5_fixture",
+      "name": "rust",
+      "prefixedName": "r/rust",
+      "title": "Example community",
+      "path": "/r/rust/",
+      "createdAt": "2010-12-02T21:27:18.336000+0000",
+      "type": "PUBLIC",
+      "publicDescriptionText": "A short plain-text description.",
+      "description": {
+        "markdown": "## About\n\nRead the [guide](https://example.invalid/guide).",
+        "richtext": "{\"document\": []}"
+      },
+      "subscribersCount": 12345,
+      "communityStats": {
+        "weeklyActiveUsersCount": 234,
+        "weeklyContributionsCount": 56
+      },
+      "styles": {
+        "icon": "https://styles.redditmedia.com/fixture/icon.png?sig=a%2Bb&v=1",
+        "legacyIcon": { "url": "https://styles.redditmedia.com/fixture/legacy-icon.png?sig=legacy" },
+        "bannerBackgroundImage": "https://styles.redditmedia.com/fixture/banner.png?s=banner",
+        "mobileBannerImage": "https://styles.redditmedia.com/fixture/mobile.png?s=mobile",
+        "legacyBannerBackgroundImage": "https://styles.redditmedia.com/fixture/legacy.png?s=legacy",
+        "primaryColor": "#123456",
+        "legacyPrimaryColor": "#654321"
+      },
+      "isNsfw": false,
+      "isPostingRestricted": false,
+      "isQuarantined": false,
+      "quarantineMessage": { "markdown": "A **quarantine** notice.", "richtext": "{}" },
+      "interstitialWarningMessage": { "markdown": "An interstitial warning.", "richtext": "{}" },
+      "isSubscribed": false,
+      "isFavorite": false,
+      "modPermissions": null,
+      "wiki": { "indexPage": { "status": "PAGE_NOT_FOUND" } },
+      "welcomePage": { "__typename": "SubredditWelcomePage", "isEnabled": false, "isEnabledOnJoin": false }
+    }
+  }
+}

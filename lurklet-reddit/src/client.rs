@@ -1,7 +1,7 @@
 use crate::{
     AnonymousSession, CommentForest, CommentSort, CommentThread, Error, GraphQlResponse,
     MobileBackend, Post, RedditBackend, RedditClientBuilder, RedditId, RequestAllowlist,
-    StateStore, SubredditPage, SubredditSort,
+    StateStore, Subreddit, SubredditPage, SubredditSort,
 };
 use std::sync::Arc;
 
@@ -26,6 +26,12 @@ impl<S: StateStore> RedditClient<MobileBackend<S>> {
 }
 
 impl<B: RedditBackend> RedditClient<B> {
+    /// Reads a bare name's community metadata without fetching its feed or assets.
+    /// Unavailable-community explanations are results; a null resource is Error::Unavailable.
+    pub async fn get_subreddit(&self, name: &str) -> Result<Subreddit, Error> {
+        self.backend.get_subreddit(name).await
+    }
+
     /// Reads comments for a post ID. A cursor replaces its selected placeholder, not the whole forest.
     pub async fn get_post_comments(
         &self,
@@ -97,6 +103,11 @@ mod tests {
     struct FakeBackend;
 
     impl RedditBackend for FakeBackend {
+        async fn get_subreddit(&self, name: &str) -> Result<Subreddit, Error> {
+            assert_eq!(name, "Rust");
+            Err(Error::Unavailable)
+        }
+
         async fn get_post_comments(
             &self,
             post_id: &RedditId,
@@ -152,6 +163,16 @@ mod tests {
             assert_eq!(id, &"18t5968".into());
             Err(Error::Unavailable)
         }
+    }
+
+    #[tokio::test]
+    async fn when_subreddit_metadata_is_requested_then_the_client_should_forward_the_name_unchanged()
+     {
+        let client = RedditClient::from_backend(FakeBackend);
+
+        let result = client.get_subreddit("Rust").await;
+
+        assert!(matches!(result, Err(Error::Unavailable)));
     }
 
     #[tokio::test]

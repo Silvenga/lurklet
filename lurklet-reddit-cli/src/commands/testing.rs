@@ -1,12 +1,13 @@
 use lurklet_reddit::{
     AnonymousSession, CommentForest, CommentSort, CommentThread, Error, Post, RedditBackend,
-    RedditId, SubredditPage, SubredditSort,
+    RedditId, Subreddit, SubredditPage, SubredditSort,
 };
 
 #[derive(Default)]
 pub struct FakeBackend {
     pub session: Option<AnonymousSession>,
     pub post: Option<(RedditId, Result<Post, Error>)>,
+    pub subreddit: Option<(String, Result<Subreddit, Error>)>,
     pub listing: Option<ListingCall>,
     pub comments: Option<CommentsCall>,
     pub thread: Option<ThreadCall>,
@@ -33,6 +34,15 @@ pub struct ListingCall {
 }
 
 impl RedditBackend for FakeBackend {
+    async fn get_subreddit(&self, name: &str) -> Result<Subreddit, Error> {
+        let (expected, result) = self
+            .subreddit
+            .as_ref()
+            .expect("unexpected subreddit lookup");
+        assert_eq!(name, expected);
+        result.clone()
+    }
+
     async fn get_post_comments(
         &self,
         post_id: &RedditId,

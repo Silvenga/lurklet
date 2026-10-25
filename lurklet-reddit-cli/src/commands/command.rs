@@ -1,6 +1,6 @@
 use crate::commands::{
     CommandOutput, GetCommentThread, GetPostComments, ListSubredditPosts, bootstrap, get_post,
-    get_request_allowlist,
+    get_request_allowlist, get_subreddit,
 };
 use clap::Subcommand;
 use lurklet_reddit::{Error, MobileBackend, RedditClient, RedditId, StateStore};
@@ -13,6 +13,8 @@ pub enum Command {
     GetRequestAllowlist,
     /// Retrieve a post ID (bare or fullname) as Markdown and attachments. May make a live request.
     GetPost { id: RedditId },
+    /// Read a bare community name's metadata or unavailability explanation. May make a live request.
+    GetSubreddit { name: String },
     /// Read a post's comments or expand one ordinary placeholder. May make a live request.
     GetPostComments(GetPostComments),
     /// Open a comment thread with ancestor context. Further expansion is disabled. May make a live request.
@@ -34,6 +36,7 @@ impl Command {
             }),
             Self::GetRequestAllowlist => get_request_allowlist::execute(client, show_secrets).await,
             Self::GetPost { id } => get_post::execute(client, id).await,
+            Self::GetSubreddit { name } => get_subreddit::execute(client, name).await,
             Self::GetPostComments(arguments) => arguments.execute(client).await,
             Self::GetCommentThread(arguments) => arguments.execute(client).await,
             Self::ListSubredditPosts(arguments) => arguments.execute(client).await,

@@ -4,6 +4,7 @@ mod command_output;
 mod comments;
 mod get_post;
 mod get_request_allowlist;
+mod get_subreddit;
 mod list_subreddit_posts;
 #[cfg(test)]
 mod testing;

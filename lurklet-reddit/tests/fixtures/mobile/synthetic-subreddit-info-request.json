@@ -1,0 +1,14 @@
+{
+  "operationName": "SubredditInfoByName",
+  "variables": {
+    "subredditName": "rust",
+    "includeRecapFields": false,
+    "includeDevvitData": false
+  },
+  "extensions": {
+    "persistedQuery": {
+      "version": 1,
+      "sha256Hash": "8c1815b07b762aee3c086cc84306f14b3907018e9ee152046c8e4d08ad4c7b88"
+    }
+  }
+}

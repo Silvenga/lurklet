@@ -132,6 +132,64 @@ fn when_allowlist_header_construction_fails_then_the_cli_should_return_a_structu
 }
 
 #[test]
+fn when_subreddit_arguments_request_unsupported_modes_then_the_cli_should_reject_them_without_side_effects()
+ {
+    let directory = TempDir::new().unwrap();
+    for arguments in [
+        vec!["get-subreddit"],
+        vec!["get-subreddit", "rust", "space"],
+        vec!["get-subreddit", "rust", "--opt-in"],
+        vec!["get-subreddit", "rust", "--cursor", "opaque"],
+    ] {
+        let output = command()
+            .current_dir(directory.path())
+            .args(arguments)
+            .output()
+            .unwrap();
+
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
+    }
+}
+
+#[test]
+fn when_subreddit_transport_fails_then_the_cli_should_preserve_state_and_return_a_redacted_error() {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("session.json");
+    let expected = state();
+    write_state(&path, &expected);
+
+    let output = command()
+        .arg("--state-file")
+        .arg(&path)
+        .args([
+            "--clock-ms",
+            "1000",
+            "--graphql-endpoint",
+            "https://127.0.0.1:1/",
+            "--auth-endpoint",
+            "https://127.0.0.1:1/token",
+            "get-subreddit",
+            "rust",
+        ])
+        .output()
+        .unwrap();
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(result["ok"], false);
+    assert_eq!(result["error"]["kind"], "transport");
+    assert_eq!(result["captures_written"], 0);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&fs::read(path).unwrap()).unwrap(),
+        expected
+    );
+    assert!(!String::from_utf8_lossy(&output.stdout).contains(TOKEN));
+    assert!(!String::from_utf8_lossy(&output.stderr).contains(TOKEN));
+}
+
+#[test]
 fn when_post_arguments_are_missing_or_batched_then_the_cli_should_reject_them_without_side_effects()
 {
     let directory = TempDir::new().unwrap();

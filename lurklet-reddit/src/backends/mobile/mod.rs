@@ -8,6 +8,7 @@ mod posts;
 mod requests;
 mod sessions;
 mod subreddit_feeds;
+mod subreddits;
 #[cfg(test)]
 mod testing;
 

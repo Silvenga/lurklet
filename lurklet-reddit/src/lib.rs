@@ -15,8 +15,9 @@ mod storage;
 pub use backends::{
     Comment, CommentForest, CommentItem, CommentSort, CommentState, CommentThread,
     GraphQlDecodeError, GraphQlErrorKind, GraphQlOutcome, GraphQlResponse, ListedPost,
-    MobileBackend, Post, PostAttachment, RedditBackend, RequestAllowlist, SubredditPage,
-    SubredditSort, Thumbnail, TimeRange, VideoFormat, VideoSource,
+    MobileBackend, Post, PostAttachment, RedditBackend, RequestAllowlist, Subreddit,
+    SubredditDetails, SubredditPage, SubredditSort, SubredditStyles, Thumbnail, TimeRange,
+    UnavailableSubreddit, VideoFormat, VideoSource,
 };
 pub use builder::RedditClientBuilder;
 pub use capture::{ResponseCapture, ResponseObserver};

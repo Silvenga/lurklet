@@ -1,11 +1,14 @@
 use crate::{
-    AnonymousSession, CommentForest, CommentSort, CommentThread, Error, Post, RedditId,
+    AnonymousSession, CommentForest, CommentSort, CommentThread, Error, Post, RedditId, Subreddit,
     SubredditPage, SubredditSort,
 };
 use std::future::Future;
 
 /// Backend contract for Reddit operations, independent of upstream endpoints.
 pub trait RedditBackend: Send + Sync {
+    /// Reads metadata or an unavailable-community explanation for a bare subreddit name.
+    fn get_subreddit(&self, name: &str) -> impl Future<Output = Result<Subreddit, Error>> + Send;
+
     /// Reads a discussion or one ordinary continuation fragment for the same post and sort.
     fn get_post_comments(
         &self,

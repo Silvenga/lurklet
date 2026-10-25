@@ -228,6 +228,7 @@ mod tests {
     use axum::routing::get;
     use lurklet_reddit::{
         AnonymousSession, CommentForest, CommentSort, CommentThread, Post as RedditPost, RedditId,
+        Subreddit,
     };
     use serde_json::{Value, json};
     use std::sync::{Arc, Mutex};
@@ -246,6 +247,10 @@ mod tests {
     }
 
     impl RedditBackend for FakeBackend {
+        async fn get_subreddit(&self, _: &str) -> Result<Subreddit, RedditError> {
+            panic!("the listing endpoint must not fetch subreddit metadata")
+        }
+
         async fn get_post_comments(
             &self,
             _: &RedditId,

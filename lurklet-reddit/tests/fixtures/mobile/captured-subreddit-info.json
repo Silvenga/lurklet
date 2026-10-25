@@ -1,0 +1,132 @@
+{
+  "provenance": {
+    "source": "two captured SubredditInfoByName persisted POSTs for rust and space",
+    "captured_on": "2026-10-25",
+    "variables": "subredditName, includeRecapFields=false, includeDevvitData=false; document defaults otherwise",
+    "pruning": "only consumed response fields retained; headers and unused selections omitted",
+    "redactions": ["community IDs and display text", "asset paths, signatures, and colors"],
+    "preserved": ["numeric encodings including the exponent-form subscriber count", "timestamps, counts, flags, and nullability", "all returned icon and banner variants"]
+  },
+  "cases": [
+    {
+      "name": "rust",
+      "body": {
+        "data": {
+          "subredditInfoByName": {
+            "__typename": "Subreddit",
+            "id": "t5_captured_rust",
+            "name": "rust",
+            "title": "Captured community rust",
+            "createdAt": "2010-12-02T21:27:18.336000+0000",
+            "type": "PUBLIC",
+            "publicDescriptionText": "Sanitized short description.",
+            "description": { "markdown": "Sanitized **description**." },
+            "subscribersCount": 427933,
+            "communityStats": { "weeklyActiveUsersCount": 154424, "weeklyContributionsCount": 2925 },
+            "styles": {
+              "icon": "https://example.invalid/rust/icon.png?sig=fixture%2Bicon",
+              "legacyIcon": { "url": "https://example.invalid/rust/legacy-icon.png?sig=fixture%2Blegacy" },
+              "bannerBackgroundImage": null,
+              "mobileBannerImage": null,
+              "legacyBannerBackgroundImage": null,
+              "primaryColor": "#123456",
+              "legacyPrimaryColor": "#654321"
+            },
+            "isNsfw": false,
+            "isPostingRestricted": true,
+            "isQuarantined": false,
+            "quarantineMessage": null,
+            "interstitialWarningMessage": null
+          }
+        }
+      },
+      "expected": {
+        "kind": "available",
+        "id": "captured_rust",
+        "name": "rust",
+        "title": "Captured community rust",
+        "created_at": "2010-12-02T21:27:18.336Z",
+        "short_description": "Sanitized short description.",
+        "description_markdown": "Sanitized **description**.",
+        "subscriber_count": 427933,
+        "weekly_active_user_count": 154424,
+        "weekly_contribution_count": 2925,
+        "styles": {
+          "icon_url": "https://example.invalid/rust/icon.png?sig=fixture%2Bicon",
+          "legacy_icon_url": "https://example.invalid/rust/legacy-icon.png?sig=fixture%2Blegacy",
+          "banner_url": null,
+          "mobile_banner_url": null,
+          "legacy_banner_url": null,
+          "primary_color": "#123456",
+          "legacy_primary_color": "#654321"
+        },
+        "community_type": "PUBLIC",
+        "is_nsfw": false,
+        "is_posting_restricted": true,
+        "is_quarantined": false,
+        "quarantine_message_markdown": null,
+        "interstitial_warning_markdown": null
+      }
+    },
+    {
+      "name": "space",
+      "body": {
+        "data": {
+          "subredditInfoByName": {
+            "__typename": "Subreddit",
+            "id": "t5_captured_space",
+            "name": "space",
+            "title": "Captured community space",
+            "createdAt": "2008-01-26T06:07:54.374000+0000",
+            "type": "PUBLIC",
+            "publicDescriptionText": "Sanitized short description.",
+            "description": { "markdown": "Sanitized **description**." },
+            "subscribersCount": 2.7989396e+07,
+            "communityStats": { "weeklyActiveUsersCount": 373243, "weeklyContributionsCount": 4540 },
+            "styles": {
+              "icon": "https://example.invalid/space/icon.png?sig=fixture%2Bicon",
+              "legacyIcon": { "url": "https://example.invalid/space/legacy-icon.png?sig=fixture%2Blegacy" },
+              "bannerBackgroundImage": "https://example.invalid/space/banner.png?sig=fixture%2Bbanner",
+              "mobileBannerImage": "https://example.invalid/space/mobile.png?sig=fixture%2Bmobile",
+              "legacyBannerBackgroundImage": "https://example.invalid/space/legacy-banner.png",
+              "primaryColor": "#123456",
+              "legacyPrimaryColor": "#654321"
+            },
+            "isNsfw": false,
+            "isPostingRestricted": true,
+            "isQuarantined": false,
+            "quarantineMessage": null,
+            "interstitialWarningMessage": null
+          }
+        }
+      },
+      "expected": {
+        "kind": "available",
+        "id": "captured_space",
+        "name": "space",
+        "title": "Captured community space",
+        "created_at": "2008-01-26T06:07:54.374Z",
+        "short_description": "Sanitized short description.",
+        "description_markdown": "Sanitized **description**.",
+        "subscriber_count": 27989396,
+        "weekly_active_user_count": 373243,
+        "weekly_contribution_count": 4540,
+        "styles": {
+          "icon_url": "https://example.invalid/space/icon.png?sig=fixture%2Bicon",
+          "legacy_icon_url": "https://example.invalid/space/legacy-icon.png?sig=fixture%2Blegacy",
+          "banner_url": "https://example.invalid/space/banner.png?sig=fixture%2Bbanner",
+          "mobile_banner_url": "https://example.invalid/space/mobile.png?sig=fixture%2Bmobile",
+          "legacy_banner_url": "https://example.invalid/space/legacy-banner.png",
+          "primary_color": "#123456",
+          "legacy_primary_color": "#654321"
+        },
+        "community_type": "PUBLIC",
+        "is_nsfw": false,
+        "is_posting_restricted": true,
+        "is_quarantined": false,
+        "quarantine_message_markdown": null,
+        "interstitial_warning_markdown": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "data": {
+    "subredditInfoByName": {
+      "__typename": "UnavailableSubreddit",
+      "id": "t5_unavailable",
+      "forbiddenReason": "BANNED",
+      "banTitle": "Example ban title",
+      "banMessageContent": { "markdown": "Example **ban** explanation.", "richtext": "{}" },
+      "isEmailRequiredForQuarantineOptin": false,
+      "quarantineMessage": { "markdown": "Example quarantine explanation.", "richtext": "{}" },
+      "interstitialWarningMessage": { "markdown": "Example warning.", "richtext": "{}" }
+    }
+  }
+}
