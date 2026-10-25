@@ -36,6 +36,8 @@ pub fn application(
     });
 
     let (posts, _) = routes::get_post()
+        .merge(routes::get_post_comments())
+        .merge(routes::get_comment_thread())
         .merge(routes::list_subreddit_posts())
         .split_for_parts();
     let api = data_api(posts, reddit, rate_limit, cache)
@@ -51,6 +53,8 @@ pub fn application(
 pub fn specification() -> OpenApi {
     let mut routes = routes::health().into_openapi();
     routes.merge(routes::get_post::<MobileBackend>().into_openapi());
+    routes.merge(routes::get_post_comments::<MobileBackend>().into_openapi());
+    routes.merge(routes::get_comment_thread::<MobileBackend>().into_openapi());
     routes.merge(routes::list_subreddit_posts::<MobileBackend>().into_openapi());
     let mut specification = ApiDoc::openapi().nest(API_PREFIX, routes);
     specification.openapi = OpenApiVersion::Version32;
@@ -304,26 +308,81 @@ mod tests {
         insta::assert_json_snapshot!("openapi", document);
     }
 
-    #[tokio::test]
-    async fn when_a_listing_query_is_invalid_then_the_mounted_endpoint_should_return_problem_details()
+    #[test]
+    fn when_comment_contracts_are_generated_then_defaults_and_recursive_references_should_be_resolvable()
      {
+        let specification = specification();
+
+        let document = serde_json::to_value(specification).unwrap();
+
+        for path in ["/api/posts/{id}/comments", "/api/comments/{id}/thread"] {
+            assert_eq!(
+                document["paths"][path]["get"]["parameters"][1],
+                json!({
+                    "name": "sort", "in": "query", "required": false,
+                    "schema": {"type": "string", "default": "best", "enum": ["best", "top", "new"]}
+                })
+            );
+        }
+        assert_eq!(
+            document["components"]["schemas"]["CommentItem"]["oneOf"][0]["properties"]["replies"]["items"]
+                ["$ref"],
+            "#/components/schemas/CommentItem"
+        );
+        assert_eq!(
+            document["paths"]["/api/posts/{id}/comments"]["get"]["parameters"][2]["name"],
+            "cursor"
+        );
+        assert_eq!(
+            document["paths"]["/api/comments/{id}/thread"]["get"]["parameters"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        let mut pending = vec![&document];
+        while let Some(value) = pending.pop() {
+            match value {
+                Value::Object(object) => {
+                    if let Some(Value::String(reference)) = object.get("$ref") {
+                        assert!(
+                            document
+                                .pointer(reference.strip_prefix('#').unwrap())
+                                .is_some(),
+                            "{reference}"
+                        );
+                    }
+                    pending.extend(object.values());
+                }
+                Value::Array(array) => pending.extend(array),
+                Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn when_a_data_query_is_invalid_then_the_mounted_endpoint_should_return_problem_details()
+    {
         let app = application();
-        let request = Request::builder()
-            .uri("/api/subreddits/rust/posts?sort=invalid")
-            .body(Body::empty())
-            .unwrap();
+        for uri in [
+            "/api/subreddits/rust/posts?sort=invalid",
+            "/api/posts/post/comments?sort=invalid",
+            "/api/comments/anchor/thread?sort=invalid",
+        ] {
+            let request = Request::builder().uri(uri).body(Body::empty()).unwrap();
 
-        let response = app.oneshot(request).await.unwrap();
+            let response = app.clone().oneshot(request).await.unwrap();
 
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(
-            response.headers()[header::CONTENT_TYPE],
-            "application/problem+json"
-        );
-        assert_eq!(
-            response.headers()[header::CACHE_CONTROL],
-            "public, max-age=10"
-        );
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+            assert_eq!(
+                response.headers()[header::CONTENT_TYPE],
+                "application/problem+json"
+            );
+            assert_eq!(
+                response.headers()[header::CACHE_CONTROL],
+                "public, max-age=10"
+            );
+        }
     }
 
     #[tokio::test]
@@ -449,6 +508,16 @@ mod tests {
             (
                 Method::POST,
                 "/api/subreddits/rust/posts",
+                StatusCode::METHOD_NOT_ALLOWED,
+            ),
+            (
+                Method::POST,
+                "/api/posts/post/comments",
+                StatusCode::METHOD_NOT_ALLOWED,
+            ),
+            (
+                Method::POST,
+                "/api/comments/anchor/thread",
                 StatusCode::METHOD_NOT_ALLOWED,
             ),
             (Method::GET, "/api/health", StatusCode::OK),

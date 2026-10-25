@@ -10,6 +10,144 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/comments/{id}/thread": {
+      "get": {
+        "summary": "Open a comment thread with ancestor context",
+        "description": "The forest may include ancestors of the requested comment. It is not an inline replacement fragment, and further expansion in this view is not supported.",
+        "operationId": "get_comment_thread",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Comment ID, including an anchor returned by a continueThread placeholder.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "best",
+              "enum": [
+                "best",
+                "top",
+                "new"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thread context and its post reference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentThread"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Supported HTTP methods"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Seconds until the client may retry"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Upstream retry delay or HTTP date, when supplied"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Check API liveness without contacting upstream services",
@@ -68,6 +206,153 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Post"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Supported HTTP methods"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Seconds until the client may retry"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Upstream retry delay or HTTP date, when supplied"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/posts/{id}/comments": {
+      "get": {
+        "summary": "Read a post's comments or expand one selected placeholder",
+        "description": "Without a cursor, returns the initial forest. With a cursor, the returned items replace only the selected placeholder, not the whole discussion.",
+        "operationId": "get_post_comments",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Post ID, as returned by the API.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "best",
+              "enum": [
+                "best",
+                "top",
+                "new"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Pass a selected placeholder's cursor unchanged with the same post and requested sort.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ordered comments and expansion placeholders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentForest"
                 }
               }
             }
@@ -335,6 +620,245 @@
   },
   "components": {
     "schemas": {
+      "Comment": {
+        "type": "object",
+        "required": [
+          "id",
+          "state",
+          "author",
+          "createdAt",
+          "bodyMarkdown",
+          "score",
+          "isOp",
+          "isPinned",
+          "initiallyCollapsed"
+        ],
+        "properties": {
+          "author": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommentAuthor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bodyMarkdown": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Untrusted Markdown; embedded media URLs are not proxied."
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "initiallyCollapsed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "isOp": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "isPinned": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "score": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CommentState"
+          }
+        }
+      },
+      "CommentAuthor": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CommentForest": {
+        "type": "object",
+        "description": "Ordered discussion roots, or replacement items for one selected placeholder.",
+        "required": [
+          "appliedSort",
+          "items"
+        ],
+        "properties": {
+          "appliedSort": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommentSort"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommentItem"
+            }
+          }
+        }
+      },
+      "CommentItem": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "comment",
+              "replies",
+              "kind"
+            ],
+            "properties": {
+              "comment": {
+                "$ref": "#/components/schemas/Comment"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "comment"
+                ]
+              },
+              "replies": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CommentItem"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "cursor",
+              "countHint",
+              "kind"
+            ],
+            "properties": {
+              "countHint": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64",
+                "description": "Upstream hint, not an exact count.",
+                "minimum": 0
+              },
+              "cursor": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Opaque cursor for replacing this placeholder; null means no action is available."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "more"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "commentId",
+              "kind"
+            ],
+            "properties": {
+              "commentId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Anchor for the thread endpoint; null means no action is available."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "continueThread"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "CommentSort": {
+        "type": "string",
+        "default": "best",
+        "enum": [
+          "best",
+          "top",
+          "new"
+        ]
+      },
+      "CommentState": {
+        "type": "string",
+        "enum": [
+          "present",
+          "deleted",
+          "removed"
+        ]
+      },
+      "CommentThread": {
+        "type": "object",
+        "required": [
+          "postId",
+          "forest"
+        ],
+        "properties": {
+          "forest": {
+            "$ref": "#/components/schemas/CommentForest"
+          },
+          "postId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "Health": {
         "type": "object",
         "required": [
