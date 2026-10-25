@@ -76,3 +76,57 @@ fn when_logging_configuration_is_invalid_then_the_cli_should_emit_a_structured_e
     assert_eq!(output.status.code(), Some(1));
     assert_eq!(result["error"]["kind"], "logging");
 }
+
+#[test]
+fn when_allowlist_metadata_is_incomplete_then_the_cli_should_reject_arguments() {
+    let output = command()
+        .args([
+            "get-request-allowlist",
+            "--allowlist-operation-name",
+            "OnlyName",
+        ])
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--allowlist-sha256"));
+}
+
+#[test]
+fn when_allowlist_header_construction_fails_then_the_cli_should_return_a_structured_error_without_network()
+ {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("session.json");
+    let expected = state();
+    write_state(&path, &expected);
+
+    let output = command()
+        .arg("--state-file")
+        .arg(&path)
+        .args([
+            "--clock-ms",
+            "1000",
+            "--graphql-endpoint",
+            "https://127.0.0.1:1/",
+            "--auth-endpoint",
+            "https://127.0.0.1:1/token",
+            "--allowlist-operation-name",
+            "bad\nheader",
+            "--allowlist-sha256",
+            "fixture",
+            "get-request-allowlist",
+        ])
+        .output()
+        .unwrap();
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(result["error"]["kind"], "invalid_request");
+    assert_eq!(result["error"]["field"], "x-apollo-operation-name");
+    assert_eq!(result["captures_written"], 0);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&fs::read(path).unwrap()).unwrap(),
+        expected
+    );
+}

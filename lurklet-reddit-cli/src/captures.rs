@@ -81,7 +81,7 @@ mod tests {
         let capture_dir = directory.path().join("captures");
         let recorder = Recorder::default();
         recorder.on_response(ResponseCapture {
-            operation: "bootstrap",
+            operation: "bootstrap".into(),
             url: "https://example.invalid/".into(),
             status: 403,
             http_version: "HTTP/2.0".into(),

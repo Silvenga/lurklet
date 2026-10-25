@@ -1,4 +1,4 @@
-use crate::mobile::Config;
+use crate::mobile::{Config, PersistedQuery};
 use crate::{
     AppProfile, BuildError, Clock, DeviceProfile, InMemoryStore, MobileBackend, RedditClient,
     ResponseObserver, StateStore, Storage, SystemClock, TransportError,
@@ -81,6 +81,31 @@ impl<S: StateStore> RedditClientBuilder<S> {
         self
     }
 
+    /// Overrides the Accept header advertised by GraphQL requests.
+    pub fn with_graphql_accept(mut self, value: impl Into<String>) -> Self {
+        self.config.graphql_accept = value.into();
+        self
+    }
+
+    /// Overrides retry header metadata without enabling automatic retries.
+    pub fn with_graphql_retry_header(mut self, value: impl Into<String>) -> Self {
+        self.config.graphql_retry_header = value.into();
+        self
+    }
+
+    /// Overrides the paired name and hash for the allowlist diagnostic query.
+    pub fn with_request_allowlist_query(
+        mut self,
+        name: impl Into<String>,
+        sha256_hash: impl Into<String>,
+    ) -> Self {
+        self.config.request_allowlist_query = PersistedQuery {
+            name: name.into(),
+            sha256_hash: sha256_hash.into(),
+        };
+        self
+    }
+
     /// Overrides the anonymous OAuth client ID; the password remains empty.
     pub fn with_client_id(mut self, client_id: impl Into<String>) -> Self {
         self.config.client_id = client_id.into();
@@ -135,7 +160,7 @@ impl<S: StateStore> RedditClientBuilder<S> {
         self
     }
 
-    /// Bounds the decompressed token response body.
+    /// Bounds decompressed response bodies and captures.
     pub fn with_max_response_bytes(mut self, limit: usize) -> Self {
         self.config.max_response_bytes = limit;
         self
@@ -237,6 +262,11 @@ impl<S: StateStore> RedditClientBuilder<S> {
             (
                 "reddit_compression",
                 self.config.reddit_compression.as_str(),
+            ),
+            ("graphql_accept", self.config.graphql_accept.as_str()),
+            (
+                "graphql_retry_header",
+                self.config.graphql_retry_header.as_str(),
             ),
         ] {
             if value.is_empty() || HeaderValue::from_str(value).is_err() {
@@ -353,6 +383,8 @@ mod tests {
             RedditClient::builder().with_client_id("client:password"),
             RedditClient::builder().with_max_response_bytes(0),
             RedditClient::builder().with_download_rate_mbps(Some(f64::NAN)),
+            RedditClient::builder().with_graphql_accept("invalid\nheader"),
+            RedditClient::builder().with_graphql_retry_header("invalid\nheader"),
         ];
 
         let results: Vec<_> = builders

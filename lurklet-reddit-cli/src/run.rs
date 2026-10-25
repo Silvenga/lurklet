@@ -61,10 +61,13 @@ pub async fn run(arguments: Arguments) -> Result<Value, CliError> {
         }
     }
     let mut output = match operation {
-        Ok(result) if secondary_errors.is_empty() => json!({"ok": true, "result": result}),
-        Ok(result) => {
-            json!({"ok": false, "error": secondary_errors.remove(0), "operation_result": result})
-        }
+        Ok(report) => match report.error {
+            Some(error) => json!({"ok": false, "error": error, "operation_result": report.result}),
+            None if secondary_errors.is_empty() => json!({"ok": true, "result": report.result}),
+            None => {
+                json!({"ok": false, "error": secondary_errors.remove(0), "operation_result": report.result})
+            }
+        },
         Err(error) => json!({"ok": false, "error": CliError::Library(error).json()}),
     };
     output["captures_written"] = captured.into();

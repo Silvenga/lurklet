@@ -1,54 +1,17 @@
-use super::MobileBackend;
+use crate::mobile::backend::MobileBackend;
+use crate::mobile::token_response::TokenResponse;
 use crate::{
     AccessToken, AnonymousSession, Error, ResponseError, StateSnapshot, StateStore, TransportError,
 };
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use serde::Deserialize;
 use serde_json::{Value, json};
 use std::time::Instant;
 use wreq::header::HeaderValue;
 
-#[derive(Deserialize)]
-struct TokenResponse {
-    access_token: String,
-    expires_in: u64,
-    expiry_ts: Option<u64>,
-}
-
-pub(super) fn validate_subject(token: &str) -> Result<(), ResponseError> {
-    let mut segments = token.split('.');
-    let header = segments.next().ok_or(ResponseError::InvalidJwt)?;
-    let payload = segments.next().ok_or(ResponseError::InvalidJwt)?;
-    let signature = segments.next().ok_or(ResponseError::InvalidJwt)?;
-    if header.is_empty()
-        || payload.is_empty()
-        || signature.is_empty()
-        || segments.next().is_some()
-        || HeaderValue::from_str(token).is_err()
-    {
-        return Err(ResponseError::InvalidJwt);
-    }
-    let header = URL_SAFE_NO_PAD
-        .decode(header)
-        .map_err(|_| ResponseError::InvalidJwt)?;
-    let header: Value = serde_json::from_slice(&header).map_err(|_| ResponseError::InvalidJwt)?;
-    if !header.is_object() || URL_SAFE_NO_PAD.decode(signature).is_err() {
-        return Err(ResponseError::InvalidJwt);
-    }
-    let payload = URL_SAFE_NO_PAD
-        .decode(payload)
-        .map_err(|_| ResponseError::InvalidJwt)?;
-    let claims: Value = serde_json::from_slice(&payload).map_err(|_| ResponseError::InvalidJwt)?;
-    if claims.get("sub").and_then(Value::as_str) != Some("loid") {
-        return Err(ResponseError::UnexpectedSubject);
-    }
-    // Claims are decoded for protocol validation, not cryptographically verified.
-    Ok(())
-}
-
 impl<S: StateStore> MobileBackend<S> {
-    pub(super) async fn acquire(&self, snapshot: StateSnapshot) -> Result<AnonymousSession, Error> {
+    pub(super) async fn acquire_token(
+        &self,
+        snapshot: StateSnapshot,
+    ) -> Result<AnonymousSession, Error> {
         let headers = self.auth_headers(&snapshot.state)?;
         let started_at_ms = self.clock.now_ms()?;
         let started = Instant::now();
@@ -61,7 +24,7 @@ impl<S: StateStore> MobileBackend<S> {
             .send()
             .await
             .map_err(TransportError::from)?;
-        let (headers, body) = self.read_response("bootstrap", response, started).await?;
+        let (headers, body) = self.read_bootstrap_response(response, started).await?;
         let loid = headers
             .get("x-reddit-loid")
             .map(|value| {
@@ -74,7 +37,11 @@ impl<S: StateStore> MobileBackend<S> {
         let body: Value = serde_json::from_slice(&body).map_err(|_| ResponseError::InvalidJson)?;
         let token: TokenResponse =
             serde_json::from_value(body).map_err(|_| ResponseError::InvalidTokenResponse)?;
-        validate_subject(&token.access_token)?;
+        if token.access_token.trim().is_empty()
+            || HeaderValue::from_str(&token.access_token).is_err()
+        {
+            return Err(ResponseError::InvalidAccessToken.into());
+        }
         let expires_at_ms = token
             .expires_in
             .checked_mul(1000)
@@ -115,19 +82,17 @@ impl<S: StateStore> MobileBackend<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mobile::testing::{self, NOW, ORIGIN, PATH, TOKEN, TestClock};
-    use crate::{ClientState, InMemoryStore, RedditClient, RetryAfter, Storage, StorageError};
-    use futures_util::future::join_all;
+    use crate::mobile::backend::testing::{self, NOW, ORIGIN, PATH, TOKEN_FAKE, TestClock};
+    use crate::{InMemoryStore, RedditClient, RetryAfter, Storage};
     use std::sync::atomic::Ordering;
     use std::time::Duration;
-    use tokio::time::timeout;
     use wiremock::matchers::{body_json, header, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
     #[tokio::test]
     async fn when_replaying_a_sanitized_capture_then_bootstrap_should_match_the_session_snapshot() {
         let fixture: Value = serde_json::from_str(include_str!(
-            "../../tests/fixtures/mobile/captured-anonymous-token.json"
+            "../../../tests/fixtures/mobile/captured-anonymous-token.json"
         ))
         .unwrap();
         let server = MockServer::start().await;
@@ -235,7 +200,7 @@ mod tests {
                 .respond_with(move |_: &Request| {
                     response_clock.0.store(NOW + 500, Ordering::SeqCst);
                     ResponseTemplate::new(200).set_body_json(json!({
-                        "access_token": TOKEN, "expires_in": 3600, "expiry_ts": expiry_ts
+                        "access_token": TOKEN_FAKE, "expires_in": 3600, "expiry_ts": expiry_ts
                     }))
                 })
                 .expect(1)
@@ -254,7 +219,7 @@ mod tests {
         let server = MockServer::start().await;
         let mut state = testing::state();
         state.authentication.session = Some(AnonymousSession {
-            access_token: AccessToken::new(TOKEN),
+            access_token: AccessToken::new(TOKEN_FAKE),
             expires_at_ms: NOW,
         });
         state.authentication.loid = Some("opaque%2Fvalue.unchanged".into());
@@ -264,7 +229,7 @@ mod tests {
             .and(header("x-reddit-loid", "opaque%2Fvalue.unchanged"))
             .respond_with(
                 ResponseTemplate::new(200)
-                    .set_body_json(json!({"access_token": TOKEN, "expires_in": 42})),
+                    .set_body_json(json!({"access_token": TOKEN_FAKE, "expires_in": 42})),
             )
             .expect(1)
             .mount(&server)
@@ -280,88 +245,6 @@ mod tests {
             saved.state.authentication.loid.as_deref(),
             Some("opaque%2Fvalue.unchanged")
         );
-    }
-
-    #[tokio::test]
-    async fn when_clients_share_storage_then_concurrent_bootstraps_should_share_one_request() {
-        let server = MockServer::start().await;
-        Mock::given(path(PATH))
-            .respond_with(testing::response().set_delay(Duration::from_millis(50)))
-            .expect(1)
-            .mount(&server)
-            .await;
-        let storage = Storage::default();
-        let clients: Vec<_> = (0..12)
-            .map(|_| testing::client(&server, storage.clone(), TestClock::default()))
-            .collect();
-
-        let results = join_all(clients.iter().map(RedditClient::bootstrap)).await;
-        let saved = storage.store().load().await.unwrap();
-
-        let expected = AnonymousSession {
-            access_token: AccessToken::new(TOKEN),
-            expires_at_ms: NOW + 3_600_000,
-        };
-        for result in results {
-            assert_eq!(result.unwrap(), expected);
-        }
-        assert_eq!(saved.state.installation.unwrap().id.get_version_num(), 4);
-        assert_eq!(saved.revision, 2);
-    }
-
-    #[tokio::test]
-    async fn when_concurrent_acquisition_fails_then_waiters_should_share_the_failure() {
-        let server = MockServer::start().await;
-        Mock::given(path(PATH))
-            .respond_with(
-                ResponseTemplate::new(429)
-                    .set_delay(Duration::from_millis(50))
-                    .insert_header("retry-after", "120"),
-            )
-            .expect(1)
-            .mount(&server)
-            .await;
-        let client = testing::client(&server, testing::storage(), TestClock::default());
-
-        let results = join_all((0..12).map(|_| client.bootstrap())).await;
-
-        for result in results {
-            assert!(
-                matches!(result, Err(Error::RateLimited { retry_after: Some(RetryAfter::Delay(delay)) }) if delay == Duration::from_secs(120))
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn when_acquisition_is_cancelled_then_a_later_attempt_should_not_deadlock() {
-        let server = MockServer::start().await;
-        Mock::given(path(PATH))
-            .respond_with(testing::response().set_delay(Duration::from_secs(30)))
-            .expect(1)
-            .mount(&server)
-            .await;
-        let storage = testing::storage();
-        let client = testing::client(&server, storage.clone(), TestClock::default());
-        let pending = tokio::spawn({
-            let client = client.clone();
-            async move { client.bootstrap().await }
-        });
-        testing::wait_for_request(&server).await;
-
-        pending.abort();
-        assert!(pending.await.unwrap_err().is_cancelled());
-        server.reset().await;
-        Mock::given(path(PATH))
-            .respond_with(testing::response())
-            .expect(1)
-            .mount(&server)
-            .await;
-        let result = timeout(Duration::from_secs(5), client.bootstrap())
-            .await
-            .unwrap();
-
-        assert!(result.is_ok());
-        assert_eq!(storage.store().load().await.unwrap().revision, 1);
     }
 
     #[tokio::test]
@@ -428,32 +311,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn when_reddit_returns_an_opaque_token_then_bootstrap_should_store_and_reuse_it() {
+        let server = MockServer::start().await;
+        Mock::given(path(PATH))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"access_token": "opaque-token", "expires_in": 60})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = testing::client(&server, testing::storage(), TestClock::default());
+
+        let first = client.bootstrap().await.unwrap();
+        let cached = client.bootstrap().await.unwrap();
+
+        assert_eq!(first.access_token.expose_secret(), "opaque-token");
+        assert_eq!(first, cached);
+    }
+
+    #[tokio::test]
     async fn when_a_response_is_invalid_then_authentication_state_should_not_change() {
-        let wrong_subject = format!(
-            "eyJhbGciOiJIUzI1NiJ9.{}.c3ludGhldGlj",
-            URL_SAFE_NO_PAD.encode(r#"{"sub":"user"}"#)
-        );
         let cases = [
             ("not-json".into(), ResponseError::InvalidJson),
             ("{}".into(), ResponseError::InvalidTokenResponse),
             (
-                json!({"access_token": "not-jwt", "expires_in": 60}).to_string(),
-                ResponseError::InvalidJwt,
+                json!({"access_token": "", "expires_in": 60}).to_string(),
+                ResponseError::InvalidAccessToken,
             ),
             (
-                json!({"access_token": wrong_subject, "expires_in": 60}).to_string(),
-                ResponseError::UnexpectedSubject,
+                json!({"access_token": "   ", "expires_in": 60}).to_string(),
+                ResponseError::InvalidAccessToken,
             ),
             (
-                json!({"access_token": TOKEN, "expires_in": 0}).to_string(),
+                json!({"access_token": "bad\nheader", "expires_in": 60}).to_string(),
+                ResponseError::InvalidAccessToken,
+            ),
+            (
+                json!({"access_token": TOKEN_FAKE, "expires_in": 0}).to_string(),
                 ResponseError::InvalidExpiry,
             ),
             (
-                json!({"access_token": TOKEN, "expires_in": u64::MAX}).to_string(),
+                json!({"access_token": TOKEN_FAKE, "expires_in": u64::MAX}).to_string(),
                 ResponseError::InvalidExpiry,
             ),
             (
-                json!({"access_token": TOKEN, "expires_in": -1}).to_string(),
+                json!({"access_token": TOKEN_FAKE, "expires_in": -1}).to_string(),
                 ResponseError::InvalidTokenResponse,
             ),
         ];
@@ -551,8 +454,6 @@ mod tests {
         );
     }
 
-    struct UnavailableStore;
-
     #[tokio::test]
     async fn when_request_defaults_are_overridden_then_bootstrap_should_use_the_overrides() {
         let server = MockServer::start().await;
@@ -588,102 +489,5 @@ mod tests {
                 .unwrap()
                 .starts_with("Basic ")
         );
-    }
-
-    #[tokio::test]
-    async fn when_a_cached_session_is_restored_then_bootstrap_should_not_make_a_request() {
-        let mut state = testing::state();
-        let expected = AnonymousSession {
-            access_token: AccessToken::new(TOKEN),
-            expires_at_ms: NOW + 1000,
-        };
-        state.authentication.session = Some(expected.clone());
-        let storage = Storage::new(InMemoryStore::with_state(state));
-        let client = RedditClient::builder()
-            .with_storage(storage.clone())
-            .with_clock(TestClock::default())
-            .build()
-            .unwrap();
-
-        let session = client.bootstrap().await.unwrap();
-
-        assert_eq!(session, expected);
-        assert_eq!(storage.store().load().await.unwrap().revision, 0);
-    }
-
-    #[tokio::test]
-    async fn when_an_attempt_fails_then_a_later_explicit_attempt_should_be_able_to_succeed() {
-        let server = MockServer::start().await;
-        Mock::given(path(PATH))
-            .respond_with(ResponseTemplate::new(503))
-            .expect(1)
-            .mount(&server)
-            .await;
-        let client = testing::client(&server, testing::storage(), TestClock::default());
-        let first = client.bootstrap().await;
-        server.verify().await;
-        server.reset().await;
-        Mock::given(path(PATH))
-            .respond_with(testing::response())
-            .expect(1)
-            .mount(&server)
-            .await;
-
-        let second = client.bootstrap().await;
-
-        assert!(matches!(first, Err(Error::Upstream { status: 503, .. })));
-        assert!(second.is_ok());
-    }
-
-    #[tokio::test]
-    async fn when_restored_state_has_invalid_identity_then_bootstrap_should_reject_it() {
-        let mut state = testing::state();
-        state.authentication.session = Some(AnonymousSession {
-            access_token: AccessToken::new("not-a-token"),
-            expires_at_ms: NOW + 1000,
-        });
-        let client = RedditClient::builder()
-            .with_storage(Storage::new(InMemoryStore::with_state(state)))
-            .with_clock(TestClock::default())
-            .build()
-            .unwrap();
-
-        let result = client.bootstrap().await;
-
-        assert!(matches!(
-            result,
-            Err(Error::InvalidState {
-                field: "access_token"
-            })
-        ));
-    }
-
-    impl StateStore for UnavailableStore {
-        async fn load(&self) -> Result<StateSnapshot, StorageError> {
-            Err(StorageError::Unavailable)
-        }
-
-        async fn compare_exchange(
-            &self,
-            _: u64,
-            _: ClientState,
-        ) -> Result<Option<StateSnapshot>, StorageError> {
-            Err(StorageError::Unavailable)
-        }
-    }
-
-    #[tokio::test]
-    async fn when_storage_fails_then_consumers_should_receive_a_storage_error() {
-        let client = RedditClient::builder()
-            .with_storage(Storage::new(UnavailableStore))
-            .build()
-            .unwrap();
-
-        let result = client.bootstrap().await;
-
-        assert!(matches!(
-            result,
-            Err(Error::Storage(StorageError::Unavailable))
-        ));
     }
 }

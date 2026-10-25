@@ -8,7 +8,7 @@ use uuid::Uuid;
 pub struct AccessToken(String);
 
 impl AccessToken {
-    /// Wraps a token restored by the caller; bootstrap validates it before reuse.
+    /// Wraps an opaque token without interpreting its claims or internal format.
     pub fn new(value: impl Into<String>) -> Self {
         Self(value.into())
     }

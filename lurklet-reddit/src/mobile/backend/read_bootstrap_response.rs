@@ -1,119 +1,48 @@
-use super::MobileBackend;
-use crate::{Error, ResponseCapture, ResponseError, RetryAfter, StateStore, TransportError};
-use futures_util::{StreamExt, pin_mut};
-use std::time::{Duration, Instant};
+use crate::mobile::backend::MobileBackend;
+use crate::mobile::http_error::http_error;
+use crate::{Error, ResponseError, StateStore};
+use std::time::Instant;
 use wreq::header::HeaderMap;
 
 impl<S: StateStore> MobileBackend<S> {
-    pub(super) async fn read_response(
+    /// Applies bootstrap's status-first error policy while retaining opt-in capture behavior.
+    pub(super) async fn read_bootstrap_response(
         &self,
-        operation: &'static str,
         response: wreq::Response,
         started: Instant,
     ) -> Result<(HeaderMap, Vec<u8>), Error> {
         let status = response.status().as_u16();
-        let retry_after = response
-            .headers()
-            .get("retry-after")
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| {
-                if let Ok(seconds) = value.parse::<u64>() {
-                    Some(RetryAfter::Delay(Duration::from_secs(seconds)))
-                } else {
-                    httpdate::parse_http_date(value).ok().map(RetryAfter::At)
-                }
-            });
-        let status_error = match status {
-            200..=299 => None,
-            401 => Some(Error::Authentication { status }),
-            403 => Some(Error::AccessDenied { status }),
-            429 => Some(Error::RateLimited { retry_after }),
-            500..=599 => Some(Error::Upstream {
-                status,
-                retry_after,
-            }),
-            _ => Some(Error::UnexpectedStatus { status }),
-        };
+        let status_error = http_error(status, response.headers());
         if let Some(error) = &status_error {
             tracing::debug!(status, "Upstream rejected request; no automatic retry");
             if self.observer.is_none() {
                 return Err(error.clone());
             }
         }
-        let capture = self.observer.as_ref().map(|_| ResponseCapture {
-            operation,
-            url: response.uri().to_string(),
-            status,
-            http_version: format!("{:?}", response.version()),
-            headers: response
-                .headers()
-                .iter()
-                .map(|(name, value)| (name.as_str().to_owned(), value.as_bytes().to_vec()))
-                .collect(),
-            body: Vec::new(),
-            body_truncated: false,
-            body_error: None,
-            elapsed: Duration::ZERO,
-        });
-        let headers = response.headers().clone();
-        let stream = response.bytes_stream();
-        pin_mut!(stream);
-        let mut body = Vec::new();
-        let mut body_error = None;
-        let mut truncated = false;
-        while let Some(chunk) = stream.next().await {
-            match chunk {
-                Ok(chunk) => {
-                    let keep = chunk
-                        .len()
-                        .min(self.config.max_response_bytes.saturating_sub(body.len()));
-                    body.extend_from_slice(&chunk[..keep]);
-                    if keep < chunk.len() {
-                        truncated = true;
-                        break;
-                    }
-                }
-                Err(error) => {
-                    body_error = Some(TransportError::from(error));
-                    break;
-                }
-            }
-        }
-        if let (Some(observer), Some(mut capture)) = (&self.observer, capture) {
-            capture.body = body.clone();
-            capture.body_truncated = truncated;
-            capture.body_error = body_error.as_ref().map(|error| error.kind);
-            capture.elapsed = started.elapsed();
-            tracing::trace!(
-                status,
-                bytes = body.len(),
-                truncated,
-                "Delivering opt-in response capture"
-            );
-            observer.on_response(capture);
-        }
+        let buffered = self.read_response("bootstrap", response, started).await;
         // A failed diagnostic body read must not conceal the upstream HTTP failure.
         if let Some(error) = status_error {
             return Err(error);
         }
-        if let Some(error) = body_error {
+        if let Some(error) = buffered.body_error {
             return Err(error.into());
         }
-        if truncated {
+        if buffered.body_truncated {
             return Err(ResponseError::BodyTooLarge.into());
         }
-        Ok((headers, body))
+        Ok((buffered.headers, buffered.body))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mobile::testing::{self, ORIGIN, PATH, TestClock};
-    use crate::{RedditClient, ResponseObserver};
+    use crate::mobile::backend::testing::{self, ORIGIN, PATH, TestClock};
+    use crate::{RedditClient, ResponseCapture, ResponseObserver, RetryAfter};
     use futures_util::stream;
     use std::io;
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
     use wiremock::matchers::path;
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -124,6 +53,64 @@ mod tests {
         fn on_response(&self, response: ResponseCapture) {
             self.0.lock().unwrap().push(response);
         }
+    }
+
+    #[tokio::test]
+    async fn when_bootstrap_fails_without_capture_then_the_body_should_not_be_read() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let client = RedditClient::builder().build().unwrap();
+        let polled = Arc::new(AtomicBool::new(false));
+        let body_polled = Arc::clone(&polled);
+        let body = wreq::Body::wrap_stream(stream::once(async move {
+            body_polled.store(true, Ordering::SeqCst);
+            Err::<Vec<u8>, _>(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "body must not be read",
+            ))
+        }));
+        let response = http::Response::builder()
+            .status(403)
+            .body(body)
+            .unwrap()
+            .into();
+
+        let result = client
+            .backend()
+            .read_bootstrap_response(response, Instant::now())
+            .await;
+
+        assert!(matches!(result, Err(Error::AccessDenied { status: 403 })));
+        assert!(!polled.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn when_a_success_body_read_fails_then_bootstrap_should_return_the_transport_error() {
+        let recorder = Recorder::default();
+        let client = RedditClient::builder()
+            .with_response_observer(recorder.clone())
+            .build()
+            .unwrap();
+        let body = wreq::Body::wrap_stream(stream::iter([
+            Ok(b"partial".to_vec()),
+            Err(io::Error::new(io::ErrorKind::UnexpectedEof, "read failed")),
+        ]));
+        let response = http::Response::builder()
+            .status(200)
+            .body(body)
+            .unwrap()
+            .into();
+
+        let result = client
+            .backend()
+            .read_bootstrap_response(response, Instant::now())
+            .await;
+
+        assert!(matches!(result, Err(Error::Transport(_))));
+        let captures = recorder.0.lock().unwrap();
+        assert_eq!(captures[0].status, 200);
+        assert_eq!(captures[0].body, b"partial");
+        assert!(captures[0].body_error.is_some());
     }
 
     #[tokio::test]
@@ -208,7 +195,7 @@ mod tests {
 
         let result = client
             .backend()
-            .read_response("bootstrap", response, Instant::now())
+            .read_bootstrap_response(response, Instant::now())
             .await;
 
         assert!(matches!(result, Err(Error::AccessDenied { status: 403 })));
@@ -240,7 +227,7 @@ mod tests {
 
         let result = client
             .backend()
-            .read_response("bootstrap", response, Instant::now())
+            .read_bootstrap_response(response, Instant::now())
             .await;
 
         assert!(
@@ -268,7 +255,7 @@ mod tests {
 
         let result = client
             .backend()
-            .read_response("bootstrap", response, Instant::now())
+            .read_bootstrap_response(response, Instant::now())
             .await;
 
         assert!(matches!(

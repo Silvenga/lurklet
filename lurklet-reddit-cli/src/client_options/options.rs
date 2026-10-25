@@ -56,6 +56,8 @@ mod tests {
             --manufacturer Example --model Model --locale en-GB --display-density -1
             --display-width-px 800 --display-height-px 1200 --user-agent custom-agent
             --emulation-profile okhttp_4.12 --reddit-compression 0 --download-rate-mbps 12.3
+            --graphql-accept application/json --graphql-retry-header attempt=0,max=0
+            --allowlist-operation-name CustomAllowlist --allowlist-sha256 custom-hash
             --height-header=false --max-response-bytes 4096
             --request-timeout-ms 1234 --connect-timeout-ms 567 --clock-ms 1000";
         let arguments = Arguments::try_parse_from(flags.split_whitespace()).unwrap();

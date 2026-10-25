@@ -4,7 +4,7 @@ use std::time::Duration;
 
 /// An opt-in diagnostic response, which can contain credentials and personal data.
 pub struct ResponseCapture {
-    pub operation: &'static str,
+    pub operation: String,
     pub url: String,
     pub status: u16,
     pub http_version: String,

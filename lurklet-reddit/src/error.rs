@@ -42,6 +42,8 @@ pub enum Error {
     InvalidResponse(#[from] ResponseError),
     #[error("invalid stored state: {field}")]
     InvalidState { field: &'static str },
+    #[error("unable to construct request field: {field}")]
+    InvalidRequest { field: &'static str },
     #[error("the session changed while authentication was in flight")]
     SessionChanged,
 }
@@ -63,10 +65,8 @@ pub enum ResponseError {
     InvalidJson,
     #[error("response does not match the token schema")]
     InvalidTokenResponse,
-    #[error("token is not a structurally valid JWT")]
-    InvalidJwt,
-    #[error("token does not have the anonymous loid subject")]
-    UnexpectedSubject,
+    #[error("access token is empty or cannot be used in an HTTP header")]
+    InvalidAccessToken,
     #[error("token lifetime is zero or cannot be represented")]
     InvalidExpiry,
     #[error("token expired before acquisition completed")]

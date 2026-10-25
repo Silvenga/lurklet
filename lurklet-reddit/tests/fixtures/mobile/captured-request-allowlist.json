@@ -1,0 +1,29 @@
+{
+  "provenance": {
+    "source": "live lurklet-reddit-cli get-request-allowlist response",
+    "captured_at": "2026-10-25T00:14:22Z",
+    "redactions": ["extensions.traceID"],
+    "headers": "only content type and rate-limit fields retained"
+  },
+  "status": 200,
+  "headers": {
+    "content-type": "application/json",
+    "x-ratelimit-used": "1",
+    "x-ratelimit-remaining": "599.0",
+    "x-ratelimit-reset": "337"
+  },
+  "body": {
+    "data": {
+      "zeroRttClientAllowedQueries": {
+        "clientName": "android-app",
+        "queries": [
+          {"name": "HomeFeedSdui"},
+          {"name": "UsernameAndExperiments"},
+          {"name": "PostComments"},
+          {"name": "SubredditFeedSdui"}
+        ]
+      }
+    },
+    "extensions": {"traceID": "fixture-trace"}
+  }
+}

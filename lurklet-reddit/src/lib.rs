@@ -20,7 +20,10 @@ pub use error::{
     BuildError, ClockError, Error, ResponseError, RetryAfter, StorageError, TransportError,
     TransportErrorKind,
 };
-pub use mobile::MobileBackend;
+pub use mobile::{
+    GraphQlDecodeError, GraphQlErrorKind, GraphQlOutcome, GraphQlResponse, MobileBackend,
+    RequestAllowlist,
+};
 pub use profile::{AppProfile, DeviceProfile};
 pub use state::{
     AccessToken, AnalyticsSession, AnonymousSession, AuthenticationState, ClientState,

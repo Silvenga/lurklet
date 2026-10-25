@@ -1,5 +1,5 @@
-use super::retry_after::retry_after_json;
-use super::transport_kind;
+use crate::output::retry_after::retry_after_json;
+use crate::output::transport_kind;
 use lurklet_reddit::{Error, ResponseError};
 use serde_json::{Value, json};
 
@@ -29,8 +29,7 @@ pub fn to_json(error: &Error) -> Value {
                 ResponseError::BodyTooLarge => "body_too_large",
                 ResponseError::InvalidJson => "invalid_json",
                 ResponseError::InvalidTokenResponse => "invalid_token_response",
-                ResponseError::InvalidJwt => "invalid_jwt",
-                ResponseError::UnexpectedSubject => "unexpected_subject",
+                ResponseError::InvalidAccessToken => "invalid_access_token",
                 ResponseError::InvalidExpiry => "invalid_expiry",
                 ResponseError::ExpiredOnArrival => "expired_on_arrival",
                 ResponseError::InvalidLoid => "invalid_loid",
@@ -39,6 +38,7 @@ pub fn to_json(error: &Error) -> Value {
             json!({"kind": "invalid_response", "reason": reason})
         }
         Error::InvalidState { field } => json!({"kind": "invalid_state", "field": field}),
+        Error::InvalidRequest { field } => json!({"kind": "invalid_request", "field": field}),
         Error::SessionChanged => json!({"kind": "session_changed"}),
         _ => json!({"kind": "library"}),
     }

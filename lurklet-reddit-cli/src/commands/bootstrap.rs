@@ -35,11 +35,7 @@ mod tests {
         let arguments = Arguments::try_parse_from(["cli", "bootstrap"]).unwrap();
         let client = RedditClient::from_backend(FakeBackend);
 
-        let result = arguments
-            .command
-            .execute(&client, arguments.show_secrets)
-            .await
-            .unwrap();
+        let result = execute(&client, arguments.show_secrets).await.unwrap();
 
         assert_eq!(
             result,
@@ -52,11 +48,7 @@ mod tests {
         let arguments = Arguments::try_parse_from(["cli", "bootstrap", "--show-secrets"]).unwrap();
         let client = RedditClient::from_backend(FakeBackend);
 
-        let result = arguments
-            .command
-            .execute(&client, arguments.show_secrets)
-            .await
-            .unwrap();
+        let result = execute(&client, arguments.show_secrets).await.unwrap();
 
         assert_eq!(result["access_token"], "private-token");
     }

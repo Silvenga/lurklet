@@ -1,4 +1,4 @@
-use super::MobileBackend;
+use crate::mobile::backend::MobileBackend;
 use crate::{ClientState, Error, StateStore};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
@@ -73,10 +73,6 @@ impl<S: StateStore> MobileBackend<S> {
         Ok(headers)
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "GraphQL operations will use this header builder.")
-    )]
     pub(super) fn api_headers(&self, state: &ClientState) -> Result<HeaderMap, Error> {
         let mut headers = self.shared_headers(state)?;
         let session = state
@@ -89,6 +85,11 @@ impl<S: StateStore> MobileBackend<S> {
         if session.expires_at_ms <= self.clock.now_ms()? {
             return Err(Error::InvalidState {
                 field: "expired_session",
+            });
+        }
+        if session.access_token.expose_secret().trim().is_empty() {
+            return Err(Error::InvalidState {
+                field: "access_token",
             });
         }
         let vendor = headers["client-vendor-id"].clone();
@@ -133,7 +134,7 @@ impl<S: StateStore> MobileBackend<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mobile::testing::{self, NOW, TOKEN, TestClock};
+    use crate::mobile::backend::testing::{self, NOW, TOKEN_FAKE, TestClock};
     use crate::{AccessToken, AnonymousSession, DeviceProfile, RedditClient};
 
     #[test]
@@ -146,7 +147,7 @@ mod tests {
             .unwrap();
         let mut state = testing::state();
         state.authentication.session = Some(AnonymousSession {
-            access_token: AccessToken::new(TOKEN),
+            access_token: AccessToken::new(TOKEN_FAKE),
             expires_at_ms: NOW + 60_000,
         });
         state.authentication.loid = Some("opaque-loid".into());
@@ -155,7 +156,7 @@ mod tests {
         let api = client.backend().api_headers(&state).unwrap();
         let auth = client.backend().auth_headers(&state).unwrap();
 
-        assert_eq!(api["authorization"], format!("Bearer {TOKEN}"));
+        assert_eq!(api["authorization"], format!("Bearer {TOKEN_FAKE}"));
         assert_eq!(api["client-vendor-id"], api["x-reddit-device-id"]);
         assert_eq!(api["device-name"], "Google;Pixel 7");
         assert_eq!(api["x-reddit-dpr"], "2.75");
@@ -197,7 +198,7 @@ mod tests {
                 .unwrap();
             let mut state = testing::state();
             state.authentication.session = Some(AnonymousSession {
-                access_token: AccessToken::new(TOKEN),
+                access_token: AccessToken::new(TOKEN_FAKE),
                 expires_at_ms: NOW + 1,
             });
 

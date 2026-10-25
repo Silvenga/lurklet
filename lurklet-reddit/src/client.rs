@@ -1,4 +1,7 @@
-use crate::{AnonymousSession, Error, MobileBackend, RedditBackend, RedditClientBuilder};
+use crate::{
+    AnonymousSession, Error, GraphQlResponse, MobileBackend, RedditBackend, RedditClientBuilder,
+    RequestAllowlist, StateStore,
+};
 use std::sync::Arc;
 
 /// A Reddit client backed by a replaceable operation implementation.
@@ -10,6 +13,14 @@ impl RedditClient {
     /// Creates a builder for the mobile API client.
     pub fn builder() -> RedditClientBuilder {
         RedditClientBuilder::default()
+    }
+}
+
+impl<S: StateStore> RedditClient<MobileBackend<S>> {
+    /// Retrieves the mobile client's advertised GET allowlist without enabling GET or caching it.
+    /// Ok means a response was received; inspect its outcome for HTTP, GraphQL, or decode failures.
+    pub async fn get_request_allowlist(&self) -> Result<GraphQlResponse<RequestAllowlist>, Error> {
+        self.backend.get_request_allowlist().await
     }
 }
 

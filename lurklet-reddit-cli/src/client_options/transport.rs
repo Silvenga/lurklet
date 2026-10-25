@@ -11,6 +11,12 @@ pub struct TransportOptions {
     emulation_profile: Option<Profile>,
     #[arg(long, global = true)]
     reddit_compression: Option<String>,
+    /// Override the GraphQL Accept header without changing response handling.
+    #[arg(long, global = true)]
+    graphql_accept: Option<String>,
+    /// Override GraphQL retry header metadata; automatic retries remain disabled.
+    #[arg(long, global = true)]
+    graphql_retry_header: Option<String>,
     #[arg(long, global = true)]
     download_rate_mbps: Option<f64>,
     /// Limit decompressed response and capture size in bytes.
@@ -29,6 +35,12 @@ impl TransportOptions {
         }
         if let Some(value) = self.reddit_compression {
             builder = builder.with_reddit_compression(value);
+        }
+        if let Some(value) = self.graphql_accept {
+            builder = builder.with_graphql_accept(value);
+        }
+        if let Some(value) = self.graphql_retry_header {
+            builder = builder.with_graphql_retry_header(value);
         }
         if let Some(value) = self.download_rate_mbps {
             builder = builder.with_download_rate_mbps(Some(value));
