@@ -1,4 +1,4 @@
-use crate::commands::{CommandOutput, bootstrap, get_request_allowlist};
+use crate::commands::{CommandOutput, bootstrap, get_post, get_request_allowlist};
 use clap::Subcommand;
 use lurklet_reddit::{Error, MobileBackend, RedditClient, StateStore};
 
@@ -8,6 +8,8 @@ pub enum Command {
     Bootstrap,
     /// Fetch the mobile GET allowlist as a POST diagnostic; does not enable GET or cache the list.
     GetRequestAllowlist,
+    /// Retrieve one bare post ID as Markdown and displayable attachments. May make a live request.
+    GetPost { id: String },
 }
 
 impl Command {
@@ -22,6 +24,7 @@ impl Command {
                 error: None,
             }),
             Self::GetRequestAllowlist => get_request_allowlist::execute(client, show_secrets).await,
+            Self::GetPost { id } => get_post::execute(client, id).await,
         }
     }
 }

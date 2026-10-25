@@ -130,3 +130,58 @@ fn when_allowlist_header_construction_fails_then_the_cli_should_return_a_structu
         expected
     );
 }
+
+#[test]
+fn when_post_arguments_are_missing_or_batched_then_the_cli_should_reject_them_without_side_effects()
+{
+    let directory = TempDir::new().unwrap();
+
+    for arguments in [vec!["get-post"], vec!["get-post", "one", "two"]] {
+        let output = command()
+            .current_dir(directory.path())
+            .args(arguments)
+            .output()
+            .unwrap();
+
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
+    }
+}
+
+#[test]
+fn when_post_transport_fails_then_the_cli_should_return_nonzero_status_and_preserve_session_state()
+{
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("session.json");
+    let expected = state();
+    write_state(&path, &expected);
+
+    let output = command()
+        .arg("--state-file")
+        .arg(&path)
+        .args([
+            "--clock-ms",
+            "1000",
+            "--graphql-endpoint",
+            "https://127.0.0.1:1/",
+            "--auth-endpoint",
+            "https://127.0.0.1:1/token",
+            "get-post",
+            "18t5968",
+        ])
+        .output()
+        .unwrap();
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(result["ok"], false);
+    assert_eq!(result["error"]["kind"], "transport");
+    assert_eq!(result["captures_written"], 0);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&fs::read(path).unwrap()).unwrap(),
+        expected
+    );
+    assert!(!String::from_utf8_lossy(&output.stdout).contains(TOKEN));
+    assert!(!String::from_utf8_lossy(&output.stderr).contains(TOKEN));
+}

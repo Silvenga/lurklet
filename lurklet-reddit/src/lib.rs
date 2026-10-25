@@ -7,7 +7,10 @@ mod client;
 mod clock;
 mod error;
 mod mobile;
+mod named_reference;
+mod post;
 mod profile;
+mod reddit_id;
 mod state;
 mod storage;
 
@@ -24,7 +27,10 @@ pub use mobile::{
     GraphQlDecodeError, GraphQlErrorKind, GraphQlOutcome, GraphQlResponse, MobileBackend,
     RequestAllowlist,
 };
+pub use named_reference::NamedReference;
+pub use post::{Post, PostAttachment, VideoFormat, VideoSource};
 pub use profile::{AppProfile, DeviceProfile};
+pub use reddit_id::RedditId;
 pub use state::{
     AccessToken, AnalyticsSession, AnonymousSession, AuthenticationState, ClientState,
     Installation, StateSnapshot,

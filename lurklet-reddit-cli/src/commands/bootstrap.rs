@@ -17,11 +17,15 @@ mod tests {
     use super::*;
     use crate::arguments::Arguments;
     use clap::Parser;
-    use lurklet_reddit::{AccessToken, AnonymousSession};
+    use lurklet_reddit::{AccessToken, AnonymousSession, Post};
 
     struct FakeBackend;
 
     impl RedditBackend for FakeBackend {
+        async fn get_post(&self, _: &str) -> Result<Post, Error> {
+            unreachable!("bootstrap must not retrieve posts")
+        }
+
         async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
             Ok(AnonymousSession {
                 access_token: AccessToken::new("private-token"),

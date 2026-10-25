@@ -1,0 +1,12 @@
+{
+  "operationName": "PostsByIds",
+  "variables": {
+    "ids": ["t3_18t5968"]
+  },
+  "extensions": {
+    "persistedQuery": {
+      "version": 1,
+      "sha256Hash": "29a8d4c6e135fffb95fc4cd303c57ad926c6c5ff582f4c4577c8a69b7f322d91"
+    }
+  }
+}

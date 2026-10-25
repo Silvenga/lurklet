@@ -1,12 +1,13 @@
 use crate::mobile::graphql::{GraphQlDecodeError, GraphQlResponse};
 use crate::mobile::http_error::http_error;
 use crate::mobile::http_response::HttpResponse;
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-/// Decodes the envelope independently of HTTP status, then projects only the requested data.
-pub fn decode_response<T>(
+/// Preserves the envelope and HTTP context, then deserializes and projects operation data.
+pub fn decode_response<D: DeserializeOwned, T>(
     response: HttpResponse,
-    project: impl FnOnce(&Value) -> Result<Option<T>, GraphQlDecodeError>,
+    project: impl FnOnce(D) -> Result<Option<T>, GraphQlDecodeError>,
 ) -> GraphQlResponse<T> {
     let multipart = response
         .headers
@@ -76,7 +77,10 @@ pub fn decode_response<T>(
         return decoded;
     }
     if let Some(data) = decoded.raw_data().filter(|data| !data.is_null()) {
-        match project(data) {
+        match D::deserialize(data)
+            .map_err(|_| GraphQlDecodeError::InvalidData)
+            .and_then(project)
+        {
             Ok(data) => decoded.data = data,
             Err(error) => decoded.decode_error = Some(error),
         }
@@ -102,8 +106,8 @@ mod tests {
         }
     }
 
-    fn identity(data: &Value) -> Result<Option<Value>, GraphQlDecodeError> {
-        Ok(Some(data.clone()))
+    fn identity(data: Value) -> Result<Option<Value>, GraphQlDecodeError> {
+        Ok(Some(data))
     }
 
     #[test]
@@ -194,9 +198,20 @@ mod tests {
     fn when_projection_fails_then_the_original_data_should_remain_available() {
         let body = r#"{"data":{"unexpected":"retained"},"extensions":{"traceID":"fixture"}}"#;
 
-        let decoded = decode_response::<()>(response(200, body), |_| {
+        let decoded = decode_response::<Value, ()>(response(200, body), |_| {
             Err(GraphQlDecodeError::InvalidData)
         });
+
+        assert_eq!(decoded.decode_error, Some(GraphQlDecodeError::InvalidData));
+        assert_eq!(decoded.raw_data(), Some(&json!({"unexpected": "retained"})));
+        assert_eq!(decoded.outcome(), GraphQlOutcome::Failed);
+    }
+
+    #[test]
+    fn when_typed_deserialization_fails_then_the_original_envelope_should_remain_available() {
+        let body = r#"{"data":{"unexpected":"retained"},"extensions":{"traceID":"fixture"}}"#;
+
+        let decoded = decode_response::<u64, u64>(response(200, body), |data| Ok(Some(data)));
 
         assert_eq!(decoded.decode_error, Some(GraphQlDecodeError::InvalidData));
         assert_eq!(decoded.raw_data(), Some(&json!({"unexpected": "retained"})));

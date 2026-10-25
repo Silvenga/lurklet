@@ -46,6 +46,10 @@ pub enum Error {
     InvalidRequest { field: &'static str },
     #[error("the session changed while authentication was in flight")]
     SessionChanged,
+    #[error("Reddit could not complete the operation")]
+    OperationFailed,
+    #[error("the requested content is unavailable")]
+    Unavailable,
 }
 
 /// A validated Retry-After value, without assuming when the caller will retry.
@@ -73,6 +77,8 @@ pub enum ResponseError {
     ExpiredOnArrival,
     #[error("response contains an invalid LOID header")]
     InvalidLoid,
+    #[error("response cannot supply a readable post")]
+    InvalidPostResponse,
 }
 
 /// Categories a storage implementation can report to its consumer.

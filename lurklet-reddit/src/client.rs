@@ -1,6 +1,6 @@
 use crate::{
-    AnonymousSession, Error, GraphQlResponse, MobileBackend, RedditBackend, RedditClientBuilder,
-    RequestAllowlist, StateStore,
+    AnonymousSession, Error, GraphQlResponse, MobileBackend, Post, RedditBackend,
+    RedditClientBuilder, RequestAllowlist, StateStore,
 };
 use std::sync::Arc;
 
@@ -25,6 +25,12 @@ impl<S: StateStore> RedditClient<MobileBackend<S>> {
 }
 
 impl<B: RedditBackend> RedditClient<B> {
+    /// Retrieves one bare post ID, such as `18t5968`, without fetching related posts or comments.
+    /// Unavailable means no readable post was returned, not proof that the ID does not exist.
+    pub async fn get_post(&self, id: &str) -> Result<Post, Error> {
+        self.backend.get_post(id).await
+    }
+
     /// Ensures an anonymous session is available without logging in.
     pub async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
         self.backend.bootstrap().await
@@ -61,6 +67,20 @@ mod tests {
         async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
             Err(Error::SessionChanged)
         }
+
+        async fn get_post(&self, id: &str) -> Result<Post, Error> {
+            assert_eq!(id, "18t5968");
+            Err(Error::Unavailable)
+        }
+    }
+
+    #[tokio::test]
+    async fn when_a_post_is_requested_then_the_client_should_forward_to_the_selected_backend() {
+        let client = RedditClient::from_backend(FakeBackend);
+
+        let post = client.get_post("18t5968").await;
+
+        assert!(matches!(post, Err(Error::Unavailable)));
     }
 
     #[test]

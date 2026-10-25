@@ -3,6 +3,7 @@ mod config;
 mod graphql;
 mod http_error;
 mod http_response;
+mod post;
 mod request_allowlist;
 mod token_response;
 

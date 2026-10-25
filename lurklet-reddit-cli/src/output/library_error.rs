@@ -33,6 +33,7 @@ pub fn to_json(error: &Error) -> Value {
                 ResponseError::InvalidExpiry => "invalid_expiry",
                 ResponseError::ExpiredOnArrival => "expired_on_arrival",
                 ResponseError::InvalidLoid => "invalid_loid",
+                ResponseError::InvalidPostResponse => "invalid_post_response",
                 _ => "unknown",
             };
             json!({"kind": "invalid_response", "reason": reason})
@@ -40,6 +41,8 @@ pub fn to_json(error: &Error) -> Value {
         Error::InvalidState { field } => json!({"kind": "invalid_state", "field": field}),
         Error::InvalidRequest { field } => json!({"kind": "invalid_request", "field": field}),
         Error::SessionChanged => json!({"kind": "session_changed"}),
+        Error::OperationFailed => json!({"kind": "operation_failed"}),
+        Error::Unavailable => json!({"kind": "unavailable"}),
         _ => json!({"kind": "library"}),
     }
 }
@@ -50,6 +53,39 @@ mod tests {
     use crate::output::CliError;
     use lurklet_reddit::RetryAfter;
     use std::time::Duration;
+
+    #[test]
+    fn when_a_post_operation_fails_then_json_should_not_expose_upstream_protocol_details() {
+        let error = CliError::Library(Error::OperationFailed);
+
+        let output = error.json();
+
+        assert_eq!(
+            output,
+            json!({"kind": "operation_failed", "message": "Reddit could not complete the operation"})
+        );
+    }
+
+    #[test]
+    fn when_content_is_unavailable_then_json_should_not_claim_it_was_not_found() {
+        let error = CliError::Library(Error::Unavailable);
+
+        let output = error.json();
+
+        assert_eq!(
+            output,
+            json!({"kind": "unavailable", "message": "the requested content is unavailable"})
+        );
+    }
+
+    #[test]
+    fn when_a_post_cannot_be_decoded_then_json_should_identify_the_response_failure() {
+        let error = CliError::Library(Error::InvalidResponse(ResponseError::InvalidPostResponse));
+
+        let output = error.json();
+
+        assert_eq!(output["reason"], "invalid_post_response");
+    }
 
     #[test]
     fn when_reddit_rate_limits_then_json_should_preserve_retry_after() {

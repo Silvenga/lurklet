@@ -1,0 +1,142 @@
+{
+  "provenance": {
+    "source": "live lurklet-reddit-cli get-post response using the minimal consumer profile",
+    "captured_at": "2026-10-25T14:49:37Z",
+    "redactions": [
+      "post, author, community, and flair identifiers",
+      "names, titles, and text representations",
+      "URLs and signed query parameters",
+      "extensions.traceID"
+    ],
+    "headers": "only content type retained"
+  },
+  "status": 200,
+  "headers": {"content-type": "application/graphql-response+json"},
+  "body": {
+    "data": {
+      "postsInfoByIds": [{
+        "__typename": "SubredditPost",
+        "authorCommunityBadge": null,
+        "authorFlair": null,
+        "authorInfo": {
+          "__typename": "Redditor",
+          "accountType": "USER",
+          "attributes": {},
+          "iconSmall": {"url": "https://example.invalid/author.png"},
+          "id": "t2_fixture",
+          "isBlocked": false,
+          "isCakeDayNow": false,
+          "name": "example_author",
+          "profile": {"isNsfw": true},
+          "profileExemptedExperiments": [],
+          "snoovatarIcon": null
+        },
+        "commentCount": 62,
+        "content": {
+          "html": "<p>Sanitized <strong>Markdown</strong>.</p>",
+          "markdown": "Sanitized **Markdown**.",
+          "preview": "Sanitized Markdown.",
+          "richtext": "{\"document\":[]}",
+          "richtextMedia": []
+        },
+        "createdAt": "2023-12-28T21:35:27.507000+0000",
+        "crosspostCount": null,
+        "crosspostRoot": null,
+        "crowdControlLevel": "OFF",
+        "distinguishedAs": null,
+        "domain": "self.example",
+        "editedAt": "2023-12-28T21:47:53.934000+0000",
+        "flair": {
+          "__typename": "PostFlair",
+          "richtext": null,
+          "template": {
+            "backgroundColor": "#F2F2F2",
+            "id": "00000000-0000-4000-8000-000000000001"
+          },
+          "text": "Example flair",
+          "textColor": "DARK",
+          "type": "text"
+        },
+        "gallery": null,
+        "id": "t3_fixturepost",
+        "isArchived": false,
+        "isAuthorBlocked": false,
+        "isCommercialCommunication": false,
+        "isContestMode": false,
+        "isCrosspostable": false,
+        "isCrowdControlFilterEnabled": false,
+        "isFollowed": false,
+        "isGildable": true,
+        "isHidden": false,
+        "isLocked": false,
+        "isNsfw": false,
+        "isPollIncluded": false,
+        "isSaved": false,
+        "isScoreHidden": false,
+        "isSelfPost": true,
+        "isSpoiler": false,
+        "isStickied": false,
+        "isTranslatable": false,
+        "isTranslated": false,
+        "languageCode": "en",
+        "media": null,
+        "outboundLink": {
+          "expiresAt": "2026-10-25T19:49:37.532967+0000",
+          "url": "https://example.invalid/outbound"
+        },
+        "permalink": "/r/example/comments/fixturepost/example/",
+        "poll": null,
+        "postEventInfo": null,
+        "postTitle": "Sanitized post title",
+        "removedByCategory": null,
+        "score": 128,
+        "subreddit": {
+          "__typename": "Subreddit",
+          "id": "t5_fixture",
+          "isNsfw": false,
+          "isQuarantined": false,
+          "isSubscribed": false,
+          "isThumbnailsEnabled": false,
+          "isTitleSafe": true,
+          "isUserBanned": false,
+          "modPermissions": null,
+          "name": "example",
+          "prefixedName": "r/example",
+          "styles": {
+            "bannerBackgroundImage": null,
+            "icon": "https://example.invalid/community.png",
+            "legacyIcon": {"url": "https://example.invalid/legacy-community.png"},
+            "legacyPrimaryColor": "#FF8717",
+            "primaryColor": "#FF8D3A"
+          },
+          "subscribersCount": 427872,
+          "tippingStatus": null,
+          "title": "Example community",
+          "type": "PUBLIC",
+          "whitelistStatus": "ALL_ADS"
+        },
+        "suggestedCommentSort": null,
+        "thumbnail": null,
+        "translatedLanguage": null,
+        "upvoteRatio": 0.9210526315789473,
+        "url": "https://www.reddit.com/r/example/comments/fixturepost/example/",
+        "voteState": "NONE"
+      }]
+    },
+    "extensions": {"traceID": "fixture-trace"}
+  },
+  "expected_post": {
+    "id": "fixturepost",
+    "title": "Sanitized post title",
+    "author": {"id": "fixture", "name": "example_author"},
+    "community": {"id": "fixture", "name": "example"},
+    "created_at": "2023-12-28T21:35:27.507Z",
+    "score": 128,
+    "comment_count": 62,
+    "is_nsfw": false,
+    "is_spoiler": false,
+    "body_markdown": "Sanitized **Markdown**.",
+    "attachments": [],
+    "crosspost_id": null
+  }
+}

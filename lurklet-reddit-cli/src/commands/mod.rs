@@ -1,6 +1,7 @@
 mod bootstrap;
 mod command;
 mod command_output;
+mod get_post;
 mod get_request_allowlist;
 
 pub use command::Command;

@@ -1,7 +1,7 @@
 use crate::mobile::Config;
 use crate::{
-    AnonymousSession, Clock, Error, InMemoryStore, Installation, RedditBackend, ResponseObserver,
-    StateSnapshot, StateStore, Storage,
+    AnonymousSession, Clock, Error, InMemoryStore, Installation, Post, RedditBackend,
+    ResponseObserver, StateSnapshot, StateStore, Storage,
 };
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -57,6 +57,10 @@ impl<S: StateStore> MobileBackend<S> {
 }
 
 impl<S: StateStore> RedditBackend for MobileBackend<S> {
+    async fn get_post(&self, id: &str) -> Result<Post, Error> {
+        MobileBackend::get_post(self, id).await
+    }
+
     async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
         let observed = self.storage.completed.load(Ordering::Acquire);
         let snapshot = self.storage.store().load().await?;

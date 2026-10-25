@@ -1,0 +1,30 @@
+{
+  "data": {
+    "postsInfoByIds": [{
+      "__typename": "SubredditPost",
+      "id": "t3_18t5968",
+      "postTitle": "Example title",
+      "createdAt": "2023-12-28T21:35:27.507000+0000",
+      "score": 42,
+      "commentCount": 3,
+      "isNsfw": false,
+      "isSpoiler": false,
+      "isSelfPost": true,
+      "url": "https://www.reddit.com/r/example/comments/18t5968/example/",
+      "authorInfo": {"__typename": "Redditor", "id": "t2_author", "name": "example_author", "unrelatedField": true},
+      "subreddit": {"id": "t5_community", "name": "example", "styles": {"unrelatedField": true}},
+      "content": {
+        "markdown": "Hello **world**.",
+        "richtext": "This field is deliberately not parsed.",
+        "html": "<script>not exposed</script>"
+      },
+      "media": null,
+      "gallery": null,
+      "crosspostRoot": null,
+      "moderationInfo": "not decoded",
+      "devvit": {"requestContext": "private-fixture-context"},
+      "futureField": {"retainedOnlyInCapture": true}
+    }]
+  },
+  "extensions": {"traceID": "fixture-trace"}
+}

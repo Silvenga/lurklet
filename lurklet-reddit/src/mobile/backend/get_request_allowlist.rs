@@ -1,7 +1,8 @@
 use crate::mobile::backend::MobileBackend;
 use crate::mobile::graphql::decode_response;
-use crate::{Error, GraphQlDecodeError, GraphQlResponse, RequestAllowlist, StateStore};
-use serde_json::{Value, json};
+use crate::mobile::request_allowlist::AllowlistData;
+use crate::{Error, GraphQlResponse, RequestAllowlist, StateStore};
+use serde_json::json;
 
 impl<S: StateStore> MobileBackend<S> {
     pub(crate) async fn get_request_allowlist(
@@ -10,35 +11,8 @@ impl<S: StateStore> MobileBackend<S> {
         let response = self
             .execute_graphql_post(&self.config.request_allowlist_query, &json!({}))
             .await?;
-        Ok(decode_response(response, |data| {
-            let value = data
-                .get("zeroRttClientAllowedQueries")
-                .ok_or(GraphQlDecodeError::InvalidData)?;
-            if value.is_null() {
-                return Ok(None);
-            }
-            let client_name = value
-                .get("clientName")
-                .and_then(Value::as_str)
-                .ok_or(GraphQlDecodeError::InvalidData)?;
-            let queries = value
-                .get("queries")
-                .and_then(Value::as_array)
-                .ok_or(GraphQlDecodeError::InvalidData)?;
-            let queries = queries
-                .iter()
-                .map(|query| {
-                    query
-                        .get("name")
-                        .and_then(Value::as_str)
-                        .map(String::from)
-                        .ok_or(GraphQlDecodeError::InvalidData)
-                })
-                .collect::<Result<_, _>>()?;
-            Ok(Some(RequestAllowlist {
-                client_name: client_name.into(),
-                queries,
-            }))
+        Ok(decode_response(response, |data: AllowlistData| {
+            Ok(data.into())
         }))
     }
 }
@@ -49,7 +23,8 @@ mod tests {
     use crate::mobile::backend::testing::{
         self, GRAPHQL_ORIGIN, PATH, TestClock, cached_storage, graphql_client,
     };
-    use crate::{GraphQlErrorKind, GraphQlOutcome, RedditClient, StateStore};
+    use crate::{GraphQlDecodeError, GraphQlErrorKind, GraphQlOutcome, RedditClient, StateStore};
+    use serde_json::Value;
     use wiremock::matchers::{body_json, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
