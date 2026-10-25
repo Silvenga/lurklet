@@ -3,6 +3,7 @@ use crate::error::{ApiError, Problem};
 use crate::middleware::{RateLimit, access_log, api_cache_policy, limit_requests};
 use crate::routes;
 use axum::Router;
+use axum::http::header;
 use axum::middleware;
 use lurklet_reddit::{MobileBackend, RedditClient};
 use utoipa::OpenApi as _;
@@ -27,7 +28,12 @@ pub fn application(
     cache: Option<&ResponseCache>,
 ) -> Router {
     let (health, _) = routes::health().split_for_parts();
-    let health = health.method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed });
+    let health = health.method_not_allowed_fallback(|| async {
+        (
+            [(header::CACHE_CONTROL, "no-store")],
+            ApiError::MethodNotAllowed,
+        )
+    });
 
     let (posts, _) = routes::get_post()
         .merge(routes::list_subreddit_posts())
@@ -260,7 +266,10 @@ mod tests {
 
             assert_eq!(status, StatusCode::NOT_FOUND, "{path}");
             assert_eq!(headers[header::CONTENT_TYPE], "application/problem+json");
-            assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+            assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=10");
+            assert!(!headers.contains_key("x-ratelimit-limit"));
+            assert!(!headers.contains_key("x-ratelimit-remaining"));
+            assert!(!headers.contains_key("x-ratelimit-after"));
             assert_eq!(
                 serde_json::from_slice::<Value>(&body).unwrap(),
                 json!({"type": "about:blank", "title": "Not Found", "status": 404})
@@ -311,7 +320,10 @@ mod tests {
             response.headers()[header::CONTENT_TYPE],
             "application/problem+json"
         );
-        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "public, max-age=10"
+        );
     }
 
     #[tokio::test]
@@ -455,6 +467,12 @@ mod tests {
                 .unwrap();
 
             assert_eq!(response.status(), expected, "{path}");
+            if expected == StatusCode::METHOD_NOT_ALLOWED && path != "/api/health" {
+                assert_eq!(
+                    response.headers()[header::CACHE_CONTROL],
+                    "public, max-age=10"
+                );
+            }
             for name in [header::CONTENT_SECURITY_POLICY, header::REFERRER_POLICY] {
                 assert_eq!(
                     response.headers().contains_key(&name),

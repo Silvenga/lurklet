@@ -569,6 +569,9 @@ mod tests {
             response.headers()[header::CONTENT_TYPE],
             "application/problem+json"
         );
-        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "public, max-age=10"
+        );
     }
 }

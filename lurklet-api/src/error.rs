@@ -103,6 +103,15 @@ impl IntoResponses for ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
+        let cache_policy = match &self {
+            Self::TooManyRequests => "no-store",
+            Self::BadRequest
+            | Self::NotFound
+            | Self::MethodNotAllowed
+            | Self::InternalServerError
+            | Self::BadGateway
+            | Self::ServiceUnavailable { .. } => "public, max-age=10",
+        };
         let (status, title, retry_after) = match self {
             Self::BadRequest => (StatusCode::BAD_REQUEST, "Bad Request", None),
             Self::NotFound => (StatusCode::NOT_FOUND, "Not Found", None),
@@ -125,7 +134,7 @@ impl IntoResponse for ApiError {
             status,
             [
                 (header::CONTENT_TYPE, "application/problem+json"),
-                (header::CACHE_CONTROL, "no-store"),
+                (header::CACHE_CONTROL, cache_policy),
             ],
             Json(Problem {
                 r#type: "about:blank",

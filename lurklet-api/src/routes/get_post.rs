@@ -15,7 +15,7 @@ use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
-const CACHE_POLICY: &str = "public, max-age=0, s-maxage=300";
+const CACHE_POLICY: &str = "public, max-age=300";
 
 #[derive(Deserialize, IntoParams)]
 #[serde(rename_all = "camelCase")]
@@ -343,10 +343,7 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         assert_eq!(status, StatusCode::OK);
         assert_eq!(headers[header::CONTENT_TYPE], "application/json");
-        assert_eq!(
-            headers[header::CACHE_CONTROL],
-            "public, max-age=0, s-maxage=300"
-        );
+        assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=300");
         assert_eq!(
             body,
             json!({
@@ -390,7 +387,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_the_client_fails_then_the_endpoint_should_return_uncacheable_problem_details() {
+    async fn when_the_client_fails_then_problem_details_should_be_cacheable_for_ten_seconds() {
         for (error, status, retry_after) in [
             (Error::Unavailable, StatusCode::NOT_FOUND, None),
             (Error::NotFound, StatusCode::NOT_FOUND, None),
@@ -478,7 +475,7 @@ mod tests {
             assert_eq!(calls.load(Ordering::SeqCst), 1);
             assert_eq!(actual_status, status);
             assert_eq!(headers[header::CONTENT_TYPE], "application/problem+json");
-            assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+            assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=10");
             assert_eq!(
                 headers
                     .get(header::RETRY_AFTER)
@@ -508,7 +505,10 @@ mod tests {
             response.headers()[header::CONTENT_TYPE],
             "application/problem+json"
         );
-        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "public, max-age=10"
+        );
         assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
 
@@ -534,10 +534,7 @@ mod tests {
 
             assert_eq!(status, StatusCode::OK);
             assert_eq!(headers["x-lurklet-cache"], outcome);
-            assert_eq!(
-                headers[header::CACHE_CONTROL],
-                "public, max-age=0, s-maxage=300"
-            );
+            assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=300");
             assert!(headers.contains_key(header::AGE));
             assert_eq!(body.is_empty(), method == Method::HEAD);
         }
@@ -571,7 +568,8 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         assert_eq!(status, StatusCode::OK);
         assert_eq!(headers["x-lurklet-cache"], "stale");
-        assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+        assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=0");
+        assert!(headers.contains_key(header::AGE));
         assert_eq!(body, previous);
     }
 }

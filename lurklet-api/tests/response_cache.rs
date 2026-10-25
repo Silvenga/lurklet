@@ -159,7 +159,8 @@ async fn when_processes_overlap_then_they_should_share_complete_cache_entries() 
     assert_eq!(after_rollout.headers()["x-lurklet-cache"], "hit");
     assert_eq!(after_rollout.text().await.unwrap(), "first");
     assert_eq!(stale.headers()["x-lurklet-cache"], "stale");
-    assert_eq!(stale.headers()[header::CACHE_CONTROL], "no-store");
+    assert_eq!(stale.headers()[header::CACHE_CONTROL], "public, max-age=0");
+    assert!(stale.headers().contains_key(header::AGE));
     assert!(matches!(
         stale.text().await.unwrap().as_str(),
         "first" | "second"

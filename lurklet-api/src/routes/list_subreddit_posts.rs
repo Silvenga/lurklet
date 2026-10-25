@@ -15,7 +15,7 @@ use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
-const CACHE_POLICY: &str = "public, max-age=0, s-maxage=300";
+const CACHE_POLICY: &str = "public, max-age=300";
 
 #[derive(Deserialize, IntoParams)]
 #[serde(rename_all = "camelCase")]
@@ -456,7 +456,10 @@ mod tests {
             let response = app.clone().oneshot(request(uri)).await.unwrap();
 
             assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
-            assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+            assert_eq!(
+                response.headers()[header::CACHE_CONTROL],
+                "public, max-age=10"
+            );
             assert_eq!(
                 serde_json::from_slice::<Value>(
                     &to_bytes(response.into_body(), 4096).await.unwrap()
@@ -484,10 +487,7 @@ mod tests {
 
         assert_eq!(status, StatusCode::OK);
         assert_eq!(headers[header::CONTENT_TYPE], "application/json");
-        assert_eq!(
-            headers[header::CACHE_CONTROL],
-            "public, max-age=0, s-maxage=300"
-        );
+        assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=300");
         assert_eq!(calls.lock().unwrap().len(), 1);
         assert_eq!(
             serde_json::from_slice::<Value>(&body).unwrap(),
@@ -572,7 +572,10 @@ mod tests {
                 response.headers()[header::CONTENT_TYPE],
                 "application/problem+json"
             );
-            assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+            assert_eq!(
+                response.headers()[header::CACHE_CONTROL],
+                "public, max-age=10"
+            );
             assert_eq!(
                 serde_json::from_slice::<Value>(
                     &to_bytes(response.into_body(), 4096).await.unwrap()
@@ -607,7 +610,7 @@ mod tests {
             assert_eq!(response.headers()["x-lurklet-cache"], outcome, "{uri}");
             assert_eq!(
                 response.headers()[header::CACHE_CONTROL],
-                "public, max-age=0, s-maxage=300"
+                "public, max-age=300"
             );
         }
         let mut head = request("/subreddits/rust/posts?sort=new&after=one");
@@ -655,7 +658,11 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()["x-lurklet-cache"], "stale");
-        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "public, max-age=0"
+        );
+        assert!(response.headers().contains_key(header::AGE));
         assert_eq!(
             to_bytes(response.into_body(), 16_384).await.unwrap(),
             expected

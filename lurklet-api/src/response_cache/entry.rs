@@ -1,5 +1,5 @@
 use axum::body::Body;
-use axum::http::{HeaderMap, HeaderValue, header};
+use axum::http::HeaderMap;
 use axum::response::Response;
 use bytes::Bytes;
 use headers::{Age, HeaderMapExt};
@@ -29,16 +29,11 @@ impl Entry {
     }
 
     /// Restores representation headers and accounts for elapsed cache age.
-    pub fn into_response(self, stale: bool) -> Response {
+    pub fn into_response(self) -> Response {
         let age = self.stored_at.elapsed().unwrap_or_default();
         let mut response = Response::new(Body::from(self.body));
         *response.headers_mut() = self.headers;
         response.headers_mut().typed_insert(Age::from(age));
-        if stale {
-            response
-                .headers_mut()
-                .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-        }
         response
     }
 }

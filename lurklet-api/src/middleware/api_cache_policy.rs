@@ -3,21 +3,13 @@ use axum::http::{HeaderValue, header};
 use axum::middleware::Next;
 use axum::response::Response;
 
-/// Defaults API responses to no-store and prevents caching of errors.
+/// Defaults API responses to no-store and removes cacheable per-client quota headers.
 pub async fn api_cache_policy(request: Request, next: Next) -> Response {
     let mut response = next.run(request).await;
-    let status = response.status();
-
-    if status.is_client_error() || status.is_server_error() {
-        response
-            .headers_mut()
-            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    } else {
-        response
-            .headers_mut()
-            .entry(header::CACHE_CONTROL)
-            .or_insert(HeaderValue::from_static("no-store"));
-    }
+    response
+        .headers_mut()
+        .entry(header::CACHE_CONTROL)
+        .or_insert(HeaderValue::from_static("no-store"));
 
     let uncacheable = response
         .headers()
@@ -56,18 +48,23 @@ mod tests {
 
     #[tokio::test]
     async fn when_a_response_can_be_cached_then_quota_headers_should_not_be_replayed() {
-        for (policy, retain_quota) in [
-            ("public, max-age=60", false),
-            ("private, max-age=60", false),
-            ("no-cache", false),
-            ("no-store", true),
-            ("PUBLIC, NO-STORE", true),
+        for (status, policy, retain_quota) in [
+            (StatusCode::OK, "public, max-age=60", false),
+            (StatusCode::OK, "private, max-age=60", false),
+            (StatusCode::OK, "no-cache", false),
+            (StatusCode::OK, "no-store", true),
+            (StatusCode::OK, "PUBLIC, NO-STORE", true),
+            (StatusCode::NOT_FOUND, "public, max-age=10", false),
+            (StatusCode::SERVICE_UNAVAILABLE, "public, max-age=10", false),
+            (StatusCode::SERVICE_UNAVAILABLE, "no-store", true),
+            (StatusCode::TOO_MANY_REQUESTS, "no-store", true),
         ] {
             let app = Router::new()
                 .route(
                     "/cached",
                     get(move || async move {
                         (
+                            status,
                             [
                                 ("cache-control", policy),
                                 ("x-ratelimit-limit", "10"),
@@ -86,7 +83,7 @@ mod tests {
 
             let response = app.oneshot(request).await.unwrap();
 
-            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.status(), status);
             assert_eq!(response.headers()[header::CACHE_CONTROL], policy);
             for name in [
                 "x-ratelimit-limit",
@@ -144,13 +141,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_error_has_public_cache_policy_then_middleware_should_disable_caching() {
+    async fn when_error_has_public_cache_policy_then_middleware_should_preserve_it() {
         for status in [StatusCode::NOT_FOUND, StatusCode::INTERNAL_SERVER_ERROR] {
             let app = Router::new()
                 .route(
                     "/resource",
                     get(move || async move {
-                        (status, [(header::CACHE_CONTROL, "public, max-age=60")])
+                        (status, [(header::CACHE_CONTROL, "public, max-age=10")])
                     }),
                 )
                 .layer(middleware::from_fn(api_cache_policy));
@@ -161,7 +158,10 @@ mod tests {
 
             let response = app.oneshot(request).await.unwrap();
 
-            assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+            assert_eq!(
+                response.headers()[header::CACHE_CONTROL],
+                "public, max-age=10"
+            );
         }
     }
 }

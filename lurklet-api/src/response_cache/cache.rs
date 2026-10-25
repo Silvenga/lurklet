@@ -49,7 +49,7 @@ impl ResponseCache {
         let key = CacheKey::new(original);
 
         if let Some(entry) = cache.store.read(&key).await.filter(Entry::is_fresh) {
-            return finish(entry.into_response(false), "hit");
+            return finish(entry.into_response(), "hit");
         }
 
         let lock = {
@@ -60,14 +60,14 @@ impl ResponseCache {
         };
         let _guard = lock.lock().await;
         let previous = match cache.store.read(&key).await {
-            Some(entry) if entry.is_fresh() => return finish(entry.into_response(false), "hit"),
+            Some(entry) if entry.is_fresh() => return finish(entry.into_response(), "hit"),
             previous => previous,
         };
 
         let response = next.run(request).await;
         if response.status() != StatusCode::OK {
             return match previous {
-                Some(entry) => finish(entry.into_response(true), "stale"),
+                Some(entry) => finish(entry.into_response(), "stale"),
                 None => finish(response, "miss"),
             };
         }
@@ -95,7 +95,7 @@ impl ResponseCache {
             Err(error) => {
                 tracing::debug!(?error, "Unable to collect a cacheable response body");
                 return match previous {
-                    Some(entry) => finish(entry.into_response(true), "stale"),
+                    Some(entry) => finish(entry.into_response(), "stale"),
                     None => finish(ApiError::InternalServerError.into_response(), "miss"),
                 };
             }
@@ -114,7 +114,7 @@ impl ResponseCache {
             tracing::warn!("Unable to write a response cache entry; returning the fresh response");
             tracing::debug!(?error, "Response cache write failure details");
         }
-        finish(entry.into_response(false), "miss")
+        finish(entry.into_response(), "miss")
     }
 }
 
@@ -332,7 +332,18 @@ mod tests {
 
                 assert_eq!(response.status(), StatusCode::OK, "{status}");
                 assert_eq!(response.headers()["x-lurklet-cache"], "stale");
-                assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+                assert_eq!(
+                    response.headers()[header::CACHE_CONTROL],
+                    "public, max-age=60"
+                );
+                assert!(
+                    response.headers()[header::AGE]
+                        .to_str()
+                        .unwrap()
+                        .parse::<u64>()
+                        .unwrap()
+                        >= 365 * 24 * 3600
+                );
                 assert_eq!(
                     to_bytes(response.into_body(), 4096).await.unwrap(),
                     b"old content".as_slice()
@@ -348,21 +359,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_no_entry_exists_then_an_error_should_be_returned_and_not_stored() {
+    async fn when_no_entry_exists_then_a_downstream_cacheable_error_should_not_be_stored_on_disk() {
         let directory = TempDir::new().unwrap();
         let cache = ResponseCache::new(directory.path()).await.unwrap();
-        let app = cache.wrap(Router::new().route(
-            "/resource",
-            get(|| async { (StatusCode::NOT_FOUND, "missing") }),
-        ));
+        let app =
+            cache.wrap(Router::new().route("/resource", get(|| async { ApiError::NotFound })));
 
         let response = app.oneshot(request("/resource")).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         assert_eq!(response.headers()["x-lurklet-cache"], "miss");
         assert_eq!(
-            to_bytes(response.into_body(), 4096).await.unwrap(),
-            b"missing".as_slice()
+            response.headers()[header::CACHE_CONTROL],
+            "public, max-age=10"
         );
         assert!(
             cache
