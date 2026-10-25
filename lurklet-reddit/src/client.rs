@@ -1,5 +1,5 @@
 use crate::{
-    AnonymousSession, CommentForest, CommentSort, CommentThread, Error, GraphQlResponse,
+    AnonymousSession, CommentForest, CommentSort, CommentThread, Error, GraphQlResponse, MediaFile,
     MobileBackend, Post, RedditBackend, RedditClientBuilder, RedditId, RequestAllowlist,
     StateStore, Subreddit, SubredditPage, SubredditSort,
 };
@@ -26,6 +26,12 @@ impl<S: StateStore> RedditClient<MobileBackend<S>> {
 }
 
 impl<B: RedditBackend> RedditClient<B> {
+    /// Opens one media URL unchanged, without authentication, redirects, or related requests.
+    /// The body streams independently of the client; consume it to EOF to establish completion.
+    pub async fn get_media(&self, url: &str) -> Result<MediaFile, Error> {
+        self.backend.get_media(url).await
+    }
+
     /// Reads a bare name's community metadata without fetching its feed or assets.
     /// Unavailable-community explanations are results; a null resource is Error::Unavailable.
     pub async fn get_subreddit(&self, name: &str) -> Result<Subreddit, Error> {
@@ -99,10 +105,23 @@ impl<B: RedditBackend> Clone for RedditClient<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MediaKind;
+    use bytes::Bytes;
+    use futures_util::{StreamExt, stream};
 
     struct FakeBackend;
 
     impl RedditBackend for FakeBackend {
+        async fn get_media(&self, url: &str) -> Result<MediaFile, Error> {
+            assert_eq!(url, "https://i.redd.it/image.png?s=a%2Bb&width=10");
+            Ok(MediaFile {
+                content_type: "image/png".into(),
+                kind: MediaKind::Image,
+                content_length: Some(5),
+                body: Box::pin(stream::iter([Ok(Bytes::from_static(b"image"))])),
+            })
+        }
+
         async fn get_subreddit(&self, name: &str) -> Result<Subreddit, Error> {
             assert_eq!(name, "Rust");
             Err(Error::Unavailable)
@@ -163,6 +182,22 @@ mod tests {
             assert_eq!(id, &"18t5968".into());
             Err(Error::Unavailable)
         }
+    }
+
+    #[tokio::test]
+    async fn when_media_is_requested_then_the_client_should_forward_the_opaque_url_and_return_a_stream()
+     {
+        let client = RedditClient::from_backend(FakeBackend);
+
+        let mut file = client
+            .get_media("https://i.redd.it/image.png?s=a%2Bb&width=10")
+            .await
+            .unwrap();
+        drop(client);
+        let chunk = file.body.next().await.unwrap().unwrap();
+
+        assert_eq!(chunk.as_ref(), b"image");
+        assert!(file.body.next().await.is_none());
     }
 
     #[tokio::test]

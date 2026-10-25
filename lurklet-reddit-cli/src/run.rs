@@ -1,5 +1,6 @@
 use crate::arguments::Arguments;
 use crate::captures::Recorder;
+use crate::commands::Command;
 use crate::output::CliError;
 use crate::state_file::StateFile;
 use lurklet_reddit::{ClientState, Error, InMemoryStore, StateStore, Storage};
@@ -8,15 +9,18 @@ use std::fs;
 use tokio::task::spawn_blocking;
 
 pub async fn run(arguments: Arguments) -> Result<Value, CliError> {
-    let (state_file, state) = if let Some(path) = arguments.state_file {
+    let uses_session = !matches!(&arguments.command, Command::GetMedia(_));
+    let (state_file, state) = if let Some(path) = arguments.state_file.filter(|_| uses_session) {
         let (file, state) = spawn_blocking(move || StateFile::open(path))
             .await
             .map_err(|_| CliError::Worker)??;
         (Some(file), state)
     } else {
-        tracing::warn!(
-            "Session state is ephemeral; installation identity will not survive this invocation"
-        );
+        if uses_session {
+            tracing::warn!(
+                "Session state is ephemeral; installation identity will not survive this invocation"
+            );
+        }
         (None, ClientState::default())
     };
     let storage = Storage::new(InMemoryStore::with_state(state));
@@ -68,7 +72,7 @@ pub async fn run(arguments: Arguments) -> Result<Value, CliError> {
                 json!({"ok": false, "error": secondary_errors.remove(0), "operation_result": report.result})
             }
         },
-        Err(error) => json!({"ok": false, "error": CliError::Library(error).json()}),
+        Err(error) => json!({"ok": false, "error": error.json()}),
     };
     output["captures_written"] = captured.into();
     if !secondary_errors.is_empty() {

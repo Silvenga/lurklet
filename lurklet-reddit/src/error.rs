@@ -38,6 +38,11 @@ pub enum Error {
     },
     #[error("unexpected upstream HTTP status: {status}")]
     UnexpectedStatus { status: u16 },
+    #[error("unable to retrieve a complete media file (HTTP {status})")]
+    MediaStatus {
+        status: u16,
+        retry_after: Option<RetryAfter>,
+    },
     #[error("invalid upstream response: {0}")]
     InvalidResponse(#[from] ResponseError),
     #[error("invalid stored state: {field}")]
@@ -86,6 +91,10 @@ pub enum ResponseError {
     InvalidOperationResponse,
     #[error("response contains no supported result data")]
     UnsupportedData,
+    #[error("response does not declare a supported media type")]
+    UnsupportedMediaType,
+    #[error("response has an unsupported media content encoding")]
+    UnsupportedMediaEncoding,
 }
 
 /// Categories a storage implementation can report to its consumer.

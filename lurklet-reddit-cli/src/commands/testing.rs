@@ -1,16 +1,23 @@
 use lurklet_reddit::{
-    AnonymousSession, CommentForest, CommentSort, CommentThread, Error, Post, RedditBackend,
-    RedditId, Subreddit, SubredditPage, SubredditSort,
+    AnonymousSession, CommentForest, CommentSort, CommentThread, Error, MediaFile, Post,
+    RedditBackend, RedditId, Subreddit, SubredditPage, SubredditSort,
 };
+use std::sync::Mutex;
 
 #[derive(Default)]
 pub struct FakeBackend {
+    pub media: Option<MediaCall>,
     pub session: Option<AnonymousSession>,
     pub post: Option<(RedditId, Result<Post, Error>)>,
     pub subreddit: Option<(String, Result<Subreddit, Error>)>,
     pub listing: Option<ListingCall>,
     pub comments: Option<CommentsCall>,
     pub thread: Option<ThreadCall>,
+}
+
+pub struct MediaCall {
+    pub url: String,
+    pub result: Mutex<Option<Result<MediaFile, Error>>>,
 }
 
 pub struct CommentsCall {
@@ -34,6 +41,17 @@ pub struct ListingCall {
 }
 
 impl RedditBackend for FakeBackend {
+    async fn get_media(&self, url: &str) -> Result<MediaFile, Error> {
+        let expected = self.media.as_ref().expect("unexpected media request");
+        assert_eq!(url, expected.url);
+        expected
+            .result
+            .lock()
+            .unwrap()
+            .take()
+            .expect("media may only be requested once")
+    }
+
     async fn get_subreddit(&self, name: &str) -> Result<Subreddit, Error> {
         let (expected, result) = self
             .subreddit

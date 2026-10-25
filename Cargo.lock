@@ -1453,11 +1453,14 @@ name = "lurklet-reddit"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
+ "bytes",
  "chrono",
+ "flate2",
  "futures-util",
  "http",
  "httpdate",
  "insta",
+ "mediatype",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -1478,6 +1481,7 @@ dependencies = [
  "assert_cmd",
  "assert_fs",
  "clap",
+ "futures-util",
  "lurklet-reddit",
  "serde",
  "serde_json",

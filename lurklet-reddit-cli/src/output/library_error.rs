@@ -24,6 +24,12 @@ pub fn to_json(error: &Error) -> Value {
         Error::UnexpectedStatus { status } => {
             json!({"kind": "unexpected_status", "status": status})
         }
+        Error::MediaStatus {
+            status,
+            retry_after,
+        } => {
+            json!({"kind": "media_status", "status": status, "retry_after": retry_after_json(retry_after)})
+        }
         Error::InvalidResponse(reason) => {
             let reason = match reason {
                 ResponseError::BodyTooLarge => "body_too_large",
@@ -36,6 +42,8 @@ pub fn to_json(error: &Error) -> Value {
                 ResponseError::InvalidPostResponse => "invalid_post_response",
                 ResponseError::InvalidOperationResponse => "invalid_operation_response",
                 ResponseError::UnsupportedData => "unsupported_data",
+                ResponseError::UnsupportedMediaType => "unsupported_media_type",
+                ResponseError::UnsupportedMediaEncoding => "unsupported_media_encoding",
                 _ => "unknown",
             };
             json!({"kind": "invalid_response", "reason": reason})
@@ -131,5 +139,44 @@ mod tests {
 
         assert_eq!(output["kind"], "access_denied");
         assert_eq!(output["status"], 403);
+    }
+
+    #[test]
+    fn when_a_media_origin_rejects_a_request_then_json_should_report_media_status_without_implying_expired_oauth()
+     {
+        for status in [401, 403, 429] {
+            let error = CliError::Library(Error::MediaStatus {
+                status,
+                retry_after: Some(RetryAfter::Delay(Duration::from_secs(60))),
+            });
+
+            let output = error.json();
+
+            assert_eq!(output["kind"], "media_status");
+            assert_eq!(output["status"], status);
+            assert_eq!(output["retry_after"], json!({"delay_seconds": 60}));
+        }
+    }
+
+    #[test]
+    fn when_a_media_representation_is_unsupported_then_json_should_report_the_specific_response_failure()
+     {
+        for (reason, expected) in [
+            (
+                ResponseError::UnsupportedMediaType,
+                "unsupported_media_type",
+            ),
+            (
+                ResponseError::UnsupportedMediaEncoding,
+                "unsupported_media_encoding",
+            ),
+        ] {
+            let error = CliError::Library(Error::InvalidResponse(reason));
+
+            let output = error.json();
+
+            assert_eq!(output["kind"], "invalid_response");
+            assert_eq!(output["reason"], expected);
+        }
     }
 }

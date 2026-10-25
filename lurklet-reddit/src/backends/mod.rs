@@ -9,7 +9,8 @@ pub use mobile::{
 };
 pub use models::{
     Comment, CommentForest, CommentItem, CommentSort, CommentState, CommentThread, ListedPost,
-    Post, PostAttachment, Subreddit, SubredditDetails, SubredditPage, SubredditSort,
-    SubredditStyles, Thumbnail, TimeRange, UnavailableSubreddit, VideoFormat, VideoSource,
+    MediaBody, MediaFile, MediaKind, Post, PostAttachment, Subreddit, SubredditDetails,
+    SubredditPage, SubredditSort, SubredditStyles, Thumbnail, TimeRange, UnavailableSubreddit,
+    VideoFormat, VideoSource,
 };
 pub use reddit_backend::RedditBackend;

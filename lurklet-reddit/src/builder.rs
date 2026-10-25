@@ -43,6 +43,7 @@ impl Default for RedditClientBuilder {
 
 impl<S: StateStore> RedditClientBuilder<S> {
     /// Enables sensitive response capture, bounded by the response-size limit.
+    /// Media captures finish when the body reaches EOF, fails, or is dropped.
     pub fn with_response_observer(mut self, observer: impl ResponseObserver + 'static) -> Self {
         self.observer = Some(Arc::new(observer));
         self
@@ -160,7 +161,8 @@ impl<S: StateStore> RedditClientBuilder<S> {
         self
     }
 
-    /// Bounds decompressed response bodies and captures.
+    /// Bounds buffered responses and captures, including media capture prefixes.
+    /// This does not limit streamed media downloads.
     pub fn with_max_response_bytes(mut self, limit: usize) -> Self {
         self.config.max_response_bytes = limit;
         self

@@ -3,6 +3,7 @@ mod comments;
 mod config;
 mod continuations;
 mod graphql;
+mod media;
 mod mobile_backend;
 mod posts;
 mod requests;

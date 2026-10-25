@@ -6,7 +6,7 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(version, about, arg_required_else_help = true)]
 pub struct Arguments {
-    /// Restore and atomically save session state; otherwise state is ephemeral.
+    /// Restore and atomically save session state; otherwise state is ephemeral. Ignored for get-media.
     #[arg(long, global = true)]
     pub state_file: Option<PathBuf>,
     /// Capture response headers and bodies, including any credentials they contain.

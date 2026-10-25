@@ -1,11 +1,14 @@
 use crate::{
-    AnonymousSession, CommentForest, CommentSort, CommentThread, Error, Post, RedditId, Subreddit,
-    SubredditPage, SubredditSort,
+    AnonymousSession, CommentForest, CommentSort, CommentThread, Error, MediaFile, Post, RedditId,
+    Subreddit, SubredditPage, SubredditSort,
 };
 use std::future::Future;
 
 /// Backend contract for Reddit operations, independent of upstream endpoints.
 pub trait RedditBackend: Send + Sync {
+    /// Opens a full file from a supported HTTPS media origin without authentication or redirects.
+    fn get_media(&self, url: &str) -> impl Future<Output = Result<MediaFile, Error>> + Send;
+
     /// Reads metadata or an unavailable-community explanation for a bare subreddit name.
     fn get_subreddit(&self, name: &str) -> impl Future<Output = Result<Subreddit, Error>> + Send;
 

@@ -319,6 +319,66 @@ fn when_comment_arguments_request_unsupported_modes_then_the_cli_should_reject_t
 }
 
 #[test]
+fn when_media_arguments_are_incomplete_then_clap_should_reject_them_before_execution() {
+    for arguments in [
+        vec!["get-media"],
+        vec!["get-media", "https://example.invalid/file"],
+        vec!["get-media", "--output", "file.bin"],
+    ] {
+        let output = command().args(arguments).output().unwrap();
+
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+    }
+}
+
+#[test]
+fn when_a_media_url_is_unsupported_then_the_cli_should_ignore_session_state_and_leave_no_file_or_credentials()
+ {
+    let directory = TempDir::new().unwrap();
+    let state_path = directory.path().join("session.json");
+    let file_path = directory.path().join("media.bin");
+    let capture_path = directory.path().join("captures");
+    fs::write(&state_path, "invalid state that media must not read").unwrap();
+
+    let output = command()
+        .arg("--state-file")
+        .arg(&state_path)
+        .arg("--capture-dir")
+        .arg(&capture_path)
+        .args([
+            "get-media",
+            "https://example.invalid/file?private=signed",
+            "--output",
+        ])
+        .arg(&file_path)
+        .output()
+        .unwrap();
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(value["error"]["kind"], "invalid_request");
+    assert_eq!(value["error"]["field"], "media_url");
+    assert_eq!(value["captures_written"], 0);
+    assert!(!file_path.exists());
+    assert!(!directory.path().join("session.json.lock").exists());
+    assert_eq!(
+        fs::read_to_string(state_path).unwrap(),
+        "invalid state that media must not read"
+    );
+    assert!(!stderr.contains("Session state is ephemeral"));
+    assert!(!stderr.contains("private=signed"));
+    assert!(
+        !String::from_utf8(output.stdout)
+            .unwrap()
+            .contains("private=signed")
+    );
+    assert_eq!(fs::read_dir(capture_path).unwrap().count(), 0);
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 2);
+}
+
+#[test]
 fn when_a_comment_cursor_is_invalid_then_the_cli_should_return_nonzero_status_without_network() {
     let directory = TempDir::new().unwrap();
     let path = directory.path().join("session.json");

@@ -10,6 +10,7 @@ pub struct ResponseCapture {
     pub http_version: String,
     pub headers: Vec<(String, Vec<u8>)>,
     pub body: Vec<u8>,
+    /// The capture exceeded its limit or a media stream was dropped before reaching EOF.
     pub body_truncated: bool,
     pub body_error: Option<TransportErrorKind>,
     pub elapsed: Duration,

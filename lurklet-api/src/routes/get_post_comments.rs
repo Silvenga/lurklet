@@ -80,7 +80,7 @@ mod tests {
     use axum::routing::get;
     use lurklet_reddit::{
         AnonymousSession, CommentForest as RedditCommentForest, CommentItem,
-        CommentSort as RedditCommentSort, CommentThread, Post, Subreddit, SubredditPage,
+        CommentSort as RedditCommentSort, CommentThread, MediaFile, Post, Subreddit, SubredditPage,
         SubredditSort,
     };
     use serde_json::{Value, json};
@@ -100,6 +100,10 @@ mod tests {
     }
 
     impl RedditBackend for FakeBackend {
+        async fn get_media(&self, _: &str) -> Result<MediaFile, RedditError> {
+            panic!("the comments endpoint must not fetch media")
+        }
+
         async fn get_subreddit(&self, _: &str) -> Result<Subreddit, RedditError> {
             panic!("the comments endpoint must not fetch subreddit metadata")
         }

@@ -1,12 +1,15 @@
 use crate::commands::{
-    CommandOutput, GetCommentThread, GetPostComments, ListSubredditPosts, bootstrap, get_post,
-    get_request_allowlist, get_subreddit,
+    CommandOutput, GetCommentThread, GetMedia, GetPostComments, ListSubredditPosts, bootstrap,
+    get_post, get_request_allowlist, get_subreddit,
 };
+use crate::output::CliError;
 use clap::Subcommand;
-use lurklet_reddit::{Error, MobileBackend, RedditClient, RedditId, StateStore};
+use lurklet_reddit::{MobileBackend, RedditClient, RedditId, StateStore};
 
 #[derive(Subcommand)]
 pub enum Command {
+    /// Stream a supported public media URL to a new file without authentication. May make a live request.
+    GetMedia(GetMedia),
     /// Reuse a valid anonymous session or acquire one from Reddit. May make a live request.
     Bootstrap,
     /// Fetch the mobile GET allowlist as a POST diagnostic; does not enable GET or cache the list.
@@ -28,18 +31,21 @@ impl Command {
         &self,
         client: &RedditClient<MobileBackend<S>>,
         show_secrets: bool,
-    ) -> Result<CommandOutput, Error> {
-        match self {
-            Self::Bootstrap => Ok(CommandOutput {
+    ) -> Result<CommandOutput, CliError> {
+        Ok(match self {
+            Self::GetMedia(arguments) => arguments.execute(client).await?,
+            Self::Bootstrap => CommandOutput {
                 result: bootstrap::execute(client, show_secrets).await?,
                 error: None,
-            }),
-            Self::GetRequestAllowlist => get_request_allowlist::execute(client, show_secrets).await,
-            Self::GetPost { id } => get_post::execute(client, id).await,
-            Self::GetSubreddit { name } => get_subreddit::execute(client, name).await,
-            Self::GetPostComments(arguments) => arguments.execute(client).await,
-            Self::GetCommentThread(arguments) => arguments.execute(client).await,
-            Self::ListSubredditPosts(arguments) => arguments.execute(client).await,
-        }
+            },
+            Self::GetRequestAllowlist => {
+                get_request_allowlist::execute(client, show_secrets).await?
+            }
+            Self::GetPost { id } => get_post::execute(client, id).await?,
+            Self::GetSubreddit { name } => get_subreddit::execute(client, name).await?,
+            Self::GetPostComments(arguments) => arguments.execute(client).await?,
+            Self::GetCommentThread(arguments) => arguments.execute(client).await?,
+            Self::ListSubredditPosts(arguments) => arguments.execute(client).await?,
+        })
     }
 }

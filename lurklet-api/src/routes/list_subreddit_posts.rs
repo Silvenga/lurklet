@@ -227,8 +227,8 @@ mod tests {
     use axum::http::{Method, Request, StatusCode};
     use axum::routing::get;
     use lurklet_reddit::{
-        AnonymousSession, CommentForest, CommentSort, CommentThread, Post as RedditPost, RedditId,
-        Subreddit,
+        AnonymousSession, CommentForest, CommentSort, CommentThread, MediaFile, Post as RedditPost,
+        RedditId, Subreddit,
     };
     use serde_json::{Value, json};
     use std::sync::{Arc, Mutex};
@@ -247,6 +247,10 @@ mod tests {
     }
 
     impl RedditBackend for FakeBackend {
+        async fn get_media(&self, _: &str) -> Result<MediaFile, RedditError> {
+            panic!("the listing endpoint must not fetch media")
+        }
+
         async fn get_subreddit(&self, _: &str) -> Result<Subreddit, RedditError> {
             panic!("the listing endpoint must not fetch subreddit metadata")
         }
