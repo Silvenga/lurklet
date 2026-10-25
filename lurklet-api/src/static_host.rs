@@ -1,4 +1,4 @@
-use crate::middleware::{access_log, content_security_policy, static_policy};
+use crate::middleware::{access_log, content_security_policy, referrer_policy, static_policy};
 use crate::routes::robots;
 use anyhow::{Context, ensure};
 use axum::Router;
@@ -53,6 +53,7 @@ impl StaticHost {
             .fallback_service(files)
             .layer(middleware::from_fn(static_policy))
             .layer(content_security_policy())
+            .layer(referrer_policy())
             .layer(middleware::from_fn(access_log))
     }
 }
@@ -150,7 +151,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_static_responses_are_served_then_csp_should_restrict_resources_to_the_same_origin()
+    async fn when_static_responses_are_served_then_browser_policies_should_restrict_resources_and_referrers_to_the_same_origin()
      {
         let directory = fixtures();
         let app = app(&directory).await;
@@ -178,6 +179,11 @@ mod tests {
                 assert_eq!(
                     response.headers()[header::CONTENT_SECURITY_POLICY],
                     "default-src 'self'",
+                    "{path}"
+                );
+                assert_eq!(
+                    response.headers()[header::REFERRER_POLICY],
+                    "same-origin",
                     "{path}"
                 );
             }
@@ -435,6 +441,7 @@ mod tests {
                     header::CACHE_CONTROL,
                     header::VARY,
                     header::CONTENT_SECURITY_POLICY,
+                    header::REFERRER_POLICY,
                 ] {
                     assert_eq!(cached_headers.get(&name), headers.get(&name), "{name}");
                 }

@@ -428,13 +428,13 @@ mod tests {
                 .unwrap();
 
             assert_eq!(response.status(), expected, "{path}");
-            assert_eq!(
-                response
-                    .headers()
-                    .contains_key(header::CONTENT_SECURITY_POLICY),
-                !path.starts_with("/api/"),
-                "{path}"
-            );
+            for name in [header::CONTENT_SECURITY_POLICY, header::REFERRER_POLICY] {
+                assert_eq!(
+                    response.headers().contains_key(&name),
+                    !path.starts_with("/api/"),
+                    "{path}: {name}"
+                );
+            }
             assert!(
                 !response.headers().contains_key("x-lurklet-cache"),
                 "{path}"
