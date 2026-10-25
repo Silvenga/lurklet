@@ -2,6 +2,9 @@
 members = ["lurklet-api", "lurklet-reddit", "lurklet-reddit-cli"]
 resolver = "3"
 
+[profile.release]
+debug-assertions = true
+
 [workspace.package]
 version = "0.1.0"
 edition = "2024"

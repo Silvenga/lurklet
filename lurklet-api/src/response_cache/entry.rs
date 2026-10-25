@@ -33,7 +33,40 @@ impl Entry {
         let age = self.stored_at.elapsed().unwrap_or_default();
         let mut response = Response::new(Body::from(self.body));
         *response.headers_mut() = self.headers;
-        response.headers_mut().typed_insert(Age::from(age));
         response
+            .headers_mut()
+            .typed_insert(Age::from_secs(age.as_secs()));
+        response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::header;
+
+    #[test]
+    fn when_residence_time_has_fractional_seconds_then_age_should_use_whole_seconds() {
+        let stored_at = SystemTime::now() - Duration::from_millis(1250);
+        let entry = Entry {
+            version: 1,
+            key: "/resource".into(),
+            stored_at,
+            fresh_for: Duration::from_secs(300),
+            initial_age: Duration::ZERO,
+            headers: HeaderMap::new(),
+            body: Bytes::new(),
+        };
+        let before = stored_at.elapsed().unwrap().as_secs();
+
+        let response = entry.into_response();
+        let after = stored_at.elapsed().unwrap().as_secs();
+        let age = response.headers()[header::AGE]
+            .to_str()
+            .unwrap()
+            .parse::<u64>()
+            .unwrap();
+
+        assert!((before..=after).contains(&age));
     }
 }
