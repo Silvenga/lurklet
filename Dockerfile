@@ -81,15 +81,19 @@ RUN set -xe \
     && cargo test --release --locked --workspace \
     && cargo build --release --locked --package lurklet-api --bin lurklet-api
 
+RUN install -d -m 0755 /cache
+
 FROM gcr.io/distroless/cc-debian13:nonroot AS backend-runtime
 
 COPY --from=backend-builder --chmod=0555 /app/target/release/lurklet-api /usr/local/bin/lurklet-api
 COPY --from=frontend-build /app/lurklet-web/dist/ /app/static/
+COPY --from=backend-builder --chown=65532:65532 /cache /cache
 
 ENV LURKLET_BIND=0.0.0.0:3000 \
     LURKLET_STATIC_DIR=/app/static
 
 EXPOSE 3000/tcp
+VOLUME ["/cache"]
 USER 65532:65532
 HEALTHCHECK \
     --interval=30s \

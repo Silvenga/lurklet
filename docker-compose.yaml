@@ -3,3 +3,12 @@ services:
     build: .
     ports:
       - "127.0.0.1:3000:3000"
+    environment:
+      LURKLET_CACHE_DIR: /cache
+      RUST_LOG: debug
+
+    volumes:
+      - cache:/cache
+
+volumes:
+  cache:
