@@ -1,0 +1,47 @@
+{
+  "data": {
+    "subredditV3": {
+      "elements": {
+        "dist": 4,
+        "pageInfo": {"endCursor": "upstream-page-2+/="},
+        "edges": [
+          {"node": {"__typename": "CellGroup", "groupId": "sortcell", "cells": []}},
+          {"node": {
+            "__typename": "CellGroup",
+            "id": "opaque-feed-element-not-a-post-id",
+            "groupId": "t3_first",
+            "adPayload": null,
+            "crosspostCells": [{"__typename": "CrossPostCell", "innerPost": {"id": "t3_not_another_row"}}],
+            "cells": [
+              {"__typename": "ActionCell", "score": 42, "commentCount": 3, "isScoreHidden": false},
+              {"__typename": "UnknownDecoration", "content": "ignored"},
+              {"__typename": "ClassicCell",
+                "titleCell": {"title": "First post"},
+                "metadataCell": {"createdAt": "2023-12-28T21:35:27.507000+0000", "subredditName": "u/example_author", "statusIndicators": ["PINNED", "FUTURE_STATUS"]},
+                "indicatorsCell": {"indicators": ["NSFW", "SPOILER", "FUTURE_INDICATOR"]},
+                "thumbnailCell": {
+                  "path": "https://example.invalid/not-the-discussion",
+                  "image": {"path": "https://example.invalid/preview.png", "obfuscatedPath": "https://example.invalid/blurred.png", "isObfuscated": true, "size": {"width": 100, "height": 75}}
+                },
+                "previewTextCell": {"text": "No text excerpts should be exposed."}
+              }
+            ]
+          }},
+          {"node": {"__typename": "CellGroup", "groupId": "t3_advertisement", "adPayload": {"events": ["https://example.invalid/never-fetch"]}, "cells": []}},
+          {"node": {"__typename": "FutureRecommendation", "unrelatedFields": [1, true]}},
+          {"node": {
+            "__typename": "CellGroup", "groupId": "t3_second", "adPayload": null,
+            "cells": [
+              {"__typename": "ClassicCell", "titleCell": {"title": "Second post"}, "metadataCell": {"subredditName": "r/rust", "createdAt": null}, "indicatorsCell": {"indicators": []}},
+              {"__typename": "ActionCell", "score": 7, "commentCount": null, "isScoreHidden": false}
+            ]
+          }},
+          {"node": {"__typename": "CellGroup", "groupId": "t3_incomplete", "adPayload": null, "cells": null}},
+          {"node": {"__typename": "CellGroup", "groupId": "t5_not_a_post", "adPayload": null, "cells": []}},
+          {"node": {"__typename": "CellGroup", "groupId": "t3_unknown_ad_status", "cells": []}}
+        ]
+      }
+    }
+  },
+  "extensions": {"traceID": "fixture-trace"}
+}

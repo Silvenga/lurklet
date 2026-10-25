@@ -1,4 +1,6 @@
-use crate::commands::{CommandOutput, bootstrap, get_post, get_request_allowlist};
+use crate::commands::{
+    CommandOutput, ListSubredditPosts, bootstrap, get_post, get_request_allowlist,
+};
 use clap::Subcommand;
 use lurklet_reddit::{Error, MobileBackend, RedditClient, StateStore};
 
@@ -10,6 +12,8 @@ pub enum Command {
     GetRequestAllowlist,
     /// Retrieve one bare post ID as Markdown and displayable attachments. May make a live request.
     GetPost { id: String },
+    /// List one page of a subreddit without fetching individual posts. May make a live request.
+    ListSubredditPosts(ListSubredditPosts),
 }
 
 impl Command {
@@ -25,6 +29,7 @@ impl Command {
             }),
             Self::GetRequestAllowlist => get_request_allowlist::execute(client, show_secrets).await,
             Self::GetPost { id } => get_post::execute(client, id).await,
+            Self::ListSubredditPosts(arguments) => arguments.execute(client).await,
         }
     }
 }

@@ -34,6 +34,8 @@ pub fn to_json(error: &Error) -> Value {
                 ResponseError::ExpiredOnArrival => "expired_on_arrival",
                 ResponseError::InvalidLoid => "invalid_loid",
                 ResponseError::InvalidPostResponse => "invalid_post_response",
+                ResponseError::InvalidOperationResponse => "invalid_operation_response",
+                ResponseError::UnsupportedData => "unsupported_data",
                 _ => "unknown",
             };
             json!({"kind": "invalid_response", "reason": reason})
@@ -43,6 +45,7 @@ pub fn to_json(error: &Error) -> Value {
         Error::SessionChanged => json!({"kind": "session_changed"}),
         Error::OperationFailed => json!({"kind": "operation_failed"}),
         Error::Unavailable => json!({"kind": "unavailable"}),
+        Error::NotFound => json!({"kind": "not_found"}),
         _ => json!({"kind": "library"}),
     }
 }
@@ -76,6 +79,26 @@ mod tests {
             output,
             json!({"kind": "unavailable", "message": "the requested content is unavailable"})
         );
+    }
+
+    #[test]
+    fn when_reddit_reports_a_missing_resource_then_json_should_expose_the_high_level_error() {
+        let error = CliError::Library(Error::NotFound);
+
+        let output = error.json();
+
+        assert_eq!(output["kind"], "not_found");
+    }
+
+    #[test]
+    fn when_an_operation_response_is_invalid_then_json_should_use_the_shared_error_category() {
+        let error = CliError::Library(Error::InvalidResponse(
+            ResponseError::InvalidOperationResponse,
+        ));
+
+        let output = error.json();
+
+        assert_eq!(output["reason"], "invalid_operation_response");
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::mobile::{Config, PersistedQuery};
+use crate::backends::{Config, PersistedQuery};
 use crate::{
     AppProfile, BuildError, Clock, DeviceProfile, InMemoryStore, MobileBackend, RedditClient,
     ResponseObserver, StateStore, Storage, SystemClock, TransportError,

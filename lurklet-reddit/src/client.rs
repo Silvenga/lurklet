@@ -1,6 +1,6 @@
 use crate::{
     AnonymousSession, Error, GraphQlResponse, MobileBackend, Post, RedditBackend,
-    RedditClientBuilder, RequestAllowlist, StateStore,
+    RedditClientBuilder, RequestAllowlist, StateStore, SubredditPage, SubredditSort,
 };
 use std::sync::Arc;
 
@@ -25,6 +25,19 @@ impl<S: StateStore> RedditClient<MobileBackend<S>> {
 }
 
 impl<B: RedditBackend> RedditClient<B> {
+    /// Lists one page without fetching post details or advancing shared navigation state.
+    /// The cursor is opaque and must be reused with the same bare subreddit name and sort.
+    pub async fn list_subreddit_posts(
+        &self,
+        subreddit: &str,
+        sort: SubredditSort,
+        after: Option<&str>,
+    ) -> Result<SubredditPage, Error> {
+        self.backend
+            .list_subreddit_posts(subreddit, sort, after)
+            .await
+    }
+
     /// Retrieves one bare post ID, such as `18t5968`, without fetching related posts or comments.
     /// Unavailable means no readable post was returned, not proof that the ID does not exist.
     pub async fn get_post(&self, id: &str) -> Result<Post, Error> {
@@ -64,6 +77,22 @@ mod tests {
     struct FakeBackend;
 
     impl RedditBackend for FakeBackend {
+        async fn list_subreddit_posts(
+            &self,
+            subreddit: &str,
+            sort: SubredditSort,
+            after: Option<&str>,
+        ) -> Result<SubredditPage, Error> {
+            assert_eq!(
+                (subreddit, sort, after),
+                ("rust", SubredditSort::New, Some("opaque"))
+            );
+            Ok(SubredditPage {
+                posts: Vec::new(),
+                next_cursor: None,
+            })
+        }
+
         async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
             Err(Error::SessionChanged)
         }
@@ -72,6 +101,25 @@ mod tests {
             assert_eq!(id, "18t5968");
             Err(Error::Unavailable)
         }
+    }
+
+    #[tokio::test]
+    async fn when_a_listing_is_requested_then_the_client_should_forward_its_inputs_to_the_selected_backend()
+     {
+        let client = RedditClient::from_backend(FakeBackend);
+
+        let page = client
+            .list_subreddit_posts("rust", SubredditSort::New, Some("opaque"))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            page,
+            SubredditPage {
+                posts: Vec::new(),
+                next_cursor: None
+            }
+        );
     }
 
     #[tokio::test]

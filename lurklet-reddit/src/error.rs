@@ -50,6 +50,8 @@ pub enum Error {
     OperationFailed,
     #[error("the requested content is unavailable")]
     Unavailable,
+    #[error("Reddit reported that the requested resource was not found")]
+    NotFound,
 }
 
 /// A validated Retry-After value, without assuming when the caller will retry.
@@ -77,8 +79,13 @@ pub enum ResponseError {
     ExpiredOnArrival,
     #[error("response contains an invalid LOID header")]
     InvalidLoid,
+    /// Retained for existing callers; shared decoding uses InvalidOperationResponse.
     #[error("response cannot supply a readable post")]
     InvalidPostResponse,
+    #[error("response cannot supply the operation's result")]
+    InvalidOperationResponse,
+    #[error("response contains no supported result data")]
+    UnsupportedData,
 }
 
 /// Categories a storage implementation can report to its consumer.

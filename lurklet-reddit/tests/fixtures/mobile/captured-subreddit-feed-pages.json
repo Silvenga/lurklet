@@ -1,0 +1,88 @@
+{
+  "provenance": {
+    "source": "captured lurklet-reddit-cli list-subreddit-posts rust, CLASSIC context and query-default selections",
+    "sampling": "one organic row without a thumbnail, one with a thumbnail, and the first ad, control, and unsupported unit present on each page; original order retained",
+    "pruning": "only node identity/type, ad presence, and consumed cell fields retained",
+    "redactions": ["post and cell identifiers", "titles and author labels", "URLs, tracking data, and opaque cursors", "extensions and response headers omitted"]
+  },
+  "pages": [
+    {
+      "captured_date": "Sun, 25 Oct 2026 17:49:58 GMT",
+      "original_edge_count": 10,
+      "body": {"data": {"subredditV3": {"elements": {
+        "dist": 1,
+        "pageInfo": {"endCursor": "fixture-page-2"},
+        "edges": [
+          {"node": {"__typename": "CellGroup", "id": "opaque-element-1-0", "groupId": "sortcell", "adPayload": null, "cells": [{"__typename": "SortCell"}]}},
+          {"node": {"__typename": "CellGroup", "id": "opaque-element-1-1", "groupId": "t3_page1post1", "adPayload": null, "cells": [
+            {"__typename": "ClassicCell", "titleCell": {"title": "Captured post 1-1"},
+              "metadataCell": {"createdAt": "2026-10-22T01:16:16.094000+0000", "statusIndicators": ["PINNED"], "subredditName": "u/example_author_1_1"},
+              "indicatorsCell": null, "thumbnailCell": {"image": null}},
+            {"__typename": "ActionCell", "score": 44, "commentCount": 2, "isScoreHidden": false},
+            {"__typename": "MarginCell"}
+          ]}},
+          {"node": {"__typename": "CellGroup", "id": "opaque-element-1-4", "groupId": "t3_page1post4", "adPayload": {}, "cells": [
+            {"__typename": "ClassicCell", "titleCell": {"title": "Captured post 1-4"},
+              "metadataCell": {"createdAt": "2026-10-05T15:02:17.094000+0000", "statusIndicators": [], "subredditName": "u/example_author_1_4"},
+              "indicatorsCell": null,
+              "thumbnailCell": {"image": {"path": "https://example.invalid/1-4.jpg", "obfuscatedPath": null, "isObfuscated": false, "size": {"height": 1080, "width": 1440}}}},
+            {"__typename": "CallToActionCell"},
+            {"__typename": "ActionCell", "score": 0, "commentCount": 0, "isScoreHidden": true},
+            {"__typename": "MarginCell"}
+          ]}},
+          {"node": {"__typename": "CarouselCommunityRecommendationsFeedUnit", "id": "opaque-element-1-6"}},
+          {"node": {"__typename": "CellGroup", "id": "opaque-element-1-7", "groupId": "t3_page1post7", "adPayload": null, "cells": [
+            {"__typename": "ClassicCell", "titleCell": {"title": "Captured post 1-7"},
+              "metadataCell": {"createdAt": "2026-10-25T17:40:51.118000+0000", "statusIndicators": [], "subredditName": "u/example_author_1_7"},
+              "indicatorsCell": null,
+              "thumbnailCell": {"image": {"path": "https://example.invalid/1-7.jpg", "obfuscatedPath": null, "isObfuscated": false, "size": {"height": 509, "width": 320}}}},
+            {"__typename": "ActionCell", "score": 2, "commentCount": 0, "isScoreHidden": false},
+            {"__typename": "MarginCell"}
+          ]}}
+        ]
+      }}}},
+      "expected_posts": [
+        {"author_name": "example_author_1_1", "comment_count": 2, "created_at": "2026-10-22T01:16:16.094Z", "id": "page1post1", "is_nsfw": null, "is_pinned": true, "is_spoiler": null, "score": 44, "thumbnail": null, "title": "Captured post 1-1"},
+        {"author_name": "example_author_1_7", "comment_count": 0, "created_at": "2026-10-25T17:40:51.118Z", "id": "page1post7", "is_nsfw": null, "is_pinned": false, "is_spoiler": null, "score": 2, "thumbnail": {"height": 509, "is_obfuscated": false, "obfuscated_url": null, "url": "https://example.invalid/1-7.jpg", "width": 320}, "title": "Captured post 1-7"}
+      ]
+    },
+    {
+      "captured_date": "Sun, 25 Oct 2026 17:49:59 GMT",
+      "original_edge_count": 29,
+      "body": {"data": {"subredditV3": {"elements": {
+        "dist": 6,
+        "pageInfo": {"endCursor": "fixture-page-3"},
+        "edges": [
+          {"node": {"__typename": "CellGroup", "id": "opaque-element-2-0", "groupId": "t3_page2post0", "adPayload": null, "cells": [
+            {"__typename": "ClassicCell", "titleCell": {"title": "Captured post 2-0"},
+              "metadataCell": {"createdAt": "2026-10-25T16:02:29.239000+0000", "statusIndicators": [], "subredditName": "u/example_author_2_0"},
+              "indicatorsCell": null,
+              "thumbnailCell": {"image": {"path": "https://example.invalid/2-0.jpg", "obfuscatedPath": null, "isObfuscated": false, "size": {"height": 168, "width": 320}}}},
+            {"__typename": "ActionCell", "score": 3, "commentCount": 10, "isScoreHidden": false},
+            {"__typename": "MarginCell"}
+          ]}},
+          {"node": {"__typename": "CellGroup", "id": "opaque-element-2-2", "groupId": "t3_page2post2", "adPayload": null, "cells": [
+            {"__typename": "ClassicCell", "titleCell": {"title": "Captured post 2-2"},
+              "metadataCell": {"createdAt": "2026-10-25T16:00:51.711000+0000", "statusIndicators": [], "subredditName": "u/example_author_2_2"},
+              "indicatorsCell": null, "thumbnailCell": {"image": null}},
+            {"__typename": "ActionCell", "score": 2, "commentCount": 2, "isScoreHidden": false},
+            {"__typename": "MarginCell"}
+          ]}},
+          {"node": {"__typename": "CellGroup", "id": "opaque-element-2-3", "groupId": "t3_page2post3", "adPayload": {}, "cells": [
+            {"__typename": "ClassicCell", "titleCell": {"title": "Captured post 2-3"},
+              "metadataCell": {"createdAt": "2026-09-24T11:17:05.803000+0000", "statusIndicators": [], "subredditName": "u/example_author_2_3"},
+              "indicatorsCell": null,
+              "thumbnailCell": {"image": {"path": "https://example.invalid/2-3.jpg", "obfuscatedPath": null, "isObfuscated": false, "size": {"height": 1350, "width": 1080}}}},
+            {"__typename": "CallToActionCell"},
+            {"__typename": "ActionCell", "score": 0, "commentCount": 0, "isScoreHidden": true},
+            {"__typename": "MarginCell"}
+          ]}}
+        ]
+      }}}},
+      "expected_posts": [
+        {"author_name": "example_author_2_0", "comment_count": 10, "created_at": "2026-10-25T16:02:29.239Z", "id": "page2post0", "is_nsfw": null, "is_pinned": false, "is_spoiler": null, "score": 3, "thumbnail": {"height": 168, "is_obfuscated": false, "obfuscated_url": null, "url": "https://example.invalid/2-0.jpg", "width": 320}, "title": "Captured post 2-0"},
+        {"author_name": "example_author_2_2", "comment_count": 2, "created_at": "2026-10-25T16:00:51.711Z", "id": "page2post2", "is_nsfw": null, "is_pinned": false, "is_spoiler": null, "score": 2, "thumbnail": null, "title": "Captured post 2-2"}
+      ]
+    }
+  ]
+}

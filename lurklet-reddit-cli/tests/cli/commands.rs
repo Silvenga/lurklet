@@ -185,3 +185,55 @@ fn when_post_transport_fails_then_the_cli_should_return_nonzero_status_and_prese
     assert!(!String::from_utf8_lossy(&output.stdout).contains(TOKEN));
     assert!(!String::from_utf8_lossy(&output.stderr).contains(TOKEN));
 }
+
+#[test]
+fn when_listing_arguments_are_unsupported_then_the_cli_should_reject_them_without_side_effects() {
+    let directory = TempDir::new().unwrap();
+    for arguments in [
+        vec!["list-subreddit-posts"],
+        vec!["list-subreddit-posts", "rust", "--limit", "10"],
+        vec!["list-subreddit-posts", "rust", "--sort", "awarded"],
+    ] {
+        let output = command()
+            .current_dir(directory.path())
+            .args(arguments)
+            .output()
+            .unwrap();
+
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
+    }
+}
+
+#[test]
+fn when_a_listing_cursor_is_invalid_then_the_cli_should_return_an_input_error_without_network() {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("session.json");
+    let expected = state();
+    write_state(&path, &expected);
+
+    let output = command()
+        .arg("--state-file")
+        .arg(&path)
+        .args([
+            "--auth-endpoint",
+            "https://127.0.0.1:1/token",
+            "list-subreddit-posts",
+            "rust",
+            "--after",
+            "invalid!",
+        ])
+        .output()
+        .unwrap();
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(result["error"]["kind"], "invalid_request");
+    assert_eq!(result["error"]["field"], "after");
+    assert_eq!(result["captures_written"], 0);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&fs::read(path).unwrap()).unwrap(),
+        expected
+    );
+}

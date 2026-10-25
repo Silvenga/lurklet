@@ -18,25 +18,9 @@ mod tests {
     use super::*;
     use crate::arguments::Arguments;
     use crate::commands::Command;
+    use crate::commands::testing::FakeBackend;
     use clap::Parser;
-    use lurklet_reddit::{
-        AnonymousSession, NamedReference, Post, PostAttachment, VideoFormat, VideoSource,
-    };
-
-    struct FakeBackend {
-        result: Result<Post, Error>,
-    }
-
-    impl RedditBackend for FakeBackend {
-        async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
-            unreachable!("the command must call the post operation directly")
-        }
-
-        async fn get_post(&self, id: &str) -> Result<Post, Error> {
-            assert_eq!(id, "18t5968");
-            self.result.clone()
-        }
-    }
+    use lurklet_reddit::{NamedReference, Post, PostAttachment, VideoFormat, VideoSource};
 
     #[tokio::test]
     async fn when_a_post_is_requested_then_the_command_should_return_the_backend_neutral_json() {
@@ -79,7 +63,8 @@ mod tests {
             crosspost_id: None,
         };
         let client = RedditClient::from_backend(FakeBackend {
-            result: Ok(post.clone()),
+            post: Some(("18t5968".into(), Ok(post.clone()))),
+            ..FakeBackend::default()
         });
 
         let output = execute(&client, &id).await.unwrap();
@@ -108,7 +93,8 @@ mod tests {
     async fn when_the_post_is_unavailable_then_the_command_should_propagate_the_unavailable_error()
     {
         let client = RedditClient::from_backend(FakeBackend {
-            result: Err(Error::Unavailable),
+            post: Some(("18t5968".into(), Err(Error::Unavailable))),
+            ..FakeBackend::default()
         });
 
         let output = execute(&client, "18t5968").await;
@@ -119,7 +105,8 @@ mod tests {
     #[tokio::test]
     async fn when_the_lookup_fails_then_the_command_should_propagate_the_library_error() {
         let client = RedditClient::from_backend(FakeBackend {
-            result: Err(Error::OperationFailed),
+            post: Some(("18t5968".into(), Err(Error::OperationFailed))),
+            ..FakeBackend::default()
         });
 
         let result = execute(&client, "18t5968").await;

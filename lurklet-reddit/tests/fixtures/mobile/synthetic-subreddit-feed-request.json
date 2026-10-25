@@ -1,0 +1,26 @@
+{
+  "operationName": "SubredditFeedSdui",
+  "variables": {
+    "subredditName": "rust",
+    "adContextInput": {
+      "distance": null,
+      "layout": "CLASSIC",
+      "deviceAdId": "",
+      "clientSignalSessionData": {},
+      "feedSlotIndexData": {},
+      "forceAds": {}
+    },
+    "feedContextInput": {
+      "layout": "CLASSIC",
+      "navigationSessionId": "00000000-0000-4000-8000-000000000001"
+    },
+    "mobileContextInput": {"autoplay": false},
+    "sort": "HOT"
+  },
+  "extensions": {
+    "persistedQuery": {
+      "version": 1,
+      "sha256Hash": "fcc9854f03d7829810b2b6f607bae27407d2bbb576b09d8ee59869f80b13ca10"
+    }
+  }
+}
