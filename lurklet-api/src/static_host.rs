@@ -1,4 +1,4 @@
-use crate::middleware::{access_log, static_policy};
+use crate::middleware::{access_log, content_security_policy, static_policy};
 use crate::routes::robots;
 use anyhow::{Context, ensure};
 use axum::Router;
@@ -52,6 +52,7 @@ impl StaticHost {
             .route_service("/", index)
             .fallback_service(files)
             .layer(middleware::from_fn(static_policy))
+            .layer(content_security_policy())
             .layer(middleware::from_fn(access_log))
     }
 }
@@ -146,6 +147,41 @@ mod tests {
 
     async fn app(directory: &TempDir) -> Router {
         StaticHost::new(directory.path()).await.unwrap().router()
+    }
+
+    #[tokio::test]
+    async fn when_static_responses_are_served_then_csp_should_restrict_resources_to_the_same_origin()
+     {
+        let directory = fixtures();
+        let app = app(&directory).await;
+
+        for path in [
+            "/",
+            "/index.html",
+            "/r/rust",
+            "/assets/main-abc12345.css",
+            "/robots.txt",
+            "/favicon.ico",
+            "/missing.js",
+        ] {
+            for method in [Method::GET, Method::HEAD] {
+                let request = Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .header(header::ACCEPT, "text/html")
+                    .header(header::ACCEPT_ENCODING, "br")
+                    .body(Body::empty())
+                    .unwrap();
+
+                let response = app.clone().oneshot(request).await.unwrap();
+
+                assert_eq!(
+                    response.headers()[header::CONTENT_SECURITY_POLICY],
+                    "default-src 'self'",
+                    "{path}"
+                );
+            }
+        }
     }
 
     #[tokio::test]
@@ -394,7 +430,12 @@ mod tests {
                 let body = to_bytes(response.into_body(), 4096).await.unwrap();
 
                 assert_eq!(status, StatusCode::NOT_MODIFIED, "{path} {encoding}");
-                for name in [header::ETAG, header::CACHE_CONTROL, header::VARY] {
+                for name in [
+                    header::ETAG,
+                    header::CACHE_CONTROL,
+                    header::VARY,
+                    header::CONTENT_SECURITY_POLICY,
+                ] {
                     assert_eq!(cached_headers.get(&name), headers.get(&name), "{name}");
                 }
                 assert!(body.is_empty());
