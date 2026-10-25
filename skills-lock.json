@@ -6,6 +6,12 @@
       "sourceType": "github",
       "skillPath": "skills/conventions-code-rust/SKILL.md",
       "computedHash": "f874f28eba494a5e9aca2305c40272c85cbfb1b1c46ffd520e9beeca397c167a"
+    },
+    "shadcn": {
+      "source": "shadcn/ui",
+      "sourceType": "github",
+      "skillPath": "skills/shadcn/SKILL.md",
+      "computedHash": "b864a958765563321f485a96f4d59c0bb6539f4286ab6d8b8b66895b7ebd302d"
     }
   }
 }
