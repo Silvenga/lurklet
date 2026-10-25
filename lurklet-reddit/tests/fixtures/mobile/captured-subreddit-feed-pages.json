@@ -42,8 +42,8 @@
         ]
       }}}},
       "expected_posts": [
-        {"author_name": "example_author_1_1", "comment_count": 2, "created_at": "2026-10-22T01:16:16.094Z", "id": "page1post1", "is_nsfw": null, "is_pinned": true, "is_spoiler": null, "score": 44, "thumbnail": null, "title": "Captured post 1-1"},
-        {"author_name": "example_author_1_7", "comment_count": 0, "created_at": "2026-10-25T17:40:51.118Z", "id": "page1post7", "is_nsfw": null, "is_pinned": false, "is_spoiler": null, "score": 2, "thumbnail": {"height": 509, "is_obfuscated": false, "obfuscated_url": null, "url": "https://example.invalid/1-7.jpg", "width": 320}, "title": "Captured post 1-7"}
+        {"author_name": "example_author_1_1", "comment_count": 2, "created_at": "2026-10-22T01:16:16.094Z", "id": "page1post1", "is_nsfw": false, "is_pinned": true, "is_spoiler": false, "score": 44, "thumbnail": null, "title": "Captured post 1-1"},
+        {"author_name": "example_author_1_7", "comment_count": 0, "created_at": "2026-10-25T17:40:51.118Z", "id": "page1post7", "is_nsfw": false, "is_pinned": false, "is_spoiler": false, "score": 2, "thumbnail": {"height": 509, "is_obfuscated": false, "obfuscated_url": null, "url": "https://example.invalid/1-7.jpg", "width": 320}, "title": "Captured post 1-7"}
       ]
     },
     {
@@ -80,8 +80,8 @@
         ]
       }}}},
       "expected_posts": [
-        {"author_name": "example_author_2_0", "comment_count": 10, "created_at": "2026-10-25T16:02:29.239Z", "id": "page2post0", "is_nsfw": null, "is_pinned": false, "is_spoiler": null, "score": 3, "thumbnail": {"height": 168, "is_obfuscated": false, "obfuscated_url": null, "url": "https://example.invalid/2-0.jpg", "width": 320}, "title": "Captured post 2-0"},
-        {"author_name": "example_author_2_2", "comment_count": 2, "created_at": "2026-10-25T16:00:51.711Z", "id": "page2post2", "is_nsfw": null, "is_pinned": false, "is_spoiler": null, "score": 2, "thumbnail": null, "title": "Captured post 2-2"}
+        {"author_name": "example_author_2_0", "comment_count": 10, "created_at": "2026-10-25T16:02:29.239Z", "id": "page2post0", "is_nsfw": false, "is_pinned": false, "is_spoiler": false, "score": 3, "thumbnail": {"height": 168, "is_obfuscated": false, "obfuscated_url": null, "url": "https://example.invalid/2-0.jpg", "width": 320}, "title": "Captured post 2-0"},
+        {"author_name": "example_author_2_2", "comment_count": 2, "created_at": "2026-10-25T16:00:51.711Z", "id": "page2post2", "is_nsfw": false, "is_pinned": false, "is_spoiler": false, "score": 2, "thumbnail": null, "title": "Captured post 2-2"}
       ]
     }
   ]

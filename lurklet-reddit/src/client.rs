@@ -1,6 +1,7 @@
 use crate::{
-    AnonymousSession, Error, GraphQlResponse, MobileBackend, Post, RedditBackend,
-    RedditClientBuilder, RequestAllowlist, StateStore, SubredditPage, SubredditSort,
+    AnonymousSession, CommentForest, CommentSort, CommentThread, Error, GraphQlResponse,
+    MobileBackend, Post, RedditBackend, RedditClientBuilder, RequestAllowlist, StateStore,
+    SubredditPage, SubredditSort,
 };
 use std::sync::Arc;
 
@@ -25,6 +26,25 @@ impl<S: StateStore> RedditClient<MobileBackend<S>> {
 }
 
 impl<B: RedditBackend> RedditClient<B> {
+    /// Reads comments for a bare post ID. A cursor replaces its selected placeholder, not the whole forest.
+    pub async fn get_post_comments(
+        &self,
+        post_id: &str,
+        sort: CommentSort,
+        cursor: Option<&str>,
+    ) -> Result<CommentForest, Error> {
+        self.backend.get_post_comments(post_id, sort, cursor).await
+    }
+
+    /// Opens a bare comment ID with ancestor context. Further focused-thread expansion is not enabled.
+    pub async fn get_comment_thread(
+        &self,
+        comment_id: &str,
+        sort: CommentSort,
+    ) -> Result<CommentThread, Error> {
+        self.backend.get_comment_thread(comment_id, sort).await
+    }
+
     /// Lists one page without fetching post details or advancing shared navigation state.
     /// The cursor is opaque and must be reused with the same bare subreddit name and sort.
     pub async fn list_subreddit_posts(
@@ -77,6 +97,37 @@ mod tests {
     struct FakeBackend;
 
     impl RedditBackend for FakeBackend {
+        async fn get_post_comments(
+            &self,
+            post_id: &str,
+            sort: CommentSort,
+            cursor: Option<&str>,
+        ) -> Result<CommentForest, Error> {
+            assert_eq!(
+                (post_id, sort, cursor),
+                ("18t5968", CommentSort::Top, Some("opaque"))
+            );
+            Ok(CommentForest {
+                applied_sort: Some(sort),
+                items: Vec::new(),
+            })
+        }
+
+        async fn get_comment_thread(
+            &self,
+            comment_id: &str,
+            sort: CommentSort,
+        ) -> Result<CommentThread, Error> {
+            assert_eq!((comment_id, sort), ("child", CommentSort::New));
+            Ok(CommentThread {
+                post_id: Some("18t5968".into()),
+                forest: CommentForest {
+                    applied_sort: Some(sort),
+                    items: Vec::new(),
+                },
+            })
+        }
+
         async fn list_subreddit_posts(
             &self,
             subreddit: &str,
@@ -101,6 +152,37 @@ mod tests {
             assert_eq!(id, "18t5968");
             Err(Error::Unavailable)
         }
+    }
+
+    #[tokio::test]
+    async fn when_comments_are_requested_then_the_client_should_forward_post_sort_and_cursor() {
+        let client = RedditClient::from_backend(FakeBackend);
+
+        let result = client
+            .get_post_comments("18t5968", CommentSort::Top, Some("opaque"))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            result,
+            CommentForest {
+                applied_sort: Some(CommentSort::Top),
+                items: Vec::new()
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn when_a_thread_is_requested_then_the_client_should_forward_the_comment_identity() {
+        let client = RedditClient::from_backend(FakeBackend);
+
+        let result = client
+            .get_comment_thread("child", CommentSort::New)
+            .await
+            .unwrap();
+
+        assert_eq!(result.post_id, Some("18t5968".into()));
+        assert_eq!(result.forest.applied_sort, Some(CommentSort::New));
     }
 
     #[tokio::test]

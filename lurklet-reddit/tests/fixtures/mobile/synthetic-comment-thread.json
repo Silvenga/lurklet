@@ -1,0 +1,15 @@
+{
+  "data": {"commentById": {
+    "postInfo": {"id": "t3_example", "title": "Unused post header"},
+    "children": {
+      "appliedSort": "TOP",
+      "trees": [
+        {"depth": 0, "parentId": null, "node": {"__typename": "DeletedComment", "isInitiallyCollapsed": false}},
+        {"depth": 1, "parentId": "t1_ancestor", "node": {"__typename": "DeletedComment", "isInitiallyCollapsed": true}},
+        {"depth": 2, "parentId": "t1_anchor", "node": {"__typename": "Comment", "id": "t1_descendant", "content": {"markdown": "Thread content"}}},
+        {"depth": 3, "parentId": "t1_descendant", "node": null, "more": {"count": 2, "cursor": "future-focused-cursor", "isTooDeepForCount": false}},
+        {"depth": 3, "parentId": "t1_descendant", "node": null, "more": {"count": 0, "cursor": "future-deep-cursor", "isTooDeepForCount": true}}
+      ]
+    }
+  }}
+}

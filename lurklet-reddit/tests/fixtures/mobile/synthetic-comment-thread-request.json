@@ -1,0 +1,5 @@
+{
+  "operationName": "GetCommentByIdWithChildren",
+  "variables": {"id": "t1_anchor", "sortType": "TOP", "maxDepth": 10, "count": 20, "numParents": 3},
+  "extensions": {"persistedQuery": {"version": 1, "sha256Hash": "c40b533f29205854251e1b705b34f1eb71f93d9f65ace97861be4c74f91e5be7"}}
+}

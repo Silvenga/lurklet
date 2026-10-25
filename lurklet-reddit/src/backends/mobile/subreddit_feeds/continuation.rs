@@ -1,6 +1,5 @@
-use crate::{Error, ResponseError, SubredditSort};
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use crate::backends::mobile::continuations;
+use crate::{Error, SubredditSort};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -15,11 +14,7 @@ pub struct Continuation {
 
 impl Continuation {
     pub fn decode(token: &str, subreddit: &str, sort: SubredditSort) -> Result<Self, Error> {
-        let bytes = URL_SAFE_NO_PAD
-            .decode(token)
-            .map_err(|_| Error::InvalidRequest { field: "after" })?;
-        let continuation: Self =
-            serde_json::from_slice(&bytes).map_err(|_| Error::InvalidRequest { field: "after" })?;
+        let continuation: Self = continuations::decode(token, "after")?;
         if continuation.subreddit != subreddit || continuation.sort != sort {
             return Err(Error::InvalidRequest { field: "after" });
         }
@@ -27,9 +22,7 @@ impl Continuation {
     }
 
     pub fn encode(&self) -> Result<String, Error> {
-        let bytes =
-            serde_json::to_vec(self).map_err(|_| ResponseError::InvalidOperationResponse)?;
-        Ok(URL_SAFE_NO_PAD.encode(bytes))
+        continuations::encode(self)
     }
 }
 

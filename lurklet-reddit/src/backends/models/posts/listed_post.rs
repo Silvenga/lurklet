@@ -3,6 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 
 /// A compact listing row; its ID is the navigation target for the full post.
+/// Missing NSFW, spoiler, and pinned indicators default to false.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ListedPost {
     pub id: RedditId,
@@ -12,9 +13,9 @@ pub struct ListedPost {
     pub comment_count: Option<u64>,
     pub author_name: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
-    pub is_nsfw: Option<bool>,
-    pub is_spoiler: Option<bool>,
-    pub is_pinned: Option<bool>,
+    pub is_nsfw: bool,
+    pub is_spoiler: bool,
+    pub is_pinned: bool,
 }
 
 /// A feed preview, including the upstream information needed to honor obfuscation.

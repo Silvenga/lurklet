@@ -1,0 +1,54 @@
+{
+  "provenance": {
+    "source": "three captured persisted reads: initial comments, one depth-four ordinary expansion, and thread entry",
+    "captured_at": "2026-10-25T20:01:57Z",
+    "sampling": "one complete initial root subtree; expansion and thread records retained",
+    "pruning": "only consumed node fields, structural fields, and page counts retained",
+    "redactions": ["comment and author identifiers", "author names and Markdown", "opaque cursors; other content, URLs, headers, and extensions omitted"]
+  },
+  "post_id": "example",
+  "initial": {
+    "expected_ids": ["c0", "c1", "c2", "c3", "c4"],
+    "forest": {
+      "appliedSort": "CONFIDENCE",
+      "pageInfo": {"commentCount": 65, "hasNextPage": true},
+      "trees": [
+        {"depth": 0, "parentId": null, "childCount": 27, "node": {"__typename": "Comment", "createdAt": "2023-12-28T21:45:32.113000+0000", "score": 112, "isScoreHidden": false, "isRemoved": false, "isOP": false, "isStickied": false, "isInitiallyCollapsed": false, "id": "t1_c0", "authorInfo": {"__typename": "Redditor", "id": "t2_author0", "name": "example_author_0"}, "content": {"markdown": "Captured **comment t1_c0**."}}, "more": null},
+        {"depth": 1, "parentId": "t1_c0", "childCount": 22, "node": {"__typename": "Comment", "createdAt": "2023-12-28T21:51:55.973000+0000", "score": 18, "isScoreHidden": false, "isRemoved": false, "isOP": true, "isStickied": false, "isInitiallyCollapsed": false, "id": "t1_c1", "authorInfo": {"__typename": "Redditor", "id": "t2_author1", "name": "example_author_1"}, "content": {"markdown": "Captured **comment t1_c1**."}}, "more": null},
+        {"depth": 2, "parentId": "t1_c1", "childCount": 4, "node": {"__typename": "Comment", "createdAt": "2023-12-29T00:14:53.877000+0000", "score": 15, "isScoreHidden": false, "isRemoved": false, "isOP": false, "isStickied": false, "isInitiallyCollapsed": false, "id": "t1_c2", "authorInfo": {"__typename": "Redditor", "id": "t2_author2", "name": "example_author_2"}, "content": {"markdown": "Captured **comment t1_c2**."}}, "more": null},
+        {"depth": 3, "parentId": "t1_c2", "childCount": 1, "node": {"__typename": "Comment", "createdAt": "2023-12-29T02:14:49.064000+0000", "score": 11, "isScoreHidden": false, "isRemoved": false, "isOP": false, "isStickied": false, "isInitiallyCollapsed": false, "id": "t1_c3", "authorInfo": {"__typename": "Redditor", "id": "t2_author3", "name": "example_author_3"}, "content": {"markdown": "Captured **comment t1_c3**."}}, "more": null},
+        {"depth": 4, "parentId": "t1_c3", "childCount": 1, "node": null, "more": {"count": 1, "cursor": "fixture-cursor-0", "isTooDeepForCount": false}},
+        {"depth": 3, "parentId": "t1_c2", "childCount": 2, "node": null, "more": {"count": 2, "cursor": "fixture-cursor-1", "isTooDeepForCount": false}},
+        {"depth": 2, "parentId": "t1_c1", "childCount": 17, "node": null, "more": {"count": 17, "cursor": "fixture-cursor-2", "isTooDeepForCount": false}},
+        {"depth": 1, "parentId": "t1_c0", "childCount": 3, "node": {"__typename": "Comment", "createdAt": "2023-12-29T00:25:48.528000+0000", "score": 144, "isScoreHidden": false, "isRemoved": false, "isOP": false, "isStickied": false, "isInitiallyCollapsed": false, "id": "t1_c4", "authorInfo": {"__typename": "Redditor", "id": "t2_author4", "name": "example_author_4"}, "content": {"markdown": "Captured **comment t1_c4**."}}, "more": null},
+        {"depth": 2, "parentId": "t1_c4", "childCount": 3, "node": null, "more": {"count": 3, "cursor": "fixture-cursor-3", "isTooDeepForCount": false}}
+      ]
+    }
+  },
+  "expansion": {
+    "expected_ids": ["c5"],
+    "cursor_context": {"post_id": "example", "sort": "best", "after": "fixture-cursor-0", "depth": 4, "parent_id": "c3"},
+    "forest": {
+      "appliedSort": "CONFIDENCE",
+      "pageInfo": {"commentCount": null, "hasNextPage": false},
+      "trees": [
+        {"depth": 4, "parentId": "t1_c3", "childCount": 0, "node": {"__typename": "Comment", "createdAt": "2023-12-29T07:07:48.515000+0000", "score": 2, "isScoreHidden": false, "isRemoved": false, "isOP": true, "isStickied": false, "isInitiallyCollapsed": false, "id": "t1_c5", "authorInfo": {"__typename": "Redditor", "id": "t2_author1", "name": "example_author_1"}, "content": {"markdown": "Captured **comment t1_c5**."}}, "more": null}
+      ]
+    }
+  },
+  "thread": {
+    "expected_ids": ["c1", "c2", "c3", "c5"],
+    "requested_comment_id": "c5",
+    "forest": {
+      "appliedSort": "CONFIDENCE",
+      "trees": [
+        {"depth": 0, "parentId": "t1_c0", "childCount": 3, "node": {"__typename": "Comment", "createdAt": "2023-12-28T21:51:55.973000+0000", "score": 18, "isScoreHidden": false, "isRemoved": false, "isOP": true, "isStickied": false, "isInitiallyCollapsed": false, "id": "t1_c1", "authorInfo": {"__typename": "Redditor", "id": "t2_author1", "name": "example_author_1"}, "content": {"markdown": "Captured **comment t1_c1**."}}, "more": null},
+        {"depth": 1, "parentId": "t1_c1", "childCount": 2, "node": {"__typename": "Comment", "createdAt": "2023-12-29T00:14:53.877000+0000", "score": 15, "isScoreHidden": false, "isRemoved": false, "isOP": false, "isStickied": false, "isInitiallyCollapsed": false, "id": "t1_c2", "authorInfo": {"__typename": "Redditor", "id": "t2_author2", "name": "example_author_2"}, "content": {"markdown": "Captured **comment t1_c2**."}}, "more": null},
+        {"depth": 2, "parentId": "t1_c2", "childCount": 1, "node": {"__typename": "Comment", "createdAt": "2023-12-29T02:14:49.064000+0000", "score": 11, "isScoreHidden": false, "isRemoved": false, "isOP": false, "isStickied": false, "isInitiallyCollapsed": false, "id": "t1_c3", "authorInfo": {"__typename": "Redditor", "id": "t2_author3", "name": "example_author_3"}, "content": {"markdown": "Captured **comment t1_c3**."}}, "more": null},
+        {"depth": 3, "parentId": "t1_c3", "childCount": 0, "node": {"__typename": "Comment", "createdAt": "2023-12-29T07:07:48.515000+0000", "score": 2, "isScoreHidden": false, "isRemoved": false, "isOP": true, "isStickied": false, "isInitiallyCollapsed": false, "id": "t1_c5", "authorInfo": {"__typename": "Redditor", "id": "t2_author1", "name": "example_author_1"}, "content": {"markdown": "Captured **comment t1_c5**."}}, "more": null},
+        {"depth": 2, "parentId": "t1_c2", "childCount": 0, "node": null, "more": {"count": 0, "cursor": "fixture-cursor-4", "isTooDeepForCount": true}},
+        {"depth": 1, "parentId": "t1_c1", "childCount": 0, "node": null, "more": {"count": 0, "cursor": "fixture-cursor-5", "isTooDeepForCount": true}}
+      ]
+    }
+  }
+}

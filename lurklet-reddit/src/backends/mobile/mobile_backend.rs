@@ -1,7 +1,7 @@
 use crate::backends::mobile::Config;
 use crate::{
-    AnonymousSession, Clock, Error, InMemoryStore, Post, RedditBackend, ResponseObserver,
-    StateStore, Storage, SubredditPage, SubredditSort,
+    AnonymousSession, Clock, CommentForest, CommentSort, CommentThread, Error, InMemoryStore, Post,
+    RedditBackend, ResponseObserver, StateStore, Storage, SubredditPage, SubredditSort,
 };
 use std::sync::Arc;
 
@@ -15,6 +15,23 @@ pub struct MobileBackend<S: StateStore = InMemoryStore> {
 }
 
 impl<S: StateStore> RedditBackend for MobileBackend<S> {
+    async fn get_post_comments(
+        &self,
+        post_id: &str,
+        sort: CommentSort,
+        cursor: Option<&str>,
+    ) -> Result<CommentForest, Error> {
+        MobileBackend::get_post_comments(self, post_id, sort, cursor).await
+    }
+
+    async fn get_comment_thread(
+        &self,
+        comment_id: &str,
+        sort: CommentSort,
+    ) -> Result<CommentThread, Error> {
+        MobileBackend::get_comment_thread(self, comment_id, sort).await
+    }
+
     async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
         MobileBackend::bootstrap(self).await
     }

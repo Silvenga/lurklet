@@ -49,22 +49,13 @@ expression: document
             "type": "string"
           },
           "isNsfw": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": "boolean"
           },
           "isPinned": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": "boolean"
           },
           "isSpoiler": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": "boolean"
           },
           "score": {
             "format": "int64",

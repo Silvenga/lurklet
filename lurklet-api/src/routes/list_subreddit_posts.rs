@@ -97,12 +97,9 @@ struct ListedPost {
     author_name: Option<String>,
     #[schema(required)]
     created_at: Option<DateTime<Utc>>,
-    #[schema(required)]
-    is_nsfw: Option<bool>,
-    #[schema(required)]
-    is_spoiler: Option<bool>,
-    #[schema(required)]
-    is_pinned: Option<bool>,
+    is_nsfw: bool,
+    is_spoiler: bool,
+    is_pinned: bool,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -306,9 +303,9 @@ mod tests {
                     comment_count: Some(42),
                     author_name: Some("example-user".into()),
                     created_at: Some(DateTime::from_timestamp(0, 0).unwrap()),
-                    is_nsfw: Some(true),
-                    is_spoiler: Some(false),
-                    is_pinned: Some(true),
+                    is_nsfw: true,
+                    is_spoiler: false,
+                    is_pinned: true,
                 },
                 RedditListedPost {
                     id: "second".into(),
@@ -318,9 +315,9 @@ mod tests {
                     comment_count: None,
                     author_name: None,
                     created_at: None,
-                    is_nsfw: None,
-                    is_spoiler: None,
-                    is_pinned: None,
+                    is_nsfw: false,
+                    is_spoiler: false,
+                    is_pinned: false,
                 },
             ],
             next_cursor: Some("next+/=% token".into()),
@@ -341,6 +338,24 @@ mod tests {
 
     fn request(uri: &str) -> Request<Body> {
         Request::builder().uri(uri).body(Body::empty()).unwrap()
+    }
+
+    #[test]
+    fn when_the_listing_contract_is_generated_then_indicator_flags_should_be_required_booleans() {
+        let specification = router::<FakeBackend>().into_openapi();
+
+        let document = serde_json::to_value(specification).unwrap();
+        let schema = &document["components"]["schemas"]["ListedPost"];
+
+        for field in ["isNsfw", "isSpoiler", "isPinned"] {
+            assert_eq!(schema["properties"][field]["type"], "boolean");
+            assert!(
+                schema["required"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!(field))
+            );
+        }
     }
 
     #[test]
@@ -507,7 +522,7 @@ mod tests {
                     {
                         "id": "second", "title": null, "thumbnail": null,
                         "score": null, "commentCount": null, "authorName": null,
-                        "createdAt": null, "isNsfw": null, "isSpoiler": null, "isPinned": null
+                        "createdAt": null, "isNsfw": false, "isSpoiler": false, "isPinned": false
                     }
                 ],
                 "nextCursor": "next+/=% token"

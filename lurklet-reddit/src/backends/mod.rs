@@ -8,7 +8,8 @@ pub use mobile::{
     RequestAllowlist,
 };
 pub use models::{
-    ListedPost, Post, PostAttachment, SubredditPage, SubredditSort, Thumbnail, TimeRange,
-    VideoFormat, VideoSource,
+    Comment, CommentForest, CommentItem, CommentSort, CommentState, CommentThread, ListedPost,
+    Post, PostAttachment, SubredditPage, SubredditSort, Thumbnail, TimeRange, VideoFormat,
+    VideoSource,
 };
 pub use reddit_backend::RedditBackend;

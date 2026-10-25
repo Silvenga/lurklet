@@ -139,9 +139,16 @@ mod tests {
         }
         "#);
         assert_eq!(page.posts[1].author_name, None);
-        assert_eq!(page.posts[1].is_nsfw, Some(false));
+        assert!(!page.posts[1].is_nsfw);
         assert_eq!(page.posts[2].title, None);
-        assert_eq!(page.posts[2].is_nsfw, None);
+        assert_eq!(
+            (
+                page.posts[2].is_nsfw,
+                page.posts[2].is_spoiler,
+                page.posts[2].is_pinned
+            ),
+            (false, false, false)
+        );
         let output = serde_json::to_string(&page.posts).unwrap();
         for excluded in [
             "previewTextCell",

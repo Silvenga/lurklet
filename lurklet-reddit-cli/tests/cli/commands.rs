@@ -237,3 +237,59 @@ fn when_a_listing_cursor_is_invalid_then_the_cli_should_return_an_input_error_wi
         expected
     );
 }
+
+#[test]
+fn when_comment_arguments_request_unsupported_modes_then_the_cli_should_reject_them_without_side_effects()
+ {
+    let directory = TempDir::new().unwrap();
+    for arguments in [
+        vec!["get-post-comments"],
+        vec!["get-post-comments", "post", "--sort", "random"],
+        vec!["get-post-comments", "post", "--count", "100"],
+        vec!["get-comment-thread", "anchor", "--cursor", "opaque"],
+    ] {
+        let output = command()
+            .current_dir(directory.path())
+            .args(arguments)
+            .output()
+            .unwrap();
+
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
+    }
+}
+
+#[test]
+fn when_a_comment_cursor_is_invalid_then_the_cli_should_return_nonzero_status_without_network() {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("session.json");
+    let expected = state();
+    write_state(&path, &expected);
+
+    let output = command()
+        .arg("--state-file")
+        .arg(&path)
+        .args([
+            "--auth-endpoint",
+            "https://127.0.0.1:1/token",
+            "--graphql-endpoint",
+            "https://127.0.0.1:1/",
+            "get-post-comments",
+            "post",
+            "--cursor",
+            "invalid!",
+        ])
+        .output()
+        .unwrap();
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(result["error"]["kind"], "invalid_request");
+    assert_eq!(result["error"]["field"], "cursor");
+    assert_eq!(result["captures_written"], 0);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&fs::read(path).unwrap()).unwrap(),
+        expected
+    );
+}

@@ -13,6 +13,7 @@ mod state;
 mod storage;
 
 pub use backends::{
+    Comment, CommentForest, CommentItem, CommentSort, CommentState, CommentThread,
     GraphQlDecodeError, GraphQlErrorKind, GraphQlOutcome, GraphQlResponse, ListedPost,
     MobileBackend, Post, PostAttachment, RedditBackend, RequestAllowlist, SubredditPage,
     SubredditSort, Thumbnail, TimeRange, VideoFormat, VideoSource,

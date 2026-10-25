@@ -1,0 +1,29 @@
+{
+  "data": {"postInfoById": {
+    "id": "t3_example",
+    "title": "Post details are not part of the comments result",
+    "commentCount": 120,
+    "commentForest": {
+      "appliedSort": "CONFIDENCE",
+      "trees": [
+        {"depth": 0, "parentId": null, "childCount": 2,
+          "node": {"__typename": "DeletedComment", "createdAt": "2023-12-28T21:35:27.507000+0000", "isInitiallyCollapsed": false, "moderationInfo": {"ignored": true}}, "more": null},
+        {"depth": 1, "parentId": "t1_parent", "childCount": 0,
+          "node": {"__typename": "Comment", "id": "t1_child", "createdAt": "2023-12-28T21:36:00.123456+0000", "score": 7, "isScoreHidden": false, "isOP": true, "isStickied": false, "isInitiallyCollapsed": true,
+            "authorInfo": {"__typename": "Redditor", "id": "t2_author", "name": "example_author"},
+            "content": {"markdown": "**Reply**", "html": "<script>not exposed</script>", "richtext": "not parsed"}}, "more": null},
+        {"depth": 2, "parentId": "t1_child", "childCount": 0, "node": null,
+          "more": {"count": 3, "cursor": "nested-more+/=", "isTooDeepForCount": false}},
+        {"depth": 2, "parentId": "t1_child", "childCount": 0, "node": null,
+          "more": {"count": 0, "cursor": "not-a-comment-id", "isTooDeepForCount": true}},
+        {"depth": 0, "parentId": null, "childCount": 0, "node": null,
+          "more": {"count": 0, "cursor": "root-more", "isTooDeepForCount": false}},
+        {"depth": 0, "parentId": null, "childCount": 0,
+          "node": {"__typename": "Comment", "id": "t1_removed", "isRemoved": true, "isScoreHidden": true, "score": 12,
+            "authorInfo": {"__typename": "UnavailableRedditor", "id": null, "name": null}, "content": {"markdown": null}}, "more": null}
+      ],
+      "pageInfo": {"hasNextPage": false, "commentCount": null}
+    }
+  }},
+  "extensions": {"traceID": "fixture-trace"}
+}

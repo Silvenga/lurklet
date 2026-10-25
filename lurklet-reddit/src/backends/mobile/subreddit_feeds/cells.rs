@@ -124,9 +124,9 @@ impl CellGroup {
             comment_count: None,
             author_name: None,
             created_at: None,
-            is_nsfw: None,
-            is_spoiler: None,
-            is_pinned: None,
+            is_nsfw: false,
+            is_spoiler: false,
+            is_pinned: false,
         };
         for cell in self.cells.into_iter().flatten().flatten() {
             match cell {
@@ -137,18 +137,14 @@ impl CellGroup {
                         post.author_name = post.author_name.or(metadata
                             .subreddit_name
                             .and_then(|byline| byline.strip_prefix("u/").map(String::from)));
-                        post.is_pinned = post.is_pinned.or(metadata
-                            .status_indicators
-                            .map(|indicators| indicators.iter().any(|value| value == "PINNED")));
+                        post.is_pinned |= metadata.status_indicators.is_some_and(|indicators| {
+                            indicators.iter().any(|value| value == "PINNED")
+                        });
                     }
                     if let Some(indicators) = cell.indicators_cell.and_then(|cell| cell.indicators)
                     {
-                        post.is_nsfw = post
-                            .is_nsfw
-                            .or(Some(indicators.iter().any(|value| value == "NSFW")));
-                        post.is_spoiler = post
-                            .is_spoiler
-                            .or(Some(indicators.iter().any(|value| value == "SPOILER")));
+                        post.is_nsfw |= indicators.iter().any(|value| value == "NSFW");
+                        post.is_spoiler |= indicators.iter().any(|value| value == "SPOILER");
                     }
                     if let Some(image) = cell.thumbnail_cell.and_then(|cell| cell.image)
                         && let Some(url) = image.path
@@ -192,6 +188,68 @@ mod tests {
         ))
         .unwrap();
         fixture["data"]["subredditV3"]["elements"]["edges"][1]["node"].clone()
+    }
+
+    #[test]
+    fn when_listing_indicators_are_missing_null_or_empty_then_flags_should_default_to_false() {
+        for cell in [
+            json!({"__typename": "ClassicCell"}),
+            json!({"__typename": "ClassicCell", "metadataCell": null, "indicatorsCell": null}),
+            json!({"__typename": "ClassicCell", "metadataCell": {}, "indicatorsCell": {}}),
+            json!({"__typename": "ClassicCell", "metadataCell": {"statusIndicators": null}, "indicatorsCell": {"indicators": null}}),
+            json!({"__typename": "ClassicCell", "metadataCell": {"statusIndicators": []}, "indicatorsCell": {"indicators": []}}),
+        ] {
+            let value = json!({"groupId": "t3_example", "adPayload": null, "cells": [cell]});
+
+            let GroupResult::Post(post) = CellGroup::deserialize(&value).unwrap().into_post()
+            else {
+                panic!("expected a post")
+            };
+            let output = serde_json::to_value(&post).unwrap();
+
+            assert_eq!(
+                (post.is_nsfw, post.is_spoiler, post.is_pinned),
+                (false, false, false)
+            );
+            for field in ["is_nsfw", "is_spoiler", "is_pinned"] {
+                assert_eq!(output[field], json!(false));
+            }
+            assert_eq!(post.score, None);
+            assert_eq!(post.comment_count, None);
+        }
+    }
+
+    #[test]
+    fn when_any_cell_has_positive_indicators_then_other_cells_should_not_clear_the_flags() {
+        let positive = json!({"__typename": "ClassicCell", "metadataCell": {"statusIndicators": ["PINNED"]}, "indicatorsCell": {"indicators": ["NSFW", "SPOILER"]}});
+        let empty = json!({"__typename": "ClassicCell", "metadataCell": {"statusIndicators": []}, "indicatorsCell": {"indicators": []}});
+        for cells in [json!([positive, empty]), json!([empty, positive])] {
+            let value = json!({"groupId": "t3_example", "adPayload": null, "cells": cells});
+
+            let GroupResult::Post(post) = CellGroup::deserialize(&value).unwrap().into_post()
+            else {
+                panic!("expected a post")
+            };
+
+            assert_eq!(
+                (post.is_nsfw, post.is_spoiler, post.is_pinned),
+                (true, true, true)
+            );
+        }
+    }
+
+    #[test]
+    fn when_thumbnail_obfuscation_is_unknown_then_listing_defaults_should_not_change_its_nullability()
+     {
+        let value = json!({"groupId": "t3_example", "adPayload": null, "cells": [
+            {"__typename": "ClassicCell", "thumbnailCell": {"image": {"path": "https://example.invalid/preview.png", "isObfuscated": null}}}
+        ]});
+
+        let GroupResult::Post(post) = CellGroup::deserialize(&value).unwrap().into_post() else {
+            panic!("expected a post")
+        };
+
+        assert_eq!(post.thumbnail.unwrap().is_obfuscated, None);
     }
 
     #[test]
