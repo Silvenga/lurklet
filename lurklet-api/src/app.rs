@@ -4,6 +4,7 @@ use crate::middleware::{RateLimit, access_log, api_cache_policy, limit_requests}
 use crate::routes;
 use axum::Router;
 use axum::middleware;
+use lurklet_reddit::{MobileBackend, RedditClient};
 use utoipa::OpenApi as _;
 use utoipa::openapi::{OpenApi, OpenApiVersion};
 
@@ -11,40 +12,59 @@ use utoipa::openapi::{OpenApi, OpenApiVersion};
 #[openapi(
     info(
         title = "Lurklet API",
-        description = "Internal API contract. API requests share a per-client rate limit, except for /api/health. Excess requests return 429 Problem Details with Retry-After. Unknown API paths return 404 Problem Details unless rate limited. API responses default to Cache-Control: no-store unless a resource explicitly opts into caching."
+        description = "Internal API contract. API requests share a per-client rate limit, except for /api/health. Excess requests return 429 Problem Details with Retry-After. Unknown API paths return 404 Problem Details unless rate limited."
     ),
     components(schemas(Problem))
 )]
 struct ApiDoc;
 
-/// Builds the API router and internal specification without starting a listener.
-pub fn application(rate_limit: &RateLimit, cache: Option<&ResponseCache>) -> (Router, OpenApi) {
-    let (health, health_specification) = routes::health().split_for_parts();
+const API_PREFIX: &str = "/api";
+
+/// Builds the API router without starting a listener.
+pub fn application(
+    reddit: RedditClient,
+    rate_limit: &RateLimit,
+    cache: Option<&ResponseCache>,
+) -> Router {
+    let (health, _) = routes::health().split_for_parts();
     let health = health.method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed });
 
-    let mut data_api = Router::new()
-        .fallback(|| async { ApiError::NotFound })
-        .method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed });
-    if let Some(cache) = cache {
-        data_api = cache.wrap(data_api);
-    }
-    let data_api = data_api.layer(middleware::from_fn_with_state(
-        rate_limit.clone(),
-        limit_requests,
-    ));
-
-    let api = data_api
+    let (posts, _) = routes::get_post().split_for_parts();
+    let api = data_api(posts, reddit, rate_limit, cache)
         .merge(health)
         .layer(middleware::from_fn(api_cache_policy))
         .layer(middleware::from_fn(access_log));
 
     // Service nesting reserves /api, /api/, and descendants, including unmatched paths.
-    let prefix = "/api";
-    let app = Router::new().nest_service(prefix, api);
-    let mut specification = ApiDoc::openapi().nest(prefix, health_specification);
-    specification.openapi = OpenApiVersion::Version32;
+    Router::new().nest_service(API_PREFIX, api)
+}
 
-    (app, specification)
+/// Builds the API contract without initializing runtime dependencies.
+pub fn specification() -> OpenApi {
+    let mut routes = routes::health().into_openapi();
+    routes.merge(routes::get_post::<MobileBackend>().into_openapi());
+    let mut specification = ApiDoc::openapi().nest(API_PREFIX, routes);
+    specification.openapi = OpenApiVersion::Version32;
+    specification
+}
+
+fn data_api(
+    routes: Router<RedditClient>,
+    reddit: RedditClient,
+    rate_limit: &RateLimit,
+    cache: Option<&ResponseCache>,
+) -> Router {
+    let mut api = routes
+        .fallback(|| async { ApiError::NotFound })
+        .method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed })
+        .with_state(reddit);
+    if let Some(cache) = cache {
+        api = cache.wrap(api);
+    }
+    api.layer(middleware::from_fn_with_state(
+        rate_limit.clone(),
+        limit_requests,
+    ))
 }
 
 #[cfg(test)]
@@ -54,23 +74,55 @@ mod tests {
     use assert_fs::prelude::*;
     use axum::Extension;
     use axum::body::{Body, to_bytes};
-    use axum::extract::ConnectInfo;
+    use axum::extract::{ConnectInfo, State};
     use axum::http::{Method, Request, StatusCode, header};
     use axum::response::Html;
     use axum::routing::get;
+    use lurklet_reddit::{StateStore, Storage};
     use serde_json::{Value, json};
     use std::net::SocketAddr;
     use tower::ServiceExt;
 
-    fn application() -> (Router, OpenApi) {
-        let (app, specification) = super::application(&RateLimit::default(), None);
+    fn application() -> Router {
+        let reddit = RedditClient::builder().build().unwrap();
+        let app = super::application(reddit, &RateLimit::default(), None);
         let peer: SocketAddr = "192.0.2.1:1234".parse().unwrap();
-        (app.layer(Extension(ConnectInfo(peer))), specification)
+        app.layer(Extension(ConnectInfo(peer)))
+    }
+
+    #[tokio::test]
+    async fn when_data_routes_extract_the_client_then_state_should_be_available_with_or_without_caching()
+     {
+        let directory = assert_fs::TempDir::new().unwrap();
+        let cache = ResponseCache::new(directory.path()).await.unwrap();
+        let storage = Storage::default();
+        let reddit = RedditClient::builder()
+            .with_storage(storage.clone())
+            .build()
+            .unwrap();
+
+        for cache in [None, Some(&cache)] {
+            let routes = Router::new().route(
+                "/resource",
+                get(|State(_reddit): State<RedditClient>| async { StatusCode::NO_CONTENT }),
+            );
+            let app = data_api(routes, reddit.clone(), &RateLimit::default(), cache);
+            let request = Request::builder()
+                .uri("/resource")
+                .extension(ConnectInfo("192.0.2.1:1234".parse::<SocketAddr>().unwrap()))
+                .body(Body::empty())
+                .unwrap();
+
+            let response = app.oneshot(request).await.unwrap();
+
+            assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        }
+        assert_eq!(storage.store().load().await.unwrap().revision, 0);
     }
 
     #[tokio::test]
     async fn when_health_is_requested_through_the_api_then_response_should_disable_caching() {
-        let (app, _) = application();
+        let app = application();
         let request = Request::builder()
             .uri("/api/health")
             .body(Body::empty())
@@ -94,7 +146,8 @@ mod tests {
             rate_limit_burst: 1.try_into().unwrap(),
             ..RateLimitOptions::default()
         });
-        let (app, _) = super::application(&limiter, None);
+        let reddit = RedditClient::builder().build().unwrap();
+        let app = super::application(reddit, &limiter, None);
         let peer: SocketAddr = "192.0.2.1:1234".parse().unwrap();
         let app = app
             .fallback_service(StaticHost::new(directory.path()).await.unwrap().router())
@@ -159,7 +212,7 @@ mod tests {
             Method::PATCH,
             Method::OPTIONS,
         ] {
-            let (app, _) = application();
+            let app = application();
             let request = Request::builder()
                 .method(method)
                 .uri("/api/health")
@@ -193,7 +246,7 @@ mod tests {
             "/api/openapi.json",
             "/api/missing?secret=private",
         ] {
-            let (app, _) = application();
+            let app = application();
             let app = app.fallback(|| async { Html("SPA") });
             let request = Request::builder().uri(path).body(Body::empty()).unwrap();
 
@@ -215,7 +268,7 @@ mod tests {
     #[tokio::test]
     async fn when_path_is_outside_api_then_response_should_allow_spa_fallback() {
         for path in ["/", "/posts/example", "/apiculture", "/openapi.json"] {
-            let (app, _) = application();
+            let app = application();
             let app = app.fallback(|| async { Html("SPA") });
             let request = Request::builder().uri(path).body(Body::empty()).unwrap();
 
@@ -231,8 +284,8 @@ mod tests {
     }
 
     #[test]
-    fn when_openapi_is_generated_then_contract_should_document_api_health() {
-        let (_, specification) = application();
+    fn when_openapi_is_generated_then_contract_should_document_health_and_post_routes() {
+        let specification = specification();
 
         let document = serde_json::to_value(specification).unwrap();
 
@@ -245,13 +298,13 @@ mod tests {
         let directory = assert_fs::TempDir::new().unwrap();
         let cache = ResponseCache::new(directory.path()).await.unwrap();
         let fixture = cache.wrap(Router::new().route(
-            "/api/resource",
+            "/api/posts/18t5968",
             get(|| async { ([(header::CACHE_CONTROL, "public, max-age=3600")], "cached") }),
         ));
         let response = fixture
             .oneshot(
                 Request::builder()
-                    .uri("/api/resource")
+                    .uri("/api/posts/18t5968")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -262,7 +315,8 @@ mod tests {
             rate_limit_burst: 1.try_into().unwrap(),
             ..RateLimitOptions::default()
         });
-        let (app, _) = super::application(&limiter, Some(&cache));
+        let reddit = RedditClient::builder().build().unwrap();
+        let app = super::application(reddit, &limiter, Some(&cache));
         for _ in 0..12 {
             let response = app
                 .clone()
@@ -288,7 +342,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/api/resource")
+                    .uri("/api/posts/18t5968")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -298,7 +352,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/api/resource")
+                    .uri("/api/posts/18t5968")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -340,7 +394,8 @@ mod tests {
         directory.child("index.html").write_str("site").unwrap();
         let cache_directory = assert_fs::TempDir::new().unwrap();
         let cache = ResponseCache::new(cache_directory.path()).await.unwrap();
-        let (app, _) = super::application(&RateLimit::default(), Some(&cache));
+        let reddit = RedditClient::builder().build().unwrap();
+        let app = super::application(reddit, &RateLimit::default(), Some(&cache));
         let app = app
             .fallback_service(StaticHost::new(directory.path()).await.unwrap().router())
             .layer(Extension(ConnectInfo(
@@ -352,6 +407,11 @@ mod tests {
             (Method::GET, "/", StatusCode::OK),
             (Method::GET, "/missing.js", StatusCode::NOT_FOUND),
             (Method::POST, "/api/health", StatusCode::METHOD_NOT_ALLOWED),
+            (
+                Method::POST,
+                "/api/posts/18t5968",
+                StatusCode::METHOD_NOT_ALLOWED,
+            ),
             (Method::GET, "/api/health", StatusCode::OK),
             (Method::HEAD, "/api/health", StatusCode::OK),
         ] {

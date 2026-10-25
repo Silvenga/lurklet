@@ -2,7 +2,7 @@
   "openapi": "3.2.0",
   "info": {
     "title": "Lurklet API",
-    "description": "Internal API contract. API requests share a per-client rate limit, except for /api/health. Excess requests return 429 Problem Details with Retry-After. Unknown API paths return 404 Problem Details unless rate limited. API responses default to Cache-Control: no-store unless a resource explicitly opts into caching.",
+    "description": "Internal API contract. API requests share a per-client rate limit, except for /api/health. Excess requests return 429 Problem Details with Retry-After. Unknown API paths return 404 Problem Details unless rate limited.",
     "license": {
       "name": "AGPL-3.0-only",
       "identifier": "AGPL-3.0-only"
@@ -17,14 +17,6 @@
         "responses": {
           "200": {
             "description": "The API is serving requests",
-            "headers": {
-              "Cache-Control": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Always no-store"
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -41,12 +33,129 @@
                   "type": "string"
                 },
                 "description": "GET,HEAD"
-              },
-              "Cache-Control": {
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/posts/{id}": {
+      "get": {
+        "summary": "Retrieve one post without comments or related posts",
+        "operationId": "get_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Post ID, as returned by the API.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A readable post",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "headers": {
+              "Allow": {
                 "schema": {
                   "type": "string"
                 },
-                "description": "Always no-store"
+                "description": "Supported HTTP methods"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Seconds until the client may retry"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Upstream retry delay or HTTP date, when supplied"
               }
             },
             "content": {
@@ -65,7 +174,9 @@
     "schemas": {
       "Health": {
         "type": "object",
-        "required": ["health"],
+        "required": [
+          "health"
+        ],
         "properties": {
           "health": {
             "$ref": "#/components/schemas/HealthStatus"
@@ -74,11 +185,209 @@
       },
       "HealthStatus": {
         "type": "string",
-        "enum": ["ok"]
+        "enum": [
+          "ok"
+        ]
+      },
+      "NamedReference": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Post": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "author",
+          "community",
+          "createdAt",
+          "score",
+          "commentCount",
+          "isNsfw",
+          "isSpoiler",
+          "bodyMarkdown",
+          "attachments",
+          "crosspostId"
+        ],
+        "properties": {
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostAttachment"
+            }
+          },
+          "author": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NamedReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bodyMarkdown": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Untrusted Markdown; embedded media URLs are not proxied."
+          },
+          "commentCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "community": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NamedReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "crosspostId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "isNsfw": {
+            "type": "boolean"
+          },
+          "isSpoiler": {
+            "type": "boolean"
+          },
+          "score": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "PostAttachment": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "url",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "link"
+                ]
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "url",
+              "altText",
+              "caption",
+              "kind"
+            ],
+            "properties": {
+              "altText": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "caption": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "image"
+                ]
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "sources",
+              "posterUrl",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "video"
+                ]
+              },
+              "posterUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/VideoSource"
+                }
+              }
+            }
+          }
+        ]
       },
       "Problem": {
         "type": "object",
-        "required": ["type", "title", "status"],
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
         "properties": {
           "status": {
             "type": "integer",
@@ -90,6 +399,29 @@
             "type": "string"
           },
           "type": {
+            "type": "string"
+          }
+        }
+      },
+      "VideoFormat": {
+        "type": "string",
+        "enum": [
+          "mp4",
+          "hls",
+          "dash"
+        ]
+      },
+      "VideoSource": {
+        "type": "object",
+        "required": [
+          "url",
+          "format"
+        ],
+        "properties": {
+          "format": {
+            "$ref": "#/components/schemas/VideoFormat"
+          },
+          "url": {
             "type": "string"
           }
         }

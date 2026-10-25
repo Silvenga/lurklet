@@ -8,12 +8,13 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 #[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 struct Health {
     health: HealthStatus,
 }
 
 #[derive(Serialize, ToSchema)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 enum HealthStatus {
     Ok,
 }
@@ -29,14 +30,10 @@ pub fn router() -> OpenApiRouter {
     operation_id = "get_health",
     summary = "Check API liveness without contacting upstream services",
     responses(
-        (status = 200, description = "The API is serving requests", body = Health,
-            headers(("Cache-Control" = String, description = "Always no-store"))),
+        (status = 200, description = "The API is serving requests", body = Health),
         (status = 405, description = "The method is not supported", body = Problem,
             content_type = "application/problem+json",
-            headers(
-                ("Allow" = String, description = "GET,HEAD"),
-                ("Cache-Control" = String, description = "Always no-store")
-            ))
+            headers(("Allow" = String, description = "GET,HEAD")))
     )
 )]
 async fn health() -> impl IntoResponse {

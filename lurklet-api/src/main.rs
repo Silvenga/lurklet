@@ -1,6 +1,9 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use lurklet_api::{RateLimit, RateLimitOptions, ResponseCache, StaticHost, application};
+use lurklet_api::{
+    RateLimit, RateLimitOptions, ResponseCache, StaticHost, application, specification,
+};
+use lurklet_reddit::RedditClient;
 use std::io::{self, Write};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -66,7 +69,7 @@ async fn main() -> ExitCode {
     let result: anyhow::Result<()> = async {
         match arguments.command {
             Some(Command::ExportOpenApi) => {
-                let (_, specification) = application(&RateLimit::new(arguments.rate_limit), None);
+                let specification = specification();
                 let mut output = io::stdout().lock();
                 serde_json::to_writer_pretty(&mut output, &specification)
                     .context("failed to serialize the OpenAPI document")?;
@@ -75,6 +78,9 @@ async fn main() -> ExitCode {
             }
             Some(Command::HealthCheck) => health_check::check(arguments.bind).await,
             None => {
+                let reddit = RedditClient::builder()
+                    .build()
+                    .context("failed to initialize Reddit client")?;
                 let rate_limit = RateLimit::new(arguments.rate_limit);
                 let cache = match arguments.cache_dir {
                     Some(directory) => Some(
@@ -84,7 +90,7 @@ async fn main() -> ExitCode {
                     ),
                     None => None,
                 };
-                let (app, _) = application(&rate_limit, cache.as_ref());
+                let app = application(reddit, &rate_limit, cache.as_ref());
                 let static_host = StaticHost::new(&arguments.static_dir)
                     .await
                     .context("failed to initialize static hosting")?;
