@@ -15,7 +15,7 @@ pub async fn access_log(request: Request, next: Next) -> Response {
         let started = Instant::now();
         tracing::trace!(headers = ?request.headers(), version = ?request.version(), "HTTP request metadata");
         let response = next.run(request).await;
-        tracing::debug!(status = response.status().as_u16(), duration_ms = started.elapsed().as_secs_f64() * 1000.0, "HTTP request completed");
+        tracing::debug!(status = response.status().as_u16(), duration_ms = %format_args!("{:.3}", started.elapsed().as_secs_f64() * 1000.0), "HTTP request completed");
         tracing::trace!(headers = ?response.headers(), version = ?response.version(), "HTTP response metadata");
         response
     }.instrument(span).await

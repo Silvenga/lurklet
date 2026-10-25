@@ -178,7 +178,7 @@ mod tests {
 
                 assert_eq!(
                     response.headers()[header::CONTENT_SECURITY_POLICY],
-                    "default-src 'self'",
+                    "default-src 'self'; style-src-elem 'self' 'unsafe-inline'; style-src-attr 'none'",
                     "{path}"
                 );
                 assert_eq!(

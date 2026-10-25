@@ -92,6 +92,21 @@ async fn when_requests_are_logged_then_details_should_follow_the_configured_leve
                 assert!(logs.contains(&format!("status={status}")), "{logs}");
             }
             assert!(logs.contains("duration_ms="), "{logs}");
+            for duration in logs
+                .split_whitespace()
+                .filter_map(|field| field.strip_prefix("duration_ms="))
+            {
+                let (whole, fractional) = duration.split_once('.').unwrap();
+                assert!(
+                    whole.bytes().all(|byte| byte.is_ascii_digit()),
+                    "{duration}"
+                );
+                assert_eq!(fractional.len(), 3, "{duration}");
+                assert!(
+                    fractional.bytes().all(|byte| byte.is_ascii_digit()),
+                    "{duration}"
+                );
+            }
         }
         for detail in [
             "HTTP request metadata",

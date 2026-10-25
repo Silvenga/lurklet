@@ -1,11 +1,13 @@
 use axum::http::{HeaderValue, header};
 use tower_http::set_header::SetResponseHeaderLayer;
 
-/// Restricts browser resource loading to the document's own origin.
+/// Restricts resource loading to the document's origin while allowing inline style elements.
 pub fn content_security_policy() -> SetResponseHeaderLayer<HeaderValue> {
     SetResponseHeaderLayer::overriding(
         header::CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static("default-src 'self'"),
+        HeaderValue::from_static(
+            "default-src 'self'; style-src-elem 'self' 'unsafe-inline'; style-src-attr 'none'",
+        ),
     )
 }
 
@@ -33,7 +35,7 @@ mod tests {
 
         assert_eq!(
             response.headers()[header::CONTENT_SECURITY_POLICY],
-            "default-src 'self'"
+            "default-src 'self'; style-src-elem 'self' 'unsafe-inline'; style-src-attr 'none'"
         );
     }
 }
