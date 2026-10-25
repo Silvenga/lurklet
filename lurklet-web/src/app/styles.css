@@ -126,7 +126,7 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply bg-background text-foreground font-sans select-none;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {

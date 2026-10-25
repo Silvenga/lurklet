@@ -6,7 +6,7 @@ export default defineConfig({
     browser: true,
     es2020: true,
   },
-  ignorePatterns: ["**/dist"],
+  ignorePatterns: ["**/dist", ".agents/**"],
   categories: {
     correctness: "warn",
   },
