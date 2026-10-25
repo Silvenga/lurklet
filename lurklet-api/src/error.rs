@@ -32,7 +32,7 @@ impl From<RedditError> for ApiError {
     fn from(error: RedditError) -> Self {
         tracing::debug!(?error, "Reddit operation failed");
         match error {
-            RedditError::Unavailable => Self::NotFound,
+            RedditError::Unavailable | RedditError::NotFound => Self::NotFound,
             RedditError::RateLimited { retry_after }
             | RedditError::Upstream { retry_after, .. } => Self::ServiceUnavailable {
                 retry_after: retry_after.map(|retry| match retry {

@@ -44,5 +44,5 @@ that `info` and higher log levels can be publicly uploaded.
 After relevant code changes:
 
 - Format: `cargo fmt` or `pnpm fmt`
-- Lint: `cargo clippy` or `pnpm lint`
-- Test: `cargo test` or `pnpm test`
+- Lint: `cargo clippy --all-targets` or `pnpm lint`
+- Test: `cargo test --all-targets` or `pnpm test`

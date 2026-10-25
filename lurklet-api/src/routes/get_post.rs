@@ -214,8 +214,8 @@ mod tests {
     use axum::http::{Method, Request, StatusCode};
     use axum::routing::get;
     use lurklet_reddit::{
-        AnonymousSession, ClockError, Error, ResponseError, RetryAfter, StorageError,
-        SubredditPage, SubredditSort,
+        AnonymousSession, ClockError, CommentForest, CommentSort, CommentThread, Error,
+        ResponseError, RetryAfter, StorageError, SubredditPage, SubredditSort,
     };
     use serde_json::{Value, json};
     use std::sync::Arc;
@@ -229,6 +229,23 @@ mod tests {
     }
 
     impl RedditBackend for FakeBackend {
+        async fn get_post_comments(
+            &self,
+            _: &str,
+            _: CommentSort,
+            _: Option<&str>,
+        ) -> Result<CommentForest, Error> {
+            panic!("the post endpoint must not fetch comments")
+        }
+
+        async fn get_comment_thread(
+            &self,
+            _: &str,
+            _: CommentSort,
+        ) -> Result<CommentThread, Error> {
+            panic!("the post endpoint must not fetch comment threads")
+        }
+
         async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
             panic!("the endpoint must leave bootstrap to the client backend")
         }
@@ -376,6 +393,7 @@ mod tests {
     async fn when_the_client_fails_then_the_endpoint_should_return_uncacheable_problem_details() {
         for (error, status, retry_after) in [
             (Error::Unavailable, StatusCode::NOT_FOUND, None),
+            (Error::NotFound, StatusCode::NOT_FOUND, None),
             (
                 Error::UnexpectedStatus { status: 404 },
                 StatusCode::BAD_GATEWAY,

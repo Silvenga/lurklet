@@ -29,7 +29,9 @@ pub fn application(
     let (health, _) = routes::health().split_for_parts();
     let health = health.method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed });
 
-    let (posts, _) = routes::get_post().split_for_parts();
+    let (posts, _) = routes::get_post()
+        .merge(routes::list_subreddit_posts())
+        .split_for_parts();
     let api = data_api(posts, reddit, rate_limit, cache)
         .merge(health)
         .layer(middleware::from_fn(api_cache_policy))
@@ -43,6 +45,7 @@ pub fn application(
 pub fn specification() -> OpenApi {
     let mut routes = routes::health().into_openapi();
     routes.merge(routes::get_post::<MobileBackend>().into_openapi());
+    routes.merge(routes::list_subreddit_posts::<MobileBackend>().into_openapi());
     let mut specification = ApiDoc::openapi().nest(API_PREFIX, routes);
     specification.openapi = OpenApiVersion::Version32;
     specification
@@ -284,12 +287,31 @@ mod tests {
     }
 
     #[test]
-    fn when_openapi_is_generated_then_contract_should_document_health_and_post_routes() {
+    fn when_openapi_is_generated_then_contract_should_document_api_routes() {
         let specification = specification();
 
         let document = serde_json::to_value(specification).unwrap();
 
         insta::assert_json_snapshot!("openapi", document);
+    }
+
+    #[tokio::test]
+    async fn when_a_listing_query_is_invalid_then_the_mounted_endpoint_should_return_problem_details()
+     {
+        let app = application();
+        let request = Request::builder()
+            .uri("/api/subreddits/rust/posts?sort=invalid")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "application/problem+json"
+        );
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
     }
 
     #[tokio::test]
@@ -410,6 +432,11 @@ mod tests {
             (
                 Method::POST,
                 "/api/posts/18t5968",
+                StatusCode::METHOD_NOT_ALLOWED,
+            ),
+            (
+                Method::POST,
+                "/api/subreddits/rust/posts",
                 StatusCode::METHOD_NOT_ALLOWED,
             ),
             (Method::GET, "/api/health", StatusCode::OK),

@@ -40,7 +40,11 @@ fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract()
             .unwrap()
             .keys()
             .collect::<Vec<_>>(),
-        ["/api/health", "/api/posts/{id}"]
+        [
+            "/api/health",
+            "/api/posts/{id}",
+            "/api/subreddits/{subreddit}/posts"
+        ]
     );
     assert_eq!(
         document["paths"]["/api/health"]["get"]["operationId"],
