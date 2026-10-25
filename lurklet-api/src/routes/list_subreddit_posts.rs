@@ -227,7 +227,7 @@ mod tests {
     use axum::http::{Method, Request, StatusCode};
     use axum::routing::get;
     use lurklet_reddit::{
-        AnonymousSession, CommentForest, CommentSort, CommentThread, Post as RedditPost,
+        AnonymousSession, CommentForest, CommentSort, CommentThread, Post as RedditPost, RedditId,
     };
     use serde_json::{Value, json};
     use std::sync::{Arc, Mutex};
@@ -248,7 +248,7 @@ mod tests {
     impl RedditBackend for FakeBackend {
         async fn get_post_comments(
             &self,
-            _: &str,
+            _: &RedditId,
             _: CommentSort,
             _: Option<&str>,
         ) -> Result<CommentForest, RedditError> {
@@ -257,7 +257,7 @@ mod tests {
 
         async fn get_comment_thread(
             &self,
-            _: &str,
+            _: &RedditId,
             _: CommentSort,
         ) -> Result<CommentThread, RedditError> {
             panic!("the listing endpoint must not fetch comment threads")
@@ -267,7 +267,7 @@ mod tests {
             panic!("the endpoint must leave bootstrap to the client backend")
         }
 
-        async fn get_post(&self, _: &str) -> Result<RedditPost, RedditError> {
+        async fn get_post(&self, _: &RedditId) -> Result<RedditPost, RedditError> {
             panic!("the listing endpoint must not fetch post details")
         }
 

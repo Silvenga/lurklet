@@ -26,7 +26,7 @@ struct PostReference {
 impl<S: StateStore> MobileBackend<S> {
     pub(in crate::backends::mobile) async fn get_comment_thread(
         &self,
-        comment_id: &str,
+        comment_id: &RedditId,
         sort: CommentSort,
     ) -> Result<CommentThread, Error> {
         let query = PersistedQuery {
@@ -92,7 +92,7 @@ mod tests {
         let client = graphql_client(&server, cached_storage());
 
         let thread = client
-            .get_comment_thread("anchor", CommentSort::Top)
+            .get_comment_thread(&"anchor".into(), CommentSort::Top)
             .await
             .unwrap();
 
@@ -124,7 +124,9 @@ mod tests {
                 .await;
             let client = graphql_client(&server, cached_storage());
 
-            let result = client.get_comment_thread("anchor", CommentSort::Best).await;
+            let result = client
+                .get_comment_thread(&"anchor".into(), CommentSort::Best)
+                .await;
 
             assert!(matches!(result, Err(Error::Unavailable)));
         }

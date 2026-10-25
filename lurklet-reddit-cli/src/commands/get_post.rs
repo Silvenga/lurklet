@@ -1,10 +1,10 @@
 use crate::commands::CommandOutput;
-use lurklet_reddit::{Error, RedditBackend, RedditClient};
+use lurklet_reddit::{Error, RedditBackend, RedditClient, RedditId};
 use serde_json::json;
 
 pub async fn execute<B: RedditBackend>(
     client: &RedditClient<B>,
-    id: &str,
+    id: &RedditId,
 ) -> Result<CommandOutput, Error> {
     let post = client.get_post(id).await?;
     Ok(CommandOutput {
@@ -90,6 +90,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn when_a_fullname_is_supplied_then_the_cli_should_pass_a_normalized_typed_id_to_the_backend()
+     {
+        let arguments = Arguments::try_parse_from(["cli", "get-post", "t3_18t5968"]).unwrap();
+        let Command::GetPost { id } = arguments.command else {
+            panic!("expected post command")
+        };
+        let client = RedditClient::from_backend(FakeBackend {
+            post: Some(("18t5968".into(), Err(Error::Unavailable))),
+            ..FakeBackend::default()
+        });
+
+        let result = execute(&client, &id).await;
+
+        assert_eq!(id, RedditId::from("18t5968"));
+        assert!(matches!(result, Err(Error::Unavailable)));
+    }
+
+    #[tokio::test]
     async fn when_the_post_is_unavailable_then_the_command_should_propagate_the_unavailable_error()
     {
         let client = RedditClient::from_backend(FakeBackend {
@@ -97,7 +115,7 @@ mod tests {
             ..FakeBackend::default()
         });
 
-        let output = execute(&client, "18t5968").await;
+        let output = execute(&client, &"18t5968".into()).await;
 
         assert!(matches!(output, Err(Error::Unavailable)));
     }
@@ -109,7 +127,7 @@ mod tests {
             ..FakeBackend::default()
         });
 
-        let result = execute(&client, "18t5968").await;
+        let result = execute(&client, &"18t5968".into()).await;
 
         assert!(matches!(result, Err(Error::OperationFailed)));
     }

@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
+use std::str::FromStr;
 
-/// A bare Reddit ID, normalized from a fullname when deserialized.
+/// A bare Reddit ID, normalized from a fullname when constructed, parsed, or deserialized.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(from = "String")]
 pub struct RedditId(String);
@@ -32,10 +34,29 @@ impl From<&str> for RedditId {
     }
 }
 
+impl FromStr for RedditId {
+    type Err = Infallible;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Ok(Self::from(value))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn when_an_id_is_parsed_then_it_should_use_the_same_normalization_as_deserialization() {
+        for value in ["example", "t1_example", "t3_example", "t5_example"] {
+            let parsed: RedditId = value.parse().unwrap();
+            let deserialized: RedditId = serde_json::from_value(json!(value)).unwrap();
+
+            assert_eq!(parsed, deserialized);
+            assert_eq!(parsed.as_str(), "example");
+        }
+    }
 
     #[test]
     fn when_fullnames_are_deserialized_then_ids_should_share_one_normalization_rule() {

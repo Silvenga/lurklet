@@ -198,7 +198,7 @@ async fn get_post<B: RedditBackend>(
     input: Result<Path<GetPostInput>, PathRejection>,
 ) -> Result<impl IntoResponse, ApiError> {
     let Path(input) = input.map_err(|_| ApiError::BadRequest)?;
-    let post = reddit.get_post(input.id.as_str()).await?;
+    let post = reddit.get_post(&input.id).await?;
     Ok((
         [(header::CACHE_CONTROL, CACHE_POLICY)],
         Json(Post::from(post)),
@@ -231,7 +231,7 @@ mod tests {
     impl RedditBackend for FakeBackend {
         async fn get_post_comments(
             &self,
-            _: &str,
+            _: &RedditId,
             _: CommentSort,
             _: Option<&str>,
         ) -> Result<CommentForest, Error> {
@@ -240,7 +240,7 @@ mod tests {
 
         async fn get_comment_thread(
             &self,
-            _: &str,
+            _: &RedditId,
             _: CommentSort,
         ) -> Result<CommentThread, Error> {
             panic!("the post endpoint must not fetch comment threads")
@@ -250,8 +250,8 @@ mod tests {
             panic!("the endpoint must leave bootstrap to the client backend")
         }
 
-        async fn get_post(&self, id: &str) -> Result<RedditPost, Error> {
-            assert_eq!(id, "18t5968");
+        async fn get_post(&self, id: &RedditId) -> Result<RedditPost, Error> {
+            assert_eq!(id, &"18t5968".into());
             self.calls.fetch_add(1, Ordering::SeqCst);
             self.result.clone()
         }

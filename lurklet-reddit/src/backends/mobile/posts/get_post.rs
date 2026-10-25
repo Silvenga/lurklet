@@ -1,10 +1,10 @@
 use crate::backends::mobile::MobileBackend;
 use crate::backends::mobile::graphql::{PersistedQuery, decode_response};
 use crate::backends::mobile::posts::{PostData, Variables};
-use crate::{Error, Post, StateStore};
+use crate::{Error, Post, RedditId, StateStore};
 
 impl<S: StateStore> MobileBackend<S> {
-    pub(in crate::backends::mobile) async fn get_post(&self, id: &str) -> Result<Post, Error> {
+    pub(in crate::backends::mobile) async fn get_post(&self, id: &RedditId) -> Result<Post, Error> {
         let query = PersistedQuery {
             name: "PostsByIds".into(),
             sha256_hash: "29a8d4c6e135fffb95fc4cd303c57ad926c6c5ff582f4c4577c8a69b7f322d91".into(),
@@ -69,7 +69,7 @@ mod tests {
             .await;
         let client = graphql_client(&server, cached_storage());
 
-        let post = client.get_post("fixturepost").await.unwrap();
+        let post = client.get_post(&"fixturepost".into()).await.unwrap();
 
         assert_eq!(
             serde_json::to_value(post).unwrap(),
@@ -105,7 +105,7 @@ mod tests {
             .await;
         let client = graphql_client(&server, testing::storage());
 
-        let post = client.get_post("18t5968").await.unwrap();
+        let post = client.get_post(&"18t5968".into()).await.unwrap();
 
         assert_eq!(post.id.as_str(), "18t5968");
         assert_eq!(post.body_markdown.as_deref(), Some("Hello **world**."));
@@ -136,7 +136,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let post = client.get_post("18t5968").await.unwrap();
+        let post = client.get_post(&"18t5968".into()).await.unwrap();
 
         assert_eq!(post.score, None);
         assert_eq!(post.comment_count, Some(3));
@@ -172,7 +172,7 @@ mod tests {
             .await;
         let client = graphql_client(&server, cached_storage());
 
-        let result = client.get_post("missing").await;
+        let result = client.get_post(&"missing".into()).await;
 
         assert!(matches!(result, Err(Error::Unavailable)));
         assert_eq!(server.received_requests().await.unwrap().len(), 1);
@@ -187,7 +187,7 @@ mod tests {
         }))).expect(1).mount(&server).await;
         let client = graphql_client(&server, cached_storage());
 
-        let result = client.get_post("18t5968").await;
+        let result = client.get_post(&"18t5968".into()).await;
 
         assert!(matches!(result, Err(Error::OperationFailed)));
         assert_eq!(server.received_requests().await.unwrap().len(), 1);
@@ -206,7 +206,7 @@ mod tests {
             .await;
         let client = graphql_client(&server, cached_storage());
 
-        let post = client.get_post("18t5968").await.unwrap();
+        let post = client.get_post(&"18t5968".into()).await.unwrap();
 
         assert_eq!(
             post.crosspost_id.as_ref().map(|id| id.as_str()),
@@ -234,7 +234,7 @@ mod tests {
                 .await;
             let client = graphql_client(&server, cached_storage());
 
-            let result = client.get_post("18t5968").await;
+            let result = client.get_post(&"18t5968".into()).await;
 
             assert!(matches!(result, Err(Error::OperationFailed)));
             assert!(!format!("{result:?}").contains("private-fixture-error"));
@@ -253,7 +253,7 @@ mod tests {
             .await;
         let client = graphql_client(&server, cached_storage());
 
-        let result = client.get_post("18t5968").await;
+        let result = client.get_post(&"18t5968".into()).await;
 
         assert!(matches!(result, Err(Error::AccessDenied { status: 403 })));
         assert_eq!(server.received_requests().await.unwrap().len(), 1);
@@ -273,7 +273,7 @@ mod tests {
             .await;
         let client = graphql_client(&server, cached_storage());
 
-        let result = client.get_post("18t5968").await;
+        let result = client.get_post(&"18t5968".into()).await;
 
         assert!(
             matches!(result, Err(Error::RateLimited { retry_after: Some(RetryAfter::Delay(delay)) }) if delay == Duration::from_secs(60))
@@ -309,7 +309,7 @@ mod tests {
                 .await;
             let client = graphql_client(&server, cached_storage());
 
-            let result = client.get_post("18t5968").await;
+            let result = client.get_post(&"18t5968".into()).await;
 
             assert!(matches!(result, Err(Error::InvalidResponse(reason)) if reason == expected));
         }
@@ -332,7 +332,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let result = client.get_post("18t5968").await;
+        let result = client.get_post(&"18t5968".into()).await;
 
         assert!(matches!(
             result,

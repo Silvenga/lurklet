@@ -1,7 +1,7 @@
 use crate::{
     AnonymousSession, CommentForest, CommentSort, CommentThread, Error, GraphQlResponse,
-    MobileBackend, Post, RedditBackend, RedditClientBuilder, RequestAllowlist, StateStore,
-    SubredditPage, SubredditSort,
+    MobileBackend, Post, RedditBackend, RedditClientBuilder, RedditId, RequestAllowlist,
+    StateStore, SubredditPage, SubredditSort,
 };
 use std::sync::Arc;
 
@@ -26,20 +26,20 @@ impl<S: StateStore> RedditClient<MobileBackend<S>> {
 }
 
 impl<B: RedditBackend> RedditClient<B> {
-    /// Reads comments for a bare post ID. A cursor replaces its selected placeholder, not the whole forest.
+    /// Reads comments for a post ID. A cursor replaces its selected placeholder, not the whole forest.
     pub async fn get_post_comments(
         &self,
-        post_id: &str,
+        post_id: &RedditId,
         sort: CommentSort,
         cursor: Option<&str>,
     ) -> Result<CommentForest, Error> {
         self.backend.get_post_comments(post_id, sort, cursor).await
     }
 
-    /// Opens a bare comment ID with ancestor context. Further focused-thread expansion is not enabled.
+    /// Opens a comment ID with ancestor context. Further focused-thread expansion is not enabled.
     pub async fn get_comment_thread(
         &self,
-        comment_id: &str,
+        comment_id: &RedditId,
         sort: CommentSort,
     ) -> Result<CommentThread, Error> {
         self.backend.get_comment_thread(comment_id, sort).await
@@ -58,9 +58,9 @@ impl<B: RedditBackend> RedditClient<B> {
             .await
     }
 
-    /// Retrieves one bare post ID, such as `18t5968`, without fetching related posts or comments.
+    /// Retrieves one post ID without fetching related posts or comments.
     /// Unavailable means no readable post was returned, not proof that the ID does not exist.
-    pub async fn get_post(&self, id: &str) -> Result<Post, Error> {
+    pub async fn get_post(&self, id: &RedditId) -> Result<Post, Error> {
         self.backend.get_post(id).await
     }
 
@@ -99,13 +99,13 @@ mod tests {
     impl RedditBackend for FakeBackend {
         async fn get_post_comments(
             &self,
-            post_id: &str,
+            post_id: &RedditId,
             sort: CommentSort,
             cursor: Option<&str>,
         ) -> Result<CommentForest, Error> {
             assert_eq!(
                 (post_id, sort, cursor),
-                ("18t5968", CommentSort::Top, Some("opaque"))
+                (&"18t5968".into(), CommentSort::Top, Some("opaque"))
             );
             Ok(CommentForest {
                 applied_sort: Some(sort),
@@ -115,10 +115,10 @@ mod tests {
 
         async fn get_comment_thread(
             &self,
-            comment_id: &str,
+            comment_id: &RedditId,
             sort: CommentSort,
         ) -> Result<CommentThread, Error> {
-            assert_eq!((comment_id, sort), ("child", CommentSort::New));
+            assert_eq!((comment_id, sort), (&"child".into(), CommentSort::New));
             Ok(CommentThread {
                 post_id: Some("18t5968".into()),
                 forest: CommentForest {
@@ -148,8 +148,8 @@ mod tests {
             Err(Error::SessionChanged)
         }
 
-        async fn get_post(&self, id: &str) -> Result<Post, Error> {
-            assert_eq!(id, "18t5968");
+        async fn get_post(&self, id: &RedditId) -> Result<Post, Error> {
+            assert_eq!(id, &"18t5968".into());
             Err(Error::Unavailable)
         }
     }
@@ -159,7 +159,7 @@ mod tests {
         let client = RedditClient::from_backend(FakeBackend);
 
         let result = client
-            .get_post_comments("18t5968", CommentSort::Top, Some("opaque"))
+            .get_post_comments(&"18t5968".into(), CommentSort::Top, Some("opaque"))
             .await
             .unwrap();
 
@@ -177,7 +177,7 @@ mod tests {
         let client = RedditClient::from_backend(FakeBackend);
 
         let result = client
-            .get_comment_thread("child", CommentSort::New)
+            .get_comment_thread(&"child".into(), CommentSort::New)
             .await
             .unwrap();
 
@@ -208,7 +208,7 @@ mod tests {
     async fn when_a_post_is_requested_then_the_client_should_forward_to_the_selected_backend() {
         let client = RedditClient::from_backend(FakeBackend);
 
-        let post = client.get_post("18t5968").await;
+        let post = client.get_post(&"18t5968".into()).await;
 
         assert!(matches!(post, Err(Error::Unavailable)));
     }

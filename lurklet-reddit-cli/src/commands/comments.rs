@@ -1,12 +1,12 @@
 use crate::commands::CommandOutput;
 use clap::{Args, ValueEnum};
-use lurklet_reddit::{CommentSort, Error, RedditBackend, RedditClient};
+use lurklet_reddit::{CommentSort, Error, RedditBackend, RedditClient, RedditId};
 use serde_json::json;
 
 #[derive(Args)]
 pub struct GetPostComments {
-    /// Bare post ID.
-    post_id: String,
+    /// Post ID, bare or fullname.
+    post_id: RedditId,
     #[arg(long, value_enum, default_value = "best")]
     sort: Sort,
     /// Opaque token for one placeholder, bound to the same post and sort.
@@ -16,8 +16,8 @@ pub struct GetPostComments {
 
 #[derive(Args)]
 pub struct GetCommentThread {
-    /// Bare comment ID; this can be the anchor from a continue-thread marker.
-    comment_id: String,
+    /// Comment ID, bare or fullname; this can be an anchor from a continue-thread marker.
+    comment_id: RedditId,
     #[arg(long, value_enum, default_value = "best")]
     sort: Sort,
 }
@@ -78,6 +78,31 @@ mod tests {
     use clap::Parser;
     use lurklet_reddit::{CommentForest, CommentItem, CommentThread};
     use serde_json::Value;
+
+    #[test]
+    fn when_comment_commands_receive_fullnames_then_argument_parsing_should_normalize_entity_ids_only()
+     {
+        let post = Arguments::try_parse_from([
+            "cli",
+            "get-post-comments",
+            "t3_post",
+            "--cursor",
+            "t1_opaque-cursor",
+        ])
+        .unwrap();
+        let thread = Arguments::try_parse_from(["cli", "get-comment-thread", "t1_anchor"]).unwrap();
+
+        let Command::GetPostComments(post) = post.command else {
+            panic!("expected comments command")
+        };
+        let Command::GetCommentThread(thread) = thread.command else {
+            panic!("expected thread command")
+        };
+
+        assert_eq!(post.post_id, RedditId::from("post"));
+        assert_eq!(post.cursor.as_deref(), Some("t1_opaque-cursor"));
+        assert_eq!(thread.comment_id, RedditId::from("anchor"));
+    }
 
     #[tokio::test]
     async fn when_comments_are_dispatched_then_the_command_should_return_the_public_forest_and_opaque_actions()

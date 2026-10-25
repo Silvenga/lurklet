@@ -70,7 +70,7 @@ struct More {
 #[derive(Clone, Copy)]
 pub enum View<'a> {
     Post {
-        post_id: &'a str,
+        post_id: &'a RedditId,
         sort: CommentSort,
         continuation: Option<&'a Continuation>,
     },
@@ -186,7 +186,7 @@ impl Forest {
                             {
                                 Some(
                                     Continuation {
-                                        post_id: post_id.into(),
+                                        post_id: post_id.clone(),
                                         sort,
                                         after,
                                         depth,
@@ -260,9 +260,9 @@ mod tests {
         wire.into_forest(view)
     }
 
-    fn post_view() -> View<'static> {
+    fn post_view(post_id: &RedditId) -> View<'_> {
         View::Post {
-            post_id: "example",
+            post_id,
             sort: CommentSort::Best,
             continuation: None,
         }
@@ -278,11 +278,11 @@ mod tests {
         let continuation: Continuation =
             serde_json::from_value(fixture["expansion"]["cursor_context"].clone()).unwrap();
         let cases = [
-            ("initial", post_view()),
+            ("initial", post_view(&continuation.post_id)),
             (
                 "expansion",
                 View::Post {
-                    post_id: "example",
+                    post_id: &continuation.post_id,
                     sort: CommentSort::Best,
                     continuation: Some(&continuation),
                 },
@@ -313,7 +313,10 @@ mod tests {
             if name == "initial" {
                 let decoded: Vec<_> = cursors
                     .iter()
-                    .map(|token| Continuation::decode(token, "example", CommentSort::Best).unwrap())
+                    .map(|token| {
+                        Continuation::decode(token, &continuation.post_id, CommentSort::Best)
+                            .unwrap()
+                    })
                     .collect();
                 assert!(decoded.contains(&continuation));
                 assert_eq!(decoded.len(), 4);
@@ -330,7 +333,7 @@ mod tests {
     #[test]
     fn when_deleted_parents_have_no_id_then_normalization_should_keep_their_children_without_inventing_identity()
      {
-        let forest = decode(value(), post_view()).unwrap();
+        let forest = decode(value(), post_view(&"example".into())).unwrap();
 
         let CommentItem::Comment {
             comment: parent,
@@ -389,7 +392,7 @@ mod tests {
     #[test]
     fn when_multiple_continuations_are_returned_then_each_should_retain_its_independent_position_and_context()
      {
-        let forest = decode(value(), post_view()).unwrap();
+        let forest = decode(value(), post_view(&"example".into())).unwrap();
         let CommentItem::Comment { replies, .. } = &forest.items[0] else {
             panic!("expected parent")
         };
@@ -404,7 +407,7 @@ mod tests {
         else {
             panic!("expected nested continuation")
         };
-        let nested = Continuation::decode(nested, "example", CommentSort::Best).unwrap();
+        let nested = Continuation::decode(nested, &"example".into(), CommentSort::Best).unwrap();
         let CommentItem::More {
             cursor: Some(root),
             count_hint: root_count,
@@ -412,7 +415,7 @@ mod tests {
         else {
             panic!("expected root continuation")
         };
-        let root = Continuation::decode(root, "example", CommentSort::Best).unwrap();
+        let root = Continuation::decode(root, &"example".into(), CommentSort::Best).unwrap();
 
         assert_eq!(
             nested,
@@ -456,7 +459,7 @@ mod tests {
         let forest = decode(
             wire,
             View::Post {
-                post_id: "example",
+                post_id: &continuation.post_id,
                 sort: CommentSort::Best,
                 continuation: Some(&continuation),
             },
@@ -550,7 +553,7 @@ mod tests {
                 {"depth": depth, "parentId": parent, "node": {"__typename": "Comment", "id": "t1_child"}}
             ]});
 
-            let result = decode(wire, post_view());
+            let result = decode(wire, post_view(&"example".into()));
 
             assert_eq!(result, Err(GraphQlDecodeError::InvalidData));
         }
@@ -571,7 +574,7 @@ mod tests {
         let result = decode(
             wire,
             View::Post {
-                post_id: "example",
+                post_id: &cursor.post_id,
                 sort: CommentSort::Best,
                 continuation: Some(&cursor),
             },
@@ -589,7 +592,7 @@ mod tests {
             {"depth": 0, "node": null, "more": {"count": 2, "cursor": "not-enough-context"}}
         ]});
 
-        let forest = decode(wire, post_view()).unwrap();
+        let forest = decode(wire, post_view(&"example".into())).unwrap();
 
         assert_eq!(
             forest.items,
@@ -615,7 +618,7 @@ mod tests {
             {"depth": 1, "parentId": null, "node": null, "more": {"count": 3, "cursor": "opaque", "isTooDeepForCount": false}}
         ]});
 
-        let forest = decode(wire, post_view()).unwrap();
+        let forest = decode(wire, post_view(&"example".into())).unwrap();
 
         let CommentItem::Comment { replies, .. } = &forest.items[0] else {
             panic!("expected parent")
@@ -632,7 +635,7 @@ mod tests {
     #[test]
     fn when_a_comment_is_removed_or_its_author_is_unavailable_then_the_record_should_remain_present()
      {
-        let forest = decode(value(), post_view()).unwrap();
+        let forest = decode(value(), post_view(&"example".into())).unwrap();
 
         let CommentItem::Comment { comment, replies } = &forest.items[2] else {
             panic!("expected removed comment")
@@ -653,7 +656,11 @@ mod tests {
 
     #[test]
     fn when_a_forest_is_empty_then_normalization_should_return_a_successful_empty_result() {
-        let result = decode(json!({"appliedSort": "NEW", "trees": []}), post_view()).unwrap();
+        let result = decode(
+            json!({"appliedSort": "NEW", "trees": []}),
+            post_view(&"example".into()),
+        )
+        .unwrap();
 
         assert_eq!(
             result,
@@ -673,7 +680,7 @@ mod tests {
             json!({"trees": [{"depth": null}]}),
             json!({"trees": [{"depth": 0, "node": null, "more": null}]}),
         ] {
-            let result = decode(wire, post_view());
+            let result = decode(wire, post_view(&"example".into()));
 
             assert_eq!(result, Err(GraphQlDecodeError::InvalidData));
         }

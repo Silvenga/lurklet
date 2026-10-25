@@ -1,7 +1,7 @@
 use crate::backends::mobile::MobileBackend;
 use crate::backends::mobile::comments::{Continuation, Forest, PostVariables, View};
 use crate::backends::mobile::graphql::{PersistedQuery, decode_response};
-use crate::{CommentForest, CommentSort, Error, StateStore};
+use crate::{CommentForest, CommentSort, Error, RedditId, StateStore};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -19,7 +19,7 @@ struct PostComments {
 impl<S: StateStore> MobileBackend<S> {
     pub(in crate::backends::mobile) async fn get_post_comments(
         &self,
-        post_id: &str,
+        post_id: &RedditId,
         sort: CommentSort,
         cursor: Option<&str>,
     ) -> Result<CommentForest, Error> {
@@ -99,7 +99,7 @@ mod tests {
         let client = graphql_client(&server, testing::storage());
 
         let forest = client
-            .get_post_comments("example", CommentSort::Best, None)
+            .get_post_comments(&"example".into(), CommentSort::Best, None)
             .await
             .unwrap();
 
@@ -134,7 +134,7 @@ mod tests {
         let client = graphql_client(&server, storage.clone());
 
         let initial = client
-            .get_post_comments("example", CommentSort::Best, None)
+            .get_post_comments(&"example".into(), CommentSort::Best, None)
             .await
             .unwrap();
         let CommentItem::Comment { replies, .. } = &initial.items[0] else {
@@ -151,7 +151,7 @@ mod tests {
             panic!("expected continuation")
         };
         let expanded = client
-            .get_post_comments("example", CommentSort::Best, Some(cursor))
+            .get_post_comments(&"example".into(), CommentSort::Best, Some(cursor))
             .await
             .unwrap();
 
@@ -194,7 +194,7 @@ mod tests {
         let client = graphql_client(&server, cached_storage());
 
         let forest = client
-            .get_post_comments("example", CommentSort::Top, Some(&cursor))
+            .get_post_comments(&"example".into(), CommentSort::Top, Some(&cursor))
             .await
             .unwrap();
 
@@ -219,7 +219,7 @@ mod tests {
 
         for token in ["invalid!", wrong.as_str()] {
             let result = client
-                .get_post_comments("example", CommentSort::Best, Some(token))
+                .get_post_comments(&"example".into(), CommentSort::Best, Some(token))
                 .await;
 
             assert!(matches!(
@@ -247,7 +247,7 @@ mod tests {
             let client = graphql_client(&server, cached_storage());
 
             let result = client
-                .get_post_comments("example", CommentSort::Best, None)
+                .get_post_comments(&"example".into(), CommentSort::Best, None)
                 .await;
 
             assert!(matches!(result, Err(Error::Unavailable)));
@@ -269,7 +269,7 @@ mod tests {
         let client = graphql_client(&server, cached_storage());
 
         let forest = client
-            .get_post_comments("example", CommentSort::Best, None)
+            .get_post_comments(&"example".into(), CommentSort::Best, None)
             .await
             .unwrap();
 
@@ -302,7 +302,7 @@ mod tests {
             let client = graphql_client(&server, cached_storage());
 
             let result = client
-                .get_post_comments("example", CommentSort::Best, None)
+                .get_post_comments(&"example".into(), CommentSort::Best, None)
                 .await;
 
             match kind {

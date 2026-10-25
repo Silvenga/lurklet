@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Continuation {
-    pub post_id: String,
+    pub post_id: RedditId,
     pub sort: CommentSort,
     pub after: String,
     pub depth: u32,
@@ -12,9 +12,9 @@ pub struct Continuation {
 }
 
 impl Continuation {
-    pub fn decode(token: &str, post_id: &str, sort: CommentSort) -> Result<Self, Error> {
+    pub fn decode(token: &str, post_id: &RedditId, sort: CommentSort) -> Result<Self, Error> {
         let continuation: Self = continuations::decode(token, "cursor")?;
-        if continuation.post_id != post_id || continuation.sort != sort {
+        if &continuation.post_id != post_id || continuation.sort != sort {
             return Err(Error::InvalidRequest { field: "cursor" });
         }
         Ok(continuation)
@@ -30,6 +30,8 @@ mod tests {
     use super::*;
     use crate::SubredditSort;
     use crate::backends::mobile::subreddit_feeds::Continuation as FeedContinuation;
+    use base64::Engine;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use uuid::Uuid;
 
     #[test]
@@ -43,7 +45,7 @@ mod tests {
         };
 
         let token = expected.encode().unwrap();
-        let restored = Continuation::decode(&token, "post", CommentSort::Top).unwrap();
+        let restored = Continuation::decode(&token, &"post".into(), CommentSort::Top).unwrap();
 
         assert_eq!(restored, expected);
         assert!(
@@ -66,7 +68,7 @@ mod tests {
         .unwrap();
 
         for (id, sort) in [("other", CommentSort::Best), ("post", CommentSort::New)] {
-            let result = Continuation::decode(&token, id, sort);
+            let result = Continuation::decode(&token, &id.into(), sort);
 
             assert!(matches!(
                 result,
@@ -87,11 +89,25 @@ mod tests {
         .encode()
         .unwrap();
 
-        let result = Continuation::decode(&feed, "post", CommentSort::Best);
+        let result = Continuation::decode(&feed, &"post".into(), CommentSort::Best);
 
         assert!(matches!(
             result,
             Err(Error::InvalidRequest { field: "cursor" })
         ));
+    }
+
+    #[test]
+    fn when_an_existing_cursor_uses_a_string_id_then_typed_context_should_preserve_its_encoding() {
+        let encoded = URL_SAFE_NO_PAD.encode(
+            br#"{"post_id":"post","sort":"best","after":"next","depth":0,"parent_id":null}"#,
+        );
+        let post_id = RedditId::from("t3_post");
+
+        let restored = Continuation::decode(&encoded, &post_id, CommentSort::Best).unwrap();
+        let reencoded = restored.encode().unwrap();
+
+        assert_eq!(restored.post_id, post_id);
+        assert_eq!(reencoded, encoded);
     }
 }

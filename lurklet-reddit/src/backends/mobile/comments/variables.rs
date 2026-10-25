@@ -1,4 +1,4 @@
-use crate::CommentSort;
+use crate::{CommentSort, RedditId};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -17,9 +17,9 @@ pub struct PostVariables<'a> {
 }
 
 impl<'a> PostVariables<'a> {
-    pub fn new(post_id: &str, sort: CommentSort, after: Option<&'a str>) -> Self {
+    pub fn new(post_id: &RedditId, sort: CommentSort, after: Option<&'a str>) -> Self {
         Self {
-            id: format!("t3_{post_id}"),
+            id: format!("t3_{}", post_id.as_str()),
             sort_type: sort_type(sort),
             after,
             max_depth: 10,
@@ -43,9 +43,9 @@ pub struct ThreadVariables {
 }
 
 impl ThreadVariables {
-    pub fn new(comment_id: &str, sort: CommentSort) -> Self {
+    pub fn new(comment_id: &RedditId, sort: CommentSort) -> Self {
         Self {
-            id: format!("t1_{comment_id}"),
+            id: format!("t1_{}", comment_id.as_str()),
             sort_type: sort_type(sort),
             max_depth: 10,
             count: 20,
@@ -75,8 +75,12 @@ mod tests {
         ))
         .unwrap();
 
-        let variables =
-            serde_json::to_value(PostVariables::new("example", CommentSort::Best, None)).unwrap();
+        let variables = serde_json::to_value(PostVariables::new(
+            &"example".into(),
+            CommentSort::Best,
+            None,
+        ))
+        .unwrap();
 
         assert_eq!(variables, fixture["variables"]);
         assert_eq!(variables.as_object().unwrap().len(), 8);
@@ -86,7 +90,7 @@ mod tests {
     fn when_a_placeholder_is_expanded_then_variables_should_keep_the_post_id_and_use_the_native_expansion_count()
      {
         let variables = serde_json::to_value(PostVariables::new(
-            "example",
+            &"example".into(),
             CommentSort::New,
             Some("opaque+/="),
         ))
@@ -106,7 +110,7 @@ mod tests {
         .unwrap();
 
         let variables =
-            serde_json::to_value(ThreadVariables::new("anchor", CommentSort::Top)).unwrap();
+            serde_json::to_value(ThreadVariables::new(&"anchor".into(), CommentSort::Top)).unwrap();
 
         assert_eq!(variables, fixture["variables"]);
         assert_eq!(variables.as_object().unwrap().len(), 5);
@@ -119,11 +123,27 @@ mod tests {
             (CommentSort::Top, "TOP"),
             (CommentSort::New, "NEW"),
         ] {
-            let post = serde_json::to_value(PostVariables::new("post", sort, None)).unwrap();
-            let thread = serde_json::to_value(ThreadVariables::new("comment", sort)).unwrap();
+            let post =
+                serde_json::to_value(PostVariables::new(&"post".into(), sort, None)).unwrap();
+            let thread =
+                serde_json::to_value(ThreadVariables::new(&"comment".into(), sort)).unwrap();
 
             assert_eq!(post["sortType"], json!(wire));
             assert_eq!(thread["sortType"], json!(wire));
         }
+    }
+
+    #[test]
+    fn when_typed_ids_are_used_then_comment_requests_should_retain_their_wire_fullnames() {
+        let post_id = RedditId::from("t3_post");
+        let comment_id = RedditId::from("t1_comment");
+
+        let post =
+            serde_json::to_value(PostVariables::new(&post_id, CommentSort::Best, None)).unwrap();
+        let thread =
+            serde_json::to_value(ThreadVariables::new(&comment_id, CommentSort::Best)).unwrap();
+
+        assert_eq!(post["id"], "t3_post");
+        assert_eq!(thread["id"], "t1_comment");
     }
 }

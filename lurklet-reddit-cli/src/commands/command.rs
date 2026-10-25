@@ -3,7 +3,7 @@ use crate::commands::{
     get_request_allowlist,
 };
 use clap::Subcommand;
-use lurklet_reddit::{Error, MobileBackend, RedditClient, StateStore};
+use lurklet_reddit::{Error, MobileBackend, RedditClient, RedditId, StateStore};
 
 #[derive(Subcommand)]
 pub enum Command {
@@ -11,8 +11,8 @@ pub enum Command {
     Bootstrap,
     /// Fetch the mobile GET allowlist as a POST diagnostic; does not enable GET or cache the list.
     GetRequestAllowlist,
-    /// Retrieve one bare post ID as Markdown and displayable attachments. May make a live request.
-    GetPost { id: String },
+    /// Retrieve a post ID (bare or fullname) as Markdown and attachments. May make a live request.
+    GetPost { id: RedditId },
     /// Read a post's comments or expand one ordinary placeholder. May make a live request.
     GetPostComments(GetPostComments),
     /// Open a comment thread with ancestor context. Further expansion is disabled. May make a live request.
