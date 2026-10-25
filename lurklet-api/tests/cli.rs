@@ -16,6 +16,8 @@ use tokio::time::{sleep, timeout};
 fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract() {
     let directory = assert_fs::TempDir::new().unwrap();
     let cache_dir = directory.path().join("cache");
+    let state_file = directory.path().join("session.json");
+    fs::write(&state_file, "private-invalid-state").unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let mut command = Command::new(cargo_bin!("lurklet-api"));
     command
@@ -24,6 +26,7 @@ fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract()
         .arg("export-openapi")
         .env("LURKLET_STATIC_DIR", "/missing-static-directory")
         .env("LURKLET_CACHE_DIR", &cache_dir)
+        .env("LURKLET_STATE_FILE", &state_file)
         .timeout(Duration::from_secs(10))
         .env_remove("RUST_LOG")
         .env_remove("LURKLET_BIND");
@@ -33,6 +36,10 @@ fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract()
 
     assert!(output.stderr.is_empty());
     assert!(!cache_dir.exists());
+    assert_eq!(
+        fs::read_to_string(state_file).unwrap(),
+        "private-invalid-state"
+    );
     assert_eq!(document["openapi"], "3.2.0");
     assert_eq!(
         document["paths"]
@@ -115,6 +122,8 @@ fn when_openapi_export_flag_is_used_then_command_should_reject_it() {
 async fn when_health_check_is_requested_then_command_should_probe_directly_and_succeed_silently() {
     let directory = assert_fs::TempDir::new().unwrap();
     let cache_dir = directory.path().join("cache");
+    let state_file = directory.path().join("session.json");
+    fs::write(&state_file, "private-invalid-state").unwrap();
     let listener = AsyncTcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let app = Router::new().route(
@@ -131,6 +140,7 @@ async fn when_health_check_is_requested_then_command_should_probe_directly_and_s
         .env("LURKLET_BIND", format!("0.0.0.0:{}", address.port()))
         .env("LURKLET_STATIC_DIR", "/missing-static-directory")
         .env("LURKLET_CACHE_DIR", &cache_dir)
+        .env("LURKLET_STATE_FILE", &state_file)
         .env("RUST_LOG", "trace")
         .env("HTTP_PROXY", "http://127.0.0.1:9")
         .env("http_proxy", "http://127.0.0.1:9")
@@ -150,6 +160,53 @@ async fn when_health_check_is_requested_then_command_should_probe_directly_and_s
     assert!(output.stdout.is_empty());
     assert!(output.stderr.is_empty());
     assert!(!cache_dir.exists());
+    assert_eq!(
+        fs::read_to_string(state_file).unwrap(),
+        "private-invalid-state"
+    );
+}
+
+#[test]
+fn when_state_restoration_fails_then_cli_and_environment_configuration_should_warn_without_exposing_state()
+ {
+    let directory = assert_fs::TempDir::new().unwrap();
+    let path = directory.path().join("private-state-path.json");
+    let contents = r#"{"version":1,"state":"private-invalid-token"}"#;
+    fs::write(&path, contents).unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+
+    for (from_environment, level) in [
+        (false, "info"),
+        (true, "info"),
+        (false, "debug"),
+        (true, "debug"),
+    ] {
+        let mut command = Command::new(cargo_bin!("lurklet-api"));
+        command
+            .arg("--bind")
+            .arg(listener.local_addr().unwrap().to_string())
+            .arg("--static-dir")
+            .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/static"))
+            .env_remove("LURKLET_STATE_FILE")
+            .env_remove("LURKLET_CACHE_DIR")
+            .env("RUST_LOG", level)
+            .timeout(Duration::from_secs(5));
+        if from_environment {
+            command.env("LURKLET_STATE_FILE", &path);
+        } else {
+            command.arg("--state-file").arg(&path);
+        }
+
+        let output = command.assert().failure().get_output().clone();
+        let logs = String::from_utf8(output.stderr).unwrap();
+
+        assert!(logs.contains(
+            "Unable to restore Reddit session state; starting with empty in-memory state"
+        ));
+        assert!(!logs.contains("private-"), "{logs}");
+        assert!(output.stdout.is_empty());
+        assert_eq!(fs::read_to_string(&path).unwrap(), contents);
+    }
 }
 
 #[test]
@@ -215,6 +272,8 @@ async fn when_the_server_is_started_then_socket_and_forwarded_ips_should_enforce
         .timeout(Duration::from_secs(2))
         .build()
         .unwrap();
+    let directory = assert_fs::TempDir::new().unwrap();
+    let state_file = directory.path().join("state/session.json");
     for (source, trusted, separate_clients) in [
         ("peer", "", false),
         ("x-real-ip", "", true),
@@ -238,6 +297,7 @@ async fn when_the_server_is_started_then_socket_and_forwarded_ips_should_enforce
                 source,
             ])
             .env_remove("LURKLET_TRUSTED_PROXIES")
+            .env("LURKLET_STATE_FILE", &state_file)
             .env(
                 "LURKLET_STATIC_DIR",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/static"),
@@ -320,6 +380,7 @@ async fn when_the_server_is_started_then_socket_and_forwarded_ips_should_enforce
             assert_eq!(response.status(), StatusCode::OK, "{path}");
             assert!(!response.headers().contains_key("x-ratelimit-limit"));
         }
+        assert!(!state_file.parent().unwrap().exists());
     }
 }
 

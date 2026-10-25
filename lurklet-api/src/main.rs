@@ -1,9 +1,10 @@
+use crate::session_store::SessionStore;
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use lurklet_api::{
     RateLimit, RateLimitOptions, ResponseCache, StaticHost, application, specification,
 };
-use lurklet_reddit::RedditClient;
+use lurklet_reddit::{RedditClient, Storage};
 use std::io::{self, Write};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -14,6 +15,7 @@ use tracing_subscriber::filter::LevelFilter;
 
 mod health_check;
 mod server;
+mod session_store;
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -27,6 +29,9 @@ struct Arguments {
     /// Enable persistent API response caching in this directory.
     #[arg(long, env = "LURKLET_CACHE_DIR")]
     cache_dir: Option<PathBuf>,
+    /// Restore and save Reddit session state; otherwise state remains in memory.
+    #[arg(long, env = "LURKLET_STATE_FILE")]
+    state_file: Option<PathBuf>,
     #[command(flatten)]
     rate_limit: RateLimitOptions,
     #[command(subcommand)]
@@ -78,7 +83,9 @@ async fn main() -> ExitCode {
             }
             Some(Command::HealthCheck) => health_check::check(arguments.bind).await,
             None => {
+                let storage = Storage::new(SessionStore::new(arguments.state_file).await);
                 let reddit = RedditClient::builder()
+                    .with_storage(storage)
                     .build()
                     .context("failed to initialize Reddit client")?;
                 let rate_limit = RateLimit::new(arguments.rate_limit);
@@ -140,5 +147,14 @@ mod tests {
         ));
         assert!(arguments.rate_limit.trusted_proxies.is_empty());
         assert!(arguments.cache_dir.is_none());
+        assert!(arguments.state_file.is_none());
+    }
+
+    #[test]
+    fn when_a_state_file_is_supplied_then_argument_parsing_should_retain_its_path() {
+        let arguments =
+            Arguments::try_parse_from(["lurklet-api", "--state-file", "session.json"]).unwrap();
+
+        assert_eq!(arguments.state_file, Some(PathBuf::from("session.json")));
     }
 }

@@ -5,7 +5,7 @@ use crate::routes;
 use axum::Router;
 use axum::http::header;
 use axum::middleware;
-use lurklet_reddit::{MobileBackend, RedditClient};
+use lurklet_reddit::{MobileBackend, RedditBackend, RedditClient};
 use utoipa::OpenApi as _;
 use utoipa::openapi::{OpenApi, OpenApiVersion};
 
@@ -22,8 +22,8 @@ struct ApiDoc;
 const API_PREFIX: &str = "/api";
 
 /// Builds the API router without starting a listener.
-pub fn application(
-    reddit: RedditClient,
+pub fn application<B: RedditBackend + 'static>(
+    reddit: RedditClient<B>,
     rate_limit: &RateLimit,
     cache: Option<&ResponseCache>,
 ) -> Router {
@@ -61,9 +61,9 @@ pub fn specification() -> OpenApi {
     specification
 }
 
-fn data_api(
-    routes: Router<RedditClient>,
-    reddit: RedditClient,
+fn data_api<B: RedditBackend + 'static>(
+    routes: Router<RedditClient<B>>,
+    reddit: RedditClient<B>,
     rate_limit: &RateLimit,
     cache: Option<&ResponseCache>,
 ) -> Router {
