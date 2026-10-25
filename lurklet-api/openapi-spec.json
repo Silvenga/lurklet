@@ -454,6 +454,129 @@
         }
       }
     },
+    "/api/subreddits/{subreddit}": {
+      "get": {
+        "summary": "Read community metadata without fetching its feed or assets",
+        "operationId": "get_subreddit",
+        "parameters": [
+          {
+            "name": "subreddit",
+            "in": "path",
+            "description": "Community name, without the r/ prefix.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Community metadata or an unavailable-community explanation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subreddit"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Supported HTTP methods"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Seconds until the client may retry"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Upstream retry delay or HTTP date, when supplied"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/subreddits/{subreddit}/posts": {
       "get": {
         "summary": "List one page of subreddit posts without fetching post details",
@@ -1163,6 +1286,178 @@
           }
         }
       },
+      "Subreddit": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SubredditDetails"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "available"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UnavailableSubreddit"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "unavailable"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "SubredditDetails": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "title",
+          "createdAt",
+          "shortDescription",
+          "descriptionMarkdown",
+          "subscriberCount",
+          "weeklyActiveUserCount",
+          "weeklyContributionCount",
+          "styles",
+          "communityType",
+          "isNsfw",
+          "isPostingRestricted",
+          "isQuarantined",
+          "quarantineMessageMarkdown",
+          "interstitialWarningMarkdown"
+        ],
+        "properties": {
+          "communityType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "descriptionMarkdown": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Untrusted long-form Markdown, not structured sidebar widgets or rules."
+          },
+          "id": {
+            "type": "string"
+          },
+          "interstitialWarningMarkdown": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isNsfw": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "isPostingRestricted": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "isQuarantined": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "quarantineMessageMarkdown": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shortDescription": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "styles": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SubredditStyles"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "subscriberCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "weeklyActiveUserCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Weekly activity, not a count of currently online users.",
+            "minimum": 0
+          },
+          "weeklyContributionCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "SubredditPage": {
         "type": "object",
         "required": [
@@ -1181,6 +1476,62 @@
             "items": {
               "$ref": "#/components/schemas/ListedPost"
             }
+          }
+        }
+      },
+      "SubredditStyles": {
+        "type": "object",
+        "required": [
+          "iconUrl",
+          "legacyIconUrl",
+          "bannerUrl",
+          "mobileBannerUrl",
+          "legacyBannerUrl",
+          "primaryColor",
+          "legacyPrimaryColor"
+        ],
+        "properties": {
+          "bannerUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "iconUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legacyBannerUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legacyIconUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legacyPrimaryColor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mobileBannerUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "primaryColor": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -1224,6 +1575,55 @@
             ],
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "UnavailableSubreddit": {
+        "type": "object",
+        "required": [
+          "id",
+          "forbiddenReason",
+          "banTitle",
+          "banMessageMarkdown",
+          "quarantineMessageMarkdown",
+          "interstitialWarningMarkdown"
+        ],
+        "properties": {
+          "banMessageMarkdown": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "banTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "forbiddenReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "interstitialWarningMarkdown": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quarantineMessageMarkdown": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

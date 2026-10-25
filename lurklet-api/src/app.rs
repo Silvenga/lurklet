@@ -38,6 +38,7 @@ pub fn application<B: RedditBackend + 'static>(
     let (posts, _) = routes::get_post()
         .merge(routes::get_post_comments())
         .merge(routes::get_comment_thread())
+        .merge(routes::get_subreddit())
         .merge(routes::list_subreddit_posts())
         .split_for_parts();
     let api = data_api(posts, reddit, rate_limit, cache)
@@ -55,6 +56,7 @@ pub fn specification() -> OpenApi {
     routes.merge(routes::get_post::<MobileBackend>().into_openapi());
     routes.merge(routes::get_post_comments::<MobileBackend>().into_openapi());
     routes.merge(routes::get_comment_thread::<MobileBackend>().into_openapi());
+    routes.merge(routes::get_subreddit::<MobileBackend>().into_openapi());
     routes.merge(routes::list_subreddit_posts::<MobileBackend>().into_openapi());
     let mut specification = ApiDoc::openapi().nest(API_PREFIX, routes);
     specification.openapi = OpenApiVersion::Version32;
@@ -361,11 +363,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_a_data_query_is_invalid_then_the_mounted_endpoint_should_return_problem_details()
-    {
+    async fn when_data_input_is_invalid_then_the_mounted_endpoint_should_return_problem_details() {
         let app = application();
         for uri in [
             "/api/subreddits/rust/posts?sort=invalid",
+            "/api/subreddits/%FF",
             "/api/posts/post/comments?sort=invalid",
             "/api/comments/anchor/thread?sort=invalid",
         ] {
@@ -508,6 +510,11 @@ mod tests {
             (
                 Method::POST,
                 "/api/subreddits/rust/posts",
+                StatusCode::METHOD_NOT_ALLOWED,
+            ),
+            (
+                Method::POST,
+                "/api/subreddits/rust",
                 StatusCode::METHOD_NOT_ALLOWED,
             ),
             (
