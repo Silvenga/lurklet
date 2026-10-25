@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use lurklet_api::{RateLimit, RateLimitOptions, StaticHost, application};
+use lurklet_api::{RateLimit, RateLimitOptions, ResponseCache, StaticHost, application};
 use std::io::{self, Write};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -21,6 +21,9 @@ struct Arguments {
     /// Directory containing the built website and its precompressed files.
     #[arg(long, env = "LURKLET_STATIC_DIR", default_value = "lurklet-api/static")]
     static_dir: PathBuf,
+    /// Enable persistent API response caching in this directory.
+    #[arg(long, env = "LURKLET_CACHE_DIR")]
+    cache_dir: Option<PathBuf>,
     #[command(flatten)]
     rate_limit: RateLimitOptions,
     #[command(subcommand)]
@@ -63,7 +66,7 @@ async fn main() -> ExitCode {
     let result: anyhow::Result<()> = async {
         match arguments.command {
             Some(Command::ExportOpenApi) => {
-                let (_, specification) = application(&RateLimit::new(arguments.rate_limit));
+                let (_, specification) = application(&RateLimit::new(arguments.rate_limit), None);
                 let mut output = io::stdout().lock();
                 serde_json::to_writer_pretty(&mut output, &specification)
                     .context("failed to serialize the OpenAPI document")?;
@@ -73,7 +76,15 @@ async fn main() -> ExitCode {
             Some(Command::HealthCheck) => health_check::check(arguments.bind).await,
             None => {
                 let rate_limit = RateLimit::new(arguments.rate_limit);
-                let (app, _) = application(&rate_limit);
+                let cache = match arguments.cache_dir {
+                    Some(directory) => Some(
+                        ResponseCache::new(directory)
+                            .await
+                            .context("failed to initialize response cache")?,
+                    ),
+                    None => None,
+                };
+                let (app, _) = application(&rate_limit, cache.as_ref());
                 let static_host = StaticHost::new(&arguments.static_dir)
                     .await
                     .context("failed to initialize static hosting")?;
@@ -104,9 +115,8 @@ async fn main() -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::Arguments;
-    use clap::Parser;
-    use lurklet_api::{ClientIpSource, RateLimitOptions};
+    use super::*;
+    use lurklet_api::ClientIpSource;
 
     #[test]
     fn when_defaults_are_used_then_cli_and_library_quotas_should_match() {
@@ -123,5 +133,6 @@ mod tests {
             ClientIpSource::Peer
         ));
         assert!(arguments.rate_limit.trusted_proxies.is_empty());
+        assert!(arguments.cache_dir.is_none());
     }
 }

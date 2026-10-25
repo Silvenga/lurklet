@@ -24,6 +24,21 @@ Logging should be privacy-aware. The default log level is `info`.
 No personal information or security-sensitive information should be logged at levels `info` or higher. It is expected
 that `info` and higher log levels can be publicly uploaded.
 
+## Conventions
+
+- Do not add code without justification of current or immediate future needs. This abstention applies to defensive coding without evidence the additional protections are required.
+
+## Conventions - Rust
+
+- Favor absolute paths in `use` statements over `super::`, except for test modules where `use super::*;` should be used and re-exporting, where specifying the full path duplicates existing `mod` statements.
+
+## Principals
+
+- Favor cacheability of API endpoints where the path/query are the caching key. 
+  - Avoid creating endpoints that accept many unrelated inputs for batch retrieval.
+  - Each endpoint should have a single purpose.
+  - Minimize the returned data for each endpoint - minimizing requested fields avoids needless coupling and improves forward compatiblity.
+
 ## Verification
 
 After relevant code changes:

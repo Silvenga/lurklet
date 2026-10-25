@@ -32,13 +32,11 @@ pub async fn check(mut address: SocketAddr) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::check;
+    use super::*;
     use axum::Router;
-    use axum::http::{HeaderMap, StatusCode, header};
+    use axum::http::{HeaderMap, header};
     use axum::routing::get;
     use std::future::IntoFuture;
-    use std::net::{IpAddr, Ipv6Addr, SocketAddr};
-    use std::time::Duration;
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
     use tokio::net::TcpListener;
     use tokio::sync::oneshot;

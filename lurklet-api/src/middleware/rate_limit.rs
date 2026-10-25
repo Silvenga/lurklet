@@ -138,16 +138,12 @@ impl RateLimit {
     }
 }
 
-/// Limits the nested API router, leaving the exact health endpoint exempt.
+/// Applies the shared per-client quota to the wrapped routes.
 pub async fn limit_requests(
     State(limiter): State<RateLimit>,
     request: Request,
     next: Next,
 ) -> Response {
-    if request.uri().path() == "/health" {
-        return next.run(request).await;
-    }
-
     Governor::new(next, &limiter.config)
         .error_handler(|error| match error {
             GovernorError::TooManyRequests { wait_time, headers } => {
@@ -176,22 +172,16 @@ pub async fn limit_requests(
 
 #[cfg(test)]
 mod tests {
-    use super::{ClientIpKey, ClientIpSource, RateLimit, RateLimitOptions, limit_requests};
+    use super::*;
     use axum::Router;
     use axum::body::{Body, to_bytes};
-    use axum::extract::ConnectInfo;
-    use axum::http::{HeaderValue, Method, Request, StatusCode, header};
+    use axum::http::{Method, StatusCode};
     use axum::middleware;
     use axum::routing::get;
     use serde_json::{Value, json};
-    use std::net::{IpAddr, SocketAddr};
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::time::Duration;
     use tokio::task::JoinSet;
     use tokio::time::sleep;
-    use tower::ServiceExt;
-    use tower_governor::key_extractor::KeyExtractor;
 
     fn request(path: &str, peer: &str) -> Request<Body> {
         Request::builder()
@@ -210,7 +200,6 @@ mod tests {
 
     fn app(limiter: &RateLimit) -> Router {
         Router::new()
-            .route("/health", get(|| async { StatusCode::OK }))
             .fallback(|| async { StatusCode::NOT_FOUND })
             .layer(middleware::from_fn_with_state(
                 limiter.clone(),
@@ -363,29 +352,6 @@ mod tests {
         assert_eq!(rejected.status(), StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(recovered, 0);
         assert_eq!(next.status(), StatusCode::NOT_FOUND);
-    }
-
-    #[tokio::test]
-    async fn when_health_is_requested_then_it_should_not_consume_quota_or_require_peer_metadata() {
-        let limiter = limiter(1);
-        let app = app(&limiter);
-
-        for _ in 0..12 {
-            let request = Request::builder()
-                .uri("/health")
-                .body(Body::empty())
-                .unwrap();
-            let response = app.clone().oneshot(request).await.unwrap();
-
-            assert_eq!(response.status(), StatusCode::OK);
-        }
-
-        assert_eq!(limiter.config.limiter().len(), 0);
-        let response = app
-            .oneshot(request("/api/missing", "192.0.2.1:1234"))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

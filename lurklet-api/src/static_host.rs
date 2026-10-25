@@ -95,19 +95,17 @@ fn accepts_html(headers: &HeaderMap) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::StaticHost;
+    use super::*;
     use assert_fs::TempDir;
     use assert_fs::prelude::*;
-    use axum::Router;
-    use axum::body::{Body, to_bytes};
-    use axum::http::{Method, Request, StatusCode, header};
+    use axum::body::to_bytes;
+    use axum::http::Method;
     use brotli::{CompressorWriter, Decompressor};
     use flate2::Compression;
     use flate2::read::GzDecoder;
     use flate2::write::GzEncoder;
     use std::fs;
     use std::io::{Read, Write};
-    use tower::ServiceExt;
 
     const ROBOTS: &str = "User-agent: *\nDisallow: /\n";
     const HTML: &str = "<!doctype html><html><body>Static fixture</body></html>";

@@ -1,3 +1,4 @@
+use crate::ResponseCache;
 use crate::error::{ApiError, Problem};
 use crate::middleware::{RateLimit, access_log, api_cache_policy, limit_requests};
 use crate::routes;
@@ -5,7 +6,6 @@ use axum::Router;
 use axum::middleware;
 use utoipa::OpenApi as _;
 use utoipa::openapi::{OpenApi, OpenApiVersion};
-use utoipa_axum::router::OpenApiRouter;
 
 #[derive(utoipa::OpenApi)]
 #[openapi(
@@ -18,25 +18,30 @@ use utoipa_axum::router::OpenApiRouter;
 struct ApiDoc;
 
 /// Builds the API router and internal specification without starting a listener.
-pub fn application(rate_limit: &RateLimit) -> (Router, OpenApi) {
-    let (api, specification) = OpenApiRouter::new()
-        .merge(routes::health())
-        .split_for_parts();
+pub fn application(rate_limit: &RateLimit, cache: Option<&ResponseCache>) -> (Router, OpenApi) {
+    let (health, health_specification) = routes::health().split_for_parts();
+    let health = health.method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed });
 
-    let api = api
+    let mut data_api = Router::new()
         .fallback(|| async { ApiError::NotFound })
-        .method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed })
-        .layer(middleware::from_fn_with_state(
-            rate_limit.clone(),
-            limit_requests,
-        ))
+        .method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed });
+    if let Some(cache) = cache {
+        data_api = cache.wrap(data_api);
+    }
+    let data_api = data_api.layer(middleware::from_fn_with_state(
+        rate_limit.clone(),
+        limit_requests,
+    ));
+
+    let api = data_api
+        .merge(health)
         .layer(middleware::from_fn(api_cache_policy))
         .layer(middleware::from_fn(access_log));
 
     // Service nesting reserves /api, /api/, and descendants, including unmatched paths.
     let prefix = "/api";
     let app = Router::new().nest_service(prefix, api);
-    let mut specification = ApiDoc::openapi().nest(prefix, specification);
+    let mut specification = ApiDoc::openapi().nest(prefix, health_specification);
     specification.openapi = OpenApiVersion::Version32;
 
     (app, specification)
@@ -44,20 +49,21 @@ pub fn application(rate_limit: &RateLimit) -> (Router, OpenApi) {
 
 #[cfg(test)]
 mod tests {
-    use crate::{RateLimit, RateLimitOptions, StaticHost};
+    use super::*;
+    use crate::{RateLimitOptions, StaticHost};
     use assert_fs::prelude::*;
+    use axum::Extension;
     use axum::body::{Body, to_bytes};
     use axum::extract::ConnectInfo;
     use axum::http::{Method, Request, StatusCode, header};
     use axum::response::Html;
-    use axum::{Extension, Router};
+    use axum::routing::get;
     use serde_json::{Value, json};
     use std::net::SocketAddr;
     use tower::ServiceExt;
-    use utoipa::openapi::OpenApi;
 
     fn application() -> (Router, OpenApi) {
-        let (app, specification) = super::application(&RateLimit::default());
+        let (app, specification) = super::application(&RateLimit::default(), None);
         let peer: SocketAddr = "192.0.2.1:1234".parse().unwrap();
         (app.layer(Extension(ConnectInfo(peer))), specification)
     }
@@ -88,7 +94,7 @@ mod tests {
             rate_limit_burst: 1.try_into().unwrap(),
             ..RateLimitOptions::default()
         });
-        let (app, _) = super::application(&limiter);
+        let (app, _) = super::application(&limiter, None);
         let peer: SocketAddr = "192.0.2.1:1234".parse().unwrap();
         let app = app
             .fallback_service(StaticHost::new(directory.path()).await.unwrap().router())
@@ -231,5 +237,141 @@ mod tests {
         let document = serde_json::to_value(specification).unwrap();
 
         insta::assert_json_snapshot!("openapi", document);
+    }
+
+    #[tokio::test]
+    async fn when_cache_is_enabled_then_api_hits_should_be_limited_and_health_should_bypass_caching()
+     {
+        let directory = assert_fs::TempDir::new().unwrap();
+        let cache = ResponseCache::new(directory.path()).await.unwrap();
+        let fixture = cache.wrap(Router::new().route(
+            "/api/resource",
+            get(|| async { ([(header::CACHE_CONTROL, "public, max-age=3600")], "cached") }),
+        ));
+        let response = fixture
+            .oneshot(
+                Request::builder()
+                    .uri("/api/resource")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.headers()["x-lurklet-cache"], "miss");
+        let limiter = RateLimit::new(RateLimitOptions {
+            rate_limit_burst: 1.try_into().unwrap(),
+            ..RateLimitOptions::default()
+        });
+        let (app, _) = super::application(&limiter, Some(&cache));
+        for _ in 0..12 {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri("/api/health")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+            assert!(!response.headers().contains_key("x-lurklet-cache"));
+            assert!(!response.headers().contains_key("x-ratelimit-limit"));
+        }
+        let app = app.layer(Extension(ConnectInfo(
+            "192.0.2.1:1234".parse::<SocketAddr>().unwrap(),
+        )));
+
+        let first = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/resource")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let second = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/resource")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let health = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(first.status(), StatusCode::OK);
+        assert_eq!(first.headers()["x-lurklet-cache"], "hit");
+        assert!(!first.headers().contains_key("x-ratelimit-remaining"));
+        assert_eq!(
+            to_bytes(first.into_body(), 4096).await.unwrap(),
+            b"cached".as_slice()
+        );
+        assert_eq!(second.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(!second.headers().contains_key("x-lurklet-cache"));
+        assert_eq!(health.status(), StatusCode::OK);
+        assert!(!health.headers().contains_key("x-lurklet-cache"));
+        assert_eq!(health.headers()[header::CACHE_CONTROL], "no-store");
+        assert_eq!(
+            serde_json::from_slice::<Value>(&to_bytes(health.into_body(), 4096).await.unwrap())
+                .unwrap(),
+            json!({"health": "ok"})
+        );
+    }
+
+    #[tokio::test]
+    async fn when_cache_is_enabled_then_static_robots_and_unsupported_methods_should_remain_outside_it()
+     {
+        let directory = assert_fs::TempDir::new().unwrap();
+        directory.child("index.html").write_str("site").unwrap();
+        let cache_directory = assert_fs::TempDir::new().unwrap();
+        let cache = ResponseCache::new(cache_directory.path()).await.unwrap();
+        let (app, _) = super::application(&RateLimit::default(), Some(&cache));
+        let app = app
+            .fallback_service(StaticHost::new(directory.path()).await.unwrap().router())
+            .layer(Extension(ConnectInfo(
+                "192.0.2.1:1234".parse::<SocketAddr>().unwrap(),
+            )));
+
+        for (method, path, expected) in [
+            (Method::GET, "/robots.txt", StatusCode::OK),
+            (Method::GET, "/", StatusCode::OK),
+            (Method::GET, "/missing.js", StatusCode::NOT_FOUND),
+            (Method::POST, "/api/health", StatusCode::METHOD_NOT_ALLOWED),
+            (Method::GET, "/api/health", StatusCode::OK),
+            (Method::HEAD, "/api/health", StatusCode::OK),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(response.status(), expected, "{path}");
+            assert!(
+                !response.headers().contains_key("x-lurklet-cache"),
+                "{path}"
+            );
+        }
     }
 }

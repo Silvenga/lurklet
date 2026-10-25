@@ -46,10 +46,10 @@ pub async fn api_cache_policy(request: Request, next: Next) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::api_cache_policy;
+    use super::*;
     use axum::Router;
     use axum::body::Body;
-    use axum::http::{Request, StatusCode, header};
+    use axum::http::StatusCode;
     use axum::middleware;
     use axum::routing::get;
     use tower::ServiceExt;

@@ -29,7 +29,7 @@ async fn when_requests_are_logged_then_details_should_follow_the_configured_leve
                 rate_limit_burst: 1.try_into().unwrap(),
                 ..RateLimitOptions::default()
             });
-            let (app, _) = application(&limiter);
+            let (app, _) = application(&limiter, None);
             let app =
                 app.fallback_service(StaticHost::new(directory.path()).await.unwrap().router());
             tracing::info!("Operator event");

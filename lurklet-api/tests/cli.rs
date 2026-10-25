@@ -4,6 +4,7 @@ use axum::Router;
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::routing::get;
 use serde_json::Value;
+use std::fs;
 use std::future::IntoFuture;
 use std::net::TcpListener;
 use std::time::Duration;
@@ -13,6 +14,8 @@ use tokio::time::{sleep, timeout};
 
 #[test]
 fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract() {
+    let directory = assert_fs::TempDir::new().unwrap();
+    let cache_dir = directory.path().join("cache");
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let mut command = Command::new(cargo_bin!("lurklet-api"));
     command
@@ -20,6 +23,7 @@ fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract()
         .arg(listener.local_addr().unwrap().to_string())
         .arg("export-openapi")
         .env("LURKLET_STATIC_DIR", "/missing-static-directory")
+        .env("LURKLET_CACHE_DIR", &cache_dir)
         .timeout(Duration::from_secs(10))
         .env_remove("RUST_LOG")
         .env_remove("LURKLET_BIND");
@@ -28,6 +32,7 @@ fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract()
     let document: Value = serde_json::from_slice(&output.stdout).unwrap();
 
     assert!(output.stderr.is_empty());
+    assert!(!cache_dir.exists());
     assert_eq!(document["openapi"], "3.2.0");
     assert_eq!(
         document["paths"]
@@ -102,6 +107,8 @@ fn when_openapi_export_flag_is_used_then_command_should_reject_it() {
 
 #[tokio::test]
 async fn when_health_check_is_requested_then_command_should_probe_directly_and_succeed_silently() {
+    let directory = assert_fs::TempDir::new().unwrap();
+    let cache_dir = directory.path().join("cache");
     let listener = AsyncTcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let app = Router::new().route(
@@ -117,6 +124,7 @@ async fn when_health_check_is_requested_then_command_should_probe_directly_and_s
         .arg("health-check")
         .env("LURKLET_BIND", format!("0.0.0.0:{}", address.port()))
         .env("LURKLET_STATIC_DIR", "/missing-static-directory")
+        .env("LURKLET_CACHE_DIR", &cache_dir)
         .env("RUST_LOG", "trace")
         .env("HTTP_PROXY", "http://127.0.0.1:9")
         .env("http_proxy", "http://127.0.0.1:9")
@@ -135,6 +143,26 @@ async fn when_health_check_is_requested_then_command_should_probe_directly_and_s
 
     assert!(output.stdout.is_empty());
     assert!(output.stderr.is_empty());
+    assert!(!cache_dir.exists());
+}
+
+#[test]
+fn when_cache_storage_cannot_be_initialized_then_startup_should_fail_without_logging_the_path() {
+    let directory = assert_fs::TempDir::new().unwrap();
+    let invalid = directory.path().join("private-cache-path");
+    fs::write(&invalid, "not a directory").unwrap();
+    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    command
+        .arg("--cache-dir")
+        .arg(&invalid)
+        .env_remove("RUST_LOG")
+        .timeout(Duration::from_secs(5));
+
+    let output = command.assert().failure().get_output().clone();
+    let logs = String::from_utf8(output.stderr).unwrap();
+
+    assert!(logs.contains("API execution failed"));
+    assert!(!logs.contains("private-cache-path"));
 }
 
 #[test]

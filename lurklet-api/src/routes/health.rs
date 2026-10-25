@@ -1,5 +1,7 @@
 use crate::error::Problem;
 use axum::Json;
+use axum::http::header;
+use axum::response::IntoResponse;
 use serde::Serialize;
 use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
@@ -37,18 +39,21 @@ pub fn router() -> OpenApiRouter {
             ))
     )
 )]
-async fn health() -> Json<Health> {
-    Json(Health {
-        health: HealthStatus::Ok,
-    })
+async fn health() -> impl IntoResponse {
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(Health {
+            health: HealthStatus::Ok,
+        }),
+    )
 }
 
 #[cfg(test)]
 mod tests {
-    use super::router;
+    use super::*;
     use axum::Router;
     use axum::body::{Body, to_bytes};
-    use axum::http::{Method, Request, StatusCode, header};
+    use axum::http::{Method, Request, StatusCode};
     use serde_json::{Value, json};
     use tower::ServiceExt;
 
@@ -67,6 +72,7 @@ mod tests {
 
         assert_eq!(status, StatusCode::OK);
         assert_eq!(headers[header::CONTENT_TYPE], "application/json");
+        assert_eq!(headers[header::CACHE_CONTROL], "no-store");
         assert_eq!(
             serde_json::from_slice::<Value>(&body).unwrap(),
             json!({"health": "ok"})

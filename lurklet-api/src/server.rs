@@ -68,15 +68,12 @@ pub async fn serve(
 
 #[cfg(all(test, unix))]
 mod tests {
-    use super::serve;
-    use axum::Router;
+    use super::*;
     use axum::routing::get;
-    use lurklet_api::RateLimit;
     use std::process::{self, Command};
     use std::sync::Arc;
-    use std::time::Duration;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio::net::{TcpListener, TcpStream};
+    use tokio::net::TcpStream;
     use tokio::sync::Notify;
     use tokio::time::{sleep, timeout};
 
