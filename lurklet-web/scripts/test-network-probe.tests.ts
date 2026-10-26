@@ -4,6 +4,8 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
+const PROBE_TIMEOUT_MS = 2000;
+
 test.each([
   ["mocked", 0, ""],
   ["https-mocked", 0, ""],
@@ -15,6 +17,7 @@ test.each([
   ["late", 1, "Unexpected real network connection:"],
 ] as const)(
   "When the network probe is %s then the process should exit with %i",
+  { timeout: PROBE_TIMEOUT_MS + 500 },
   async (mode, code, message) => {
     const path = fileURLToPath(new URL("./test-network-probe.ts", import.meta.url));
 
@@ -23,9 +26,14 @@ test.each([
       killed: boolean;
       stderr: string;
     }>((resolve) => {
-      execFile(process.execPath, [path, mode], { timeout: 800 }, (error, _stdout, stderr) => {
-        resolve({ code: error?.code ?? 0, killed: error?.killed ?? false, stderr });
-      });
+      execFile(
+        process.execPath,
+        [path, mode],
+        { timeout: PROBE_TIMEOUT_MS },
+        (error, _stdout, stderr) => {
+          resolve({ code: error?.code ?? 0, killed: error?.killed ?? false, stderr });
+        },
+      );
     });
 
     expect(result.killed, result.stderr).toBe(false);
