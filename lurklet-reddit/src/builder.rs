@@ -16,6 +16,7 @@ use wreq_util::{Emulation, Profile};
 pub struct RedditClientBuilder<S: StateStore = InMemoryStore> {
     request_timeout: Option<Duration>,
     connect_timeout: Duration,
+    proxy: Option<String>,
     config: Config,
     storage: Storage<S>,
     clock: Arc<dyn Clock>,
@@ -30,6 +31,7 @@ impl Default for RedditClientBuilder {
         Self {
             request_timeout: Some(Duration::from_secs(30)),
             connect_timeout: Duration::from_secs(10),
+            proxy: None,
             config: Config::default(),
             storage: Storage::default(),
             clock: Arc::new(SystemClock),
@@ -54,6 +56,7 @@ impl<S: StateStore> RedditClientBuilder<S> {
         RedditClientBuilder {
             request_timeout: self.request_timeout,
             connect_timeout: self.connect_timeout,
+            proxy: self.proxy,
             config: self.config,
             storage,
             clock: self.clock,
@@ -180,6 +183,12 @@ impl<S: StateStore> RedditClientBuilder<S> {
         self
     }
 
+    /// Overrides automatic proxy selection for all Reddit requests.
+    pub fn with_proxy(mut self, proxy: impl Into<String>) -> Self {
+        self.proxy = Some(proxy.into());
+        self
+    }
+
     #[cfg(test)]
     pub(crate) fn with_mock_server(mut self, origin: &str, server: &wiremock::MockServer) -> Self {
         use http::Uri;
@@ -281,6 +290,21 @@ impl<S: StateStore> RedditClientBuilder<S> {
         }
         self.config.user_agent = Some(user_agent);
         let http = wreq::Client::builder();
+        let http = if let Some(proxy) = self.proxy {
+            let invalid = || BuildError::InvalidConfiguration { field: "proxy" };
+            let url = Url::parse(&proxy).map_err(|_| invalid())?;
+            if !matches!(url.scheme(), "http" | "https" | "socks5" | "socks5h")
+                || url.host_str().is_none_or(str::is_empty)
+                || !matches!(url.path(), "" | "/")
+                || url.query().is_some()
+                || url.fragment().is_some()
+            {
+                return Err(invalid());
+            }
+            http.proxy(wreq::Proxy::all(url.as_str()).map_err(|_| invalid())?)
+        } else {
+            http
+        };
         let http = if let Some(profile) = self.emulation_profile {
             tracing::trace!(
                 ?profile,
@@ -352,6 +376,63 @@ impl<S: StateStore> RedditClientBuilder<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn when_no_proxy_is_configured_then_automatic_proxy_selection_should_remain_enabled() {
+        let builder = RedditClient::builder();
+
+        assert!(builder.proxy.is_none());
+    }
+
+    #[test]
+    fn when_a_proxy_is_configured_then_storage_injection_should_preserve_it() {
+        let proxy = "socks5h://user:secret@localhost:1080";
+        let builder = RedditClient::builder().with_proxy(proxy);
+
+        let builder = builder.with_storage(Storage::default());
+
+        assert_eq!(builder.proxy.as_deref(), Some(proxy));
+        assert!(builder.build().is_ok());
+    }
+
+    #[test]
+    fn when_a_supported_proxy_is_configured_then_build_should_succeed() {
+        for scheme in ["http", "https", "socks5", "socks5h"] {
+            for authority in ["localhost", "user:p%40ss@127.0.0.1:1080", "[::1]:1080"] {
+                let builder = RedditClient::builder().with_proxy(format!("{scheme}://{authority}"));
+
+                let result = builder.build();
+
+                assert!(result.is_ok(), "{scheme}, {authority}");
+            }
+        }
+    }
+
+    #[test]
+    fn when_a_proxy_is_invalid_then_build_should_fail_without_exposing_the_url() {
+        for proxy in [
+            "",
+            "localhost:1080",
+            "ftp://user:private-secret@localhost:1080",
+            "socks5h:///",
+            "http://localhost:invalid",
+            "http://localhost:65536",
+            "http://localhost/private-path",
+            "http://localhost/?private-query",
+            "socks5://localhost#private-fragment",
+        ] {
+            let builder = RedditClient::builder().with_proxy(proxy);
+
+            let error = builder.build().err().unwrap();
+
+            assert!(matches!(
+                error,
+                BuildError::InvalidConfiguration { field: "proxy" }
+            ));
+            assert_eq!(error.to_string(), "invalid client configuration: proxy");
+            assert!(!format!("{error:?}").contains("private-"));
+        }
+    }
 
     #[test]
     fn when_a_builder_is_created_then_emulation_should_be_disabled() {

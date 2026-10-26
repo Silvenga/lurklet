@@ -33,6 +33,14 @@ struct Arguments {
     /// Restore and save Reddit session state; otherwise state remains in memory.
     #[arg(long, env = "LURKLET_STATE_FILE")]
     state_file: Option<PathBuf>,
+    #[arg(
+        long,
+        env = "LURKLET_PROXY",
+        hide_env_values = true,
+        value_name = "URL",
+        help = "Proxy for Reddit requests (http, https, socks5, or socks5h)"
+    )]
+    proxy: Option<String>,
     /// Total upstream request timeout in seconds; -1 disables it, including for streamed bodies.
     #[arg(long, env = "LURKLET_REDDIT_REQUEST_TIMEOUT_SECONDS", default_value = "-1", allow_negative_numbers = true,
         value_parser = |value: &str| -> Result<i64, &'static str> {
@@ -100,9 +108,13 @@ async fn main() -> ExitCode {
                         u64::try_from(arguments.reddit_request_timeout_seconds)
                             .ok()
                             .map(Duration::from_secs),
-                    )
-                    .build()
-                    .context("failed to initialize Reddit client")?;
+                    );
+                let reddit = match arguments.proxy {
+                    Some(proxy) => reddit.with_proxy(proxy),
+                    None => reddit,
+                }
+                .build()
+                .context("failed to initialize Reddit client")?;
                 let rate_limit = RateLimit::new(arguments.rate_limit);
                 let cache = match arguments.cache_dir {
                     Some(directory) => Some(
@@ -163,6 +175,7 @@ mod tests {
         assert!(arguments.rate_limit.trusted_proxies.is_empty());
         assert!(arguments.cache_dir.is_none());
         assert!(arguments.state_file.is_none());
+        assert!(arguments.proxy.is_none());
         assert_eq!(arguments.reddit_request_timeout_seconds, -1);
     }
 
