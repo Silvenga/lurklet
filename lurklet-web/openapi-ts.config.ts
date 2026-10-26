@@ -23,5 +23,10 @@ export default defineConfig({
       throwOnError: true,
       runtimeConfigPath: "./src/clients/lurklet-api/config.ts",
     },
+    {
+      name: "@tanstack/react-query",
+      infiniteQueryOptions: false,
+      mutationOptions: false,
+    },
   ],
 });
