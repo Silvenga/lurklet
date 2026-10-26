@@ -39,6 +39,7 @@ pub fn application<B: RedditBackend + 'static>(
         .merge(routes::get_post_comments())
         .merge(routes::get_comment_thread())
         .merge(routes::get_subreddit())
+        .merge(routes::get_media())
         .merge(routes::list_subreddit_posts())
         .split_for_parts();
     let api = data_api(posts, reddit, rate_limit, cache)
@@ -57,6 +58,7 @@ pub fn specification() -> OpenApi {
     routes.merge(routes::get_post_comments::<MobileBackend>().into_openapi());
     routes.merge(routes::get_comment_thread::<MobileBackend>().into_openapi());
     routes.merge(routes::get_subreddit::<MobileBackend>().into_openapi());
+    routes.merge(routes::get_media::<MobileBackend>().into_openapi());
     routes.merge(routes::list_subreddit_posts::<MobileBackend>().into_openapi());
     let mut specification = ApiDoc::openapi().nest(API_PREFIX, routes);
     specification.openapi = OpenApiVersion::Version32;
@@ -368,6 +370,7 @@ mod tests {
         for uri in [
             "/api/subreddits/rust/posts?sort=invalid",
             "/api/subreddits/%FF",
+            "/api/media",
             "/api/posts/post/comments?sort=invalid",
             "/api/comments/anchor/thread?sort=invalid",
         ] {
@@ -406,6 +409,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.headers()["x-lurklet-cache"], "miss");
+        to_bytes(response.into_body(), 4096).await.unwrap();
         let limiter = RateLimit::new(RateLimitOptions {
             rate_limit_burst: 1.try_into().unwrap(),
             ..RateLimitOptions::default()

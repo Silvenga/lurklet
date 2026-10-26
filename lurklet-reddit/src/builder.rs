@@ -14,7 +14,7 @@ use wreq_util::{Emulation, Profile};
 /// Configuration for constructing a mobile Reddit client.
 #[must_use]
 pub struct RedditClientBuilder<S: StateStore = InMemoryStore> {
-    request_timeout: Duration,
+    request_timeout: Option<Duration>,
     connect_timeout: Duration,
     config: Config,
     storage: Storage<S>,
@@ -28,7 +28,7 @@ pub struct RedditClientBuilder<S: StateStore = InMemoryStore> {
 impl Default for RedditClientBuilder {
     fn default() -> Self {
         Self {
-            request_timeout: Duration::from_secs(30),
+            request_timeout: Some(Duration::from_secs(30)),
             connect_timeout: Duration::from_secs(10),
             config: Config::default(),
             storage: Storage::default(),
@@ -168,9 +168,9 @@ impl<S: StateStore> RedditClientBuilder<S> {
         self
     }
 
-    /// Sets the timeout for each HTTP request, including reading its response body.
-    pub fn with_request_timeout(mut self, timeout: Duration) -> Self {
-        self.request_timeout = timeout;
+    /// Sets the total request timeout, including body reads; None disables it.
+    pub fn with_request_timeout(mut self, timeout: impl Into<Option<Duration>>) -> Self {
+        self.request_timeout = timeout.into();
         self
     }
 
@@ -211,7 +211,11 @@ impl<S: StateStore> RedditClientBuilder<S> {
             }
         }
         for (field, valid) in [
-            ("request_timeout", !self.request_timeout.is_zero()),
+            (
+                "request_timeout",
+                self.request_timeout
+                    .is_none_or(|timeout| !timeout.is_zero()),
+            ),
             ("connect_timeout", !self.connect_timeout.is_zero()),
             ("max_response_bytes", self.config.max_response_bytes > 0),
             (
@@ -287,8 +291,11 @@ impl<S: StateStore> RedditClientBuilder<S> {
             tracing::trace!("Using default HTTP transport without emulation");
             http
         };
+        let http = match self.request_timeout {
+            Some(timeout) => http.timeout(timeout),
+            None => http,
+        };
         let http = http
-            .timeout(self.request_timeout)
             .connect_timeout(self.connect_timeout)
             .https_only(true)
             .redirect(Policy::none())
@@ -426,7 +433,10 @@ mod tests {
 
         let timeouts = (builder.request_timeout, builder.connect_timeout);
 
-        assert_eq!(timeouts, (Duration::from_secs(30), Duration::from_secs(10)));
+        assert_eq!(
+            timeouts,
+            (Some(Duration::from_secs(30)), Duration::from_secs(10))
+        );
     }
 
     #[test]
@@ -440,7 +450,17 @@ mod tests {
 
         assert_eq!(
             (builder.request_timeout, builder.connect_timeout),
-            (request_timeout, connect_timeout)
+            (Some(request_timeout), connect_timeout)
+        );
+    }
+
+    #[test]
+    fn when_the_total_timeout_is_disabled_then_the_connection_timeout_should_remain_configured() {
+        let builder = RedditClient::builder().with_request_timeout(None);
+
+        assert_eq!(
+            (builder.request_timeout, builder.connect_timeout),
+            (None, Duration::from_secs(10))
         );
     }
 

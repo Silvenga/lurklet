@@ -529,6 +529,7 @@ mod tests {
                     "public, max-age=300"
                 );
                 assert!(response.headers().contains_key(header::AGE));
+                to_bytes(response.into_body(), 16_384).await.unwrap();
             }
             let mut head = request("Rust");
             *head.method_mut() = Method::HEAD;

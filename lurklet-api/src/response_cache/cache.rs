@@ -1,17 +1,17 @@
-use crate::error::ApiError;
 use crate::response_cache::entry::Entry;
 use crate::response_cache::key::CacheKey;
 use crate::response_cache::store::Store;
+use crate::response_cache::streaming_body::streaming_body;
 use axum::Router;
-use axum::body::to_bytes;
+use axum::body::HttpBody;
 use axum::extract::{OriginalUri, Request, State};
 use axum::http::{HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
-use axum::response::{IntoResponse, Response};
-use headers::{CacheControl, HeaderMapExt};
+use axum::response::Response;
+use headers::{Age, CacheControl, ContentLength, HeaderMapExt};
 use std::path::Path;
 use std::sync::{Arc, Mutex, Weak};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 use tokio::sync::Mutex as AsyncMutex;
 use weak_table::WeakValueHashMap;
 
@@ -47,6 +47,7 @@ impl ResponseCache {
             .get::<OriginalUri>()
             .map_or(request.uri(), |uri| &uri.0);
         let key = CacheKey::new(original);
+        let head = request.method() == Method::HEAD;
 
         if let Some(entry) = cache.store.read(&key).await.filter(Entry::is_fresh) {
             return finish(entry.into_response(), "hit");
@@ -58,7 +59,7 @@ impl ResponseCache {
                 .entry(key.digest().to_owned())
                 .or_insert_with(|| Arc::new(AsyncMutex::new(())))
         };
-        let _guard = lock.lock().await;
+        let guard = lock.lock_owned().await;
         let previous = match cache.store.read(&key).await {
             Some(entry) if entry.is_fresh() => return finish(entry.into_response(), "hit"),
             previous => previous,
@@ -89,32 +90,37 @@ impl ResponseCache {
             return finish(response, "miss");
         };
 
+        if head {
+            return finish(response, "miss");
+        }
+
         let (parts, body) = response.into_parts();
-        let body = match to_bytes(body, usize::MAX).await {
-            Ok(body) => body,
+        let writer = match cache.store.begin(&key).await {
+            Ok(writer) => writer,
             Err(error) => {
-                tracing::debug!(?error, "Unable to collect a cacheable response body");
-                return match previous {
-                    Some(entry) => finish(entry.into_response(), "stale"),
-                    None => finish(ApiError::InternalServerError.into_response(), "miss"),
-                };
+                tracing::warn!(
+                    "Unable to create a response cache entry; returning the fresh response"
+                );
+                tracing::debug!(?error, "Response cache creation failure details");
+                return finish(Response::from_parts(parts, body), "miss");
             }
         };
-        let stored_at = SystemTime::now();
-        let entry = Entry {
-            version: 1,
-            key: key.uri().to_string(),
-            stored_at,
-            fresh_for,
-            initial_age: Duration::ZERO,
-            headers: parts.headers,
+        let length = parts
+            .headers
+            .typed_get::<ContentLength>()
+            .map(|length| length.0)
+            .or_else(|| body.size_hint().exact());
+        let body = streaming_body(
             body,
-        };
-        if let Err(error) = cache.store.write(&key, entry.clone()).await {
-            tracing::warn!("Unable to write a response cache entry; returning the fresh response");
-            tracing::debug!(?error, "Response cache write failure details");
-        }
-        finish(entry.into_response(), "miss")
+            writer,
+            parts.headers.clone(),
+            fresh_for,
+            length,
+            guard,
+        );
+        let mut response = Response::from_parts(parts, body);
+        response.headers_mut().typed_insert(Age::from_secs(0));
+        finish(response, "miss")
     }
 }
 
@@ -128,17 +134,20 @@ fn finish(mut response: Response, outcome: &'static str) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::ApiError;
+    use crate::response_cache::entry::Metadata;
     use assert_fs::TempDir;
-    use axum::body::Body;
+    use axum::body::{Body, to_bytes};
     use axum::http::{HeaderMap, header};
     use axum::routing::get;
     use bytes::Bytes;
-    use futures_util::stream;
+    use futures_util::{StreamExt, stream};
     use std::fs;
     use std::future::{Future, pending, poll_fn};
     use std::io;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::task::Poll;
+    use std::time::SystemTime;
     use tokio::sync::Notify;
     use tokio::task::{JoinSet, yield_now};
     use tokio::time::{sleep, timeout};
@@ -148,28 +157,236 @@ mod tests {
         Request::builder().uri(uri).body(Body::empty()).unwrap()
     }
 
-    async fn seed(cache: &ResponseCache, uri: &str, age: Duration) -> Entry {
+    #[tokio::test]
+    async fn when_a_body_is_streaming_then_first_bytes_should_arrive_before_completion_and_only_eof_should_publish()
+     {
+        let directory = TempDir::new().unwrap();
+        let cache = ResponseCache::new(directory.path()).await.unwrap();
+        let release = Arc::new(Notify::new());
+        let polls = Arc::new(AtomicUsize::new(0));
+        let app = cache.wrap(Router::new().route(
+            "/resource",
+            get({
+                let release = release.clone();
+                let polls = polls.clone();
+                move || {
+                    let release = release.clone();
+                    let polls = polls.clone();
+                    async move {
+                        let body = stream::unfold(0, move |index| {
+                            let release = release.clone();
+                            let polls = polls.clone();
+                            async move {
+                                polls.fetch_add(1, Ordering::SeqCst);
+                                match index {
+                                    0 => {
+                                        Some((Ok::<_, io::Error>(Bytes::from_static(b"hello")), 1))
+                                    }
+                                    1 => {
+                                        release.notified().await;
+                                        Some((Ok(Bytes::from_static(b" world")), 2))
+                                    }
+                                    _ => None,
+                                }
+                            }
+                        });
+                        (
+                            [
+                                (header::CACHE_CONTROL, "public, max-age=300"),
+                                (header::CONTENT_LENGTH, "11"),
+                            ],
+                            Body::from_stream(body),
+                        )
+                    }
+                }
+            }),
+        ));
+        let key = CacheKey::new(&"/resource".parse().unwrap());
+
+        let response = timeout(Duration::from_secs(5), app.oneshot(request("/resource")))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(polls.load(Ordering::SeqCst), 0);
+        let mut body = response.into_body().into_data_stream();
+        assert_eq!(
+            timeout(Duration::from_secs(5), body.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap(),
+            b"hello".as_slice()
+        );
+        assert_eq!(polls.load(Ordering::SeqCst), 1);
+        assert!(cache.store.read(&key).await.is_none());
+        let completed_after = SystemTime::now();
+        release.notify_one();
+        assert_eq!(body.next().await.unwrap().unwrap(), b" world".as_slice());
+        assert!(body.next().await.is_none());
+
+        let stored = cache.store.read(&key).await.unwrap();
+        assert!(stored.metadata.stored_at >= completed_after);
+        assert_eq!(stored.metadata.content_length, 11);
+        assert_eq!(
+            to_bytes(stored.into_response().into_body(), 4096)
+                .await
+                .unwrap(),
+            b"hello world".as_slice()
+        );
+        assert_eq!(
+            fs::read_dir(directory.path().join(".tmp")).unwrap().count(),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn when_a_stream_is_cancelled_then_its_partial_should_be_removed_and_waiters_should_continue()
+     {
+        struct Dropped(Arc<AtomicUsize>);
+        impl Drop for Dropped {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+        let directory = TempDir::new().unwrap();
+        let cache = ResponseCache::new(directory.path()).await.unwrap();
+        let key = CacheKey::new(&"/resource".parse().unwrap());
+        let original = seed(&cache, "/resource", Duration::from_secs(120)).await;
+        let calls = Arc::new(AtomicUsize::new(0));
+        let polls = Arc::new(AtomicUsize::new(0));
+        let dropped = Arc::new(AtomicUsize::new(0));
+        let app = cache.wrap(Router::new().route(
+            "/resource",
+            get({
+                let calls = calls.clone();
+                let polls = polls.clone();
+                let dropped = dropped.clone();
+                move || {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    let polls = polls.clone();
+                    let guard = Dropped(dropped.clone());
+                    async move {
+                        let mut emitted = false;
+                        let body = stream::poll_fn(move |_| {
+                            let _ = &guard;
+                            polls.fetch_add(1, Ordering::SeqCst);
+                            if emitted {
+                                Poll::Pending
+                            } else {
+                                emitted = true;
+                                Poll::Ready(Some(Ok::<_, io::Error>(Bytes::from_static(b"chunk"))))
+                            }
+                        });
+                        (
+                            [(header::CACHE_CONTROL, "public, max-age=300")],
+                            Body::from_stream(body),
+                        )
+                    }
+                }
+            }),
+        ));
+        let response = timeout(
+            Duration::from_secs(5),
+            app.clone().oneshot(request("/resource")),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let mut body = response.into_body().into_data_stream();
+        assert_eq!(body.next().await.unwrap().unwrap(), b"chunk".as_slice());
+        let mut waiter = Box::pin(app.oneshot(request("/resource")));
+        assert!(poll_fn(|cx| Poll::Ready(waiter.as_mut().poll(cx).is_pending())).await);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        drop(body);
+        assert_eq!(polls.load(Ordering::SeqCst), 1);
+        assert_eq!(dropped.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            fs::read_dir(directory.path().join(".tmp")).unwrap().count(),
+            0
+        );
+        let response = timeout(Duration::from_secs(5), waiter)
+            .await
+            .unwrap()
+            .unwrap();
+        drop(response);
+
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_eq!(dropped.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            cache.store.read(&key).await.unwrap().metadata.content_file,
+            original.content_file
+        );
+        assert_eq!(
+            fs::read_dir(directory.path().join(".tmp")).unwrap().count(),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn when_content_length_is_wrong_then_the_stream_should_fail_without_publishing() {
+        for length in ["2", "100"] {
+            let directory = TempDir::new().unwrap();
+            let cache = ResponseCache::new(directory.path()).await.unwrap();
+            let app = cache.wrap(Router::new().route(
+                "/resource",
+                get(move || async move {
+                    (
+                        [
+                            (header::CACHE_CONTROL, "public, max-age=300"),
+                            (header::CONTENT_LENGTH, length),
+                        ],
+                        "content",
+                    )
+                }),
+            ));
+
+            let response = app.oneshot(request("/resource")).await.unwrap();
+            let result = to_bytes(response.into_body(), 4096).await;
+
+            assert!(result.is_err());
+            assert!(
+                cache
+                    .store
+                    .read(&CacheKey::new(&"/resource".parse().unwrap()))
+                    .await
+                    .is_none()
+            );
+            assert_eq!(
+                fs::read_dir(directory.path().join(".tmp")).unwrap().count(),
+                0
+            );
+        }
+    }
+
+    async fn seed(cache: &ResponseCache, uri: &str, age: Duration) -> Metadata {
         let key = CacheKey::new(&uri.parse().unwrap());
-        let entry = Entry {
-            version: 1,
-            key: key.uri().to_string(),
-            stored_at: SystemTime::now() - age,
-            fresh_for: Duration::from_secs(60),
-            initial_age: Duration::ZERO,
-            headers: HeaderMap::from_iter([
-                (
-                    header::CONTENT_TYPE,
-                    HeaderValue::from_static("application/json"),
-                ),
-                (
-                    header::CACHE_CONTROL,
-                    HeaderValue::from_static("public, max-age=60"),
-                ),
-            ]),
-            body: Bytes::from_static(b"old content"),
-        };
-        cache.store.write(&key, entry.clone()).await.unwrap();
-        entry
+        let mut writer = cache.store.begin(&key).await.unwrap();
+        writer.write(b"old content").await.unwrap();
+        let mut metadata = writer
+            .publish(
+                HeaderMap::from_iter([
+                    (
+                        header::CONTENT_TYPE,
+                        HeaderValue::from_static("application/json"),
+                    ),
+                    (
+                        header::CACHE_CONTROL,
+                        HeaderValue::from_static("public, max-age=60"),
+                    ),
+                ]),
+                Duration::from_secs(60),
+                11,
+            )
+            .await
+            .unwrap();
+        metadata.stored_at = SystemTime::now() - age;
+        fs::write(
+            cache.store.metadata_path(&key),
+            serde_json::to_vec(&metadata).unwrap(),
+        )
+        .unwrap();
+        metadata
     }
 
     #[tokio::test]
@@ -203,12 +420,16 @@ mod tests {
             .oneshot(request("/resource?sort=new&q=a%20b"))
             .await
             .unwrap();
+        assert_eq!(miss.headers()["x-lurklet-cache"], "miss");
+        assert_eq!(
+            to_bytes(miss.into_body(), 4096).await.unwrap(),
+            b"fresh".as_slice()
+        );
         let hit = app
             .oneshot(request("/resource?q=a+b&sort=%6Eew"))
             .await
             .unwrap();
 
-        assert_eq!(miss.headers()["x-lurklet-cache"], "miss");
         assert_eq!(hit.headers()["x-lurklet-cache"], "hit");
         assert_eq!(hit.headers()[header::CONTENT_TYPE], "application/json");
         assert_eq!(
@@ -219,7 +440,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_a_head_request_refreshes_then_get_should_receive_the_complete_cached_body() {
+    async fn when_a_cold_head_is_requested_then_only_a_completed_get_should_populate_the_cache() {
         let directory = TempDir::new().unwrap();
         let cache = ResponseCache::new(directory.path()).await.unwrap();
         let calls = Arc::new(AtomicUsize::new(0));
@@ -228,9 +449,13 @@ mod tests {
             get({
                 let calls = Arc::clone(&calls);
                 move |request: Request| {
-                    calls.fetch_add(1, Ordering::SeqCst);
+                    let expected = if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                        Method::HEAD
+                    } else {
+                        Method::GET
+                    };
+                    assert_eq!(request.method(), expected);
                     async move {
-                        assert_eq!(request.method(), Method::HEAD);
                         (
                             [(header::CACHE_CONTROL, "public, max-age=3600")],
                             "complete",
@@ -243,19 +468,26 @@ mod tests {
         *head_request.method_mut() = Method::HEAD;
 
         let head = app.clone().oneshot(head_request).await.unwrap();
-        let get = app.clone().oneshot(request("/resource")).await.unwrap();
-        let mut head_request = request("/resource");
-        *head_request.method_mut() = Method::HEAD;
-        let cached_head = app.oneshot(head_request).await.unwrap();
-
         assert_eq!(head.headers()["x-lurklet-cache"], "miss");
         assert_eq!(head.headers()[header::CONTENT_LENGTH], "8");
         assert!(to_bytes(head.into_body(), 4096).await.unwrap().is_empty());
-        assert_eq!(get.headers()["x-lurklet-cache"], "hit");
+        assert!(
+            cache
+                .store
+                .read(&CacheKey::new(&"/resource".parse().unwrap()))
+                .await
+                .is_none()
+        );
+        let get = app.clone().oneshot(request("/resource")).await.unwrap();
+        assert_eq!(get.headers()["x-lurklet-cache"], "miss");
         assert_eq!(
             to_bytes(get.into_body(), 4096).await.unwrap(),
             b"complete".as_slice()
         );
+        let mut head_request = request("/resource");
+        *head_request.method_mut() = Method::HEAD;
+        let cached_head = app.oneshot(head_request).await.unwrap();
+
         assert_eq!(cached_head.headers()["x-lurklet-cache"], "hit");
         assert_eq!(cached_head.headers()[header::CONTENT_LENGTH], "8");
         assert!(
@@ -264,11 +496,11 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test]
-    async fn when_an_entry_expires_then_a_success_should_replace_it_before_responding() {
+    async fn when_an_entry_expires_then_a_success_should_replace_it_after_body_completion() {
         let directory = TempDir::new().unwrap();
         let cache = ResponseCache::new(directory.path()).await.unwrap();
         let old = seed(&cache, "/resource", Duration::from_secs(120)).await;
@@ -284,16 +516,25 @@ mod tests {
 
         let response = app.oneshot(request("/resource")).await.unwrap();
         let key = CacheKey::new(&"/resource".parse().unwrap());
-        let stored = cache.store.read(&key).await.unwrap();
+        assert_eq!(
+            cache.store.read(&key).await.unwrap().metadata.stored_at,
+            old.stored_at
+        );
 
         assert_eq!(response.headers()["x-lurklet-cache"], "miss");
         assert_eq!(
             to_bytes(response.into_body(), 4096).await.unwrap(),
             b"replacement".as_slice()
         );
-        assert_eq!(stored.body, b"replacement".as_slice());
-        assert!(stored.stored_at > old.stored_at);
+        let stored = cache.store.read(&key).await.unwrap();
+        assert!(stored.metadata.stored_at > old.stored_at);
         assert!(stored.is_fresh());
+        assert_eq!(
+            to_bytes(stored.into_response().into_body(), 4096)
+                .await
+                .unwrap(),
+            b"replacement".as_slice()
+        );
     }
 
     #[tokio::test]
@@ -352,7 +593,7 @@ mod tests {
         }
         let key = CacheKey::new(&"/resource".parse().unwrap());
         assert_eq!(
-            cache.store.read(&key).await.unwrap().stored_at,
+            cache.store.read(&key).await.unwrap().metadata.stored_at,
             old.stored_at
         );
         assert_eq!(calls.load(Ordering::SeqCst), 22);
@@ -403,17 +644,15 @@ mod tests {
 
         let response = app.oneshot(request("/resource")).await.unwrap();
 
-        assert_eq!(response.headers()["x-lurklet-cache"], "stale");
-        assert_eq!(
-            to_bytes(response.into_body(), 4096).await.unwrap(),
-            old.body
-        );
+        assert_eq!(response.headers()["x-lurklet-cache"], "miss");
+        assert!(to_bytes(response.into_body(), 4096).await.is_err());
         assert_eq!(
             cache
                 .store
                 .read(&CacheKey::new(&"/resource".parse().unwrap()))
                 .await
                 .unwrap()
+                .metadata
                 .stored_at,
             old.stored_at
         );
@@ -441,13 +680,15 @@ mod tests {
             to_bytes(response.into_body(), 4096).await.unwrap(),
             b"fresh".as_slice()
         );
+        let old = cache
+            .store
+            .read(&CacheKey::new(&"/resource".parse().unwrap()))
+            .await
+            .unwrap();
         assert_eq!(
-            cache
-                .store
-                .read(&CacheKey::new(&"/resource".parse().unwrap()))
+            to_bytes(old.into_response().into_body(), 4096)
                 .await
-                .unwrap()
-                .body,
+                .unwrap(),
             b"old content".as_slice()
         );
     }
@@ -463,11 +704,13 @@ mod tests {
         entry
             .headers
             .append("x-custom", HeaderValue::from_static("second"));
-        cache
-            .store
-            .write(&CacheKey::new(&"/resource".parse().unwrap()), entry)
-            .await
-            .unwrap();
+        fs::write(
+            cache
+                .store
+                .metadata_path(&CacheKey::new(&"/resource".parse().unwrap())),
+            serde_json::to_vec(&entry).unwrap(),
+        )
+        .unwrap();
         let app = cache.wrap(Router::new().route(
             "/resource",
             get(|| async { StatusCode::INTERNAL_SERVER_ERROR }),
@@ -550,12 +793,14 @@ mod tests {
             ));
 
             let response = app.clone().oneshot(request("/resource")).await.unwrap();
+            assert_eq!(response.headers()["x-lurklet-cache"], "miss");
+            let headers = response.headers().clone();
+            to_bytes(response.into_body(), 4096).await.unwrap();
             let hit = app.oneshot(request("/resource")).await.unwrap();
 
-            assert_eq!(response.headers()["x-lurklet-cache"], "miss");
             assert_eq!(hit.headers()["x-lurklet-cache"], "hit");
             assert_eq!(hit.headers()[header::CACHE_CONTROL], "public, max-age=60");
-            for (name, value) in response.headers() {
+            for (name, value) in &headers {
                 if name != "x-lurklet-cache" && name != header::AGE {
                     assert_eq!(hit.headers().get(name), Some(value));
                 }
@@ -584,9 +829,10 @@ mod tests {
         ));
 
         let fresh = app.clone().oneshot(request("/resource")).await.unwrap();
+        assert_eq!(fresh.headers()["x-lurklet-cache"], "miss");
+        to_bytes(fresh.into_body(), 4096).await.unwrap();
         let hit = app.oneshot(request("/resource")).await.unwrap();
 
-        assert_eq!(fresh.headers()["x-lurklet-cache"], "miss");
         assert_eq!(hit.headers()["x-lurklet-cache"], "hit");
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
@@ -598,11 +844,13 @@ mod tests {
         let cache = ResponseCache::new(directory.path()).await.unwrap();
         let mut entry = seed(&cache, "/resource", Duration::ZERO).await;
         entry.stored_at = SystemTime::now() + Duration::from_secs(3600);
-        cache
-            .store
-            .write(&CacheKey::new(&"/resource".parse().unwrap()), entry)
-            .await
-            .unwrap();
+        fs::write(
+            cache
+                .store
+                .metadata_path(&CacheKey::new(&"/resource".parse().unwrap())),
+            serde_json::to_vec(&entry).unwrap(),
+        )
+        .unwrap();
         let app =
             cache.wrap(Router::new().route("/resource", get(|| async { StatusCode::NOT_FOUND })));
 
@@ -720,6 +968,8 @@ mod tests {
         assert_eq!(other.status(), StatusCode::OK);
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(calls.load(Ordering::SeqCst), 2);
+        to_bytes(response.into_body(), 4096).await.unwrap();
+        to_bytes(other.into_body(), 4096).await.unwrap();
         assert!(
             cache
                 .locks
@@ -817,6 +1067,7 @@ mod tests {
             for _ in 0..2 {
                 let response = app.clone().oneshot(request("/resource")).await.unwrap();
                 assert_eq!(response.headers()["x-lurklet-cache"], "miss", "{policy}");
+                to_bytes(response.into_body(), 4096).await.unwrap();
             }
 
             assert_eq!(calls.load(Ordering::SeqCst), 2);

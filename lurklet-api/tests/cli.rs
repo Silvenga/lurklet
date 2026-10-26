@@ -50,6 +50,7 @@ fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract()
         [
             "/api/comments/{id}/thread",
             "/api/health",
+            "/api/media",
             "/api/posts/{id}",
             "/api/posts/{id}/comments",
             "/api/subreddits/{subreddit}",
@@ -117,6 +118,27 @@ fn when_openapi_export_flag_is_used_then_command_should_reject_it() {
             .unwrap()
             .contains("unexpected argument")
     );
+}
+
+#[test]
+fn when_the_total_timeout_is_configured_through_the_environment_then_only_disabled_or_positive_values_should_be_accepted()
+ {
+    for (value, valid) in [("-1", true), ("30", true), ("0", false), ("-2", false)] {
+        let mut command = Command::new(cargo_bin!("lurklet-api"));
+        command
+            .arg("export-openapi")
+            .env("LURKLET_REDDIT_REQUEST_TIMEOUT_SECONDS", value)
+            .env_remove("RUST_LOG")
+            .timeout(Duration::from_secs(5));
+
+        let assertion = command.assert();
+
+        if valid {
+            assertion.success();
+        } else {
+            assertion.failure();
+        }
+    }
 }
 
 #[tokio::test]
@@ -236,6 +258,8 @@ fn when_rate_limit_configuration_is_invalid_then_command_should_reject_it() {
         ("--rate-limit-burst", "0"),
         ("--client-ip-source", "automatic"),
         ("--trusted-proxies", "not-a-cidr"),
+        ("--reddit-request-timeout-seconds", "0"),
+        ("--reddit-request-timeout-seconds", "-2"),
     ] {
         let mut command = Command::new(cargo_bin!("lurklet-api"));
         command

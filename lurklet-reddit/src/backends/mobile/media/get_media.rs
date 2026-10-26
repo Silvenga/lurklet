@@ -121,6 +121,7 @@ impl<S: StateStore> MobileBackend<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TransportErrorKind;
     use crate::backends::mobile::testing::cached_storage;
     use crate::{
         ClientState, RedditClient, ResponseCapture, ResponseObserver, RetryAfter, StateSnapshot,
@@ -136,6 +137,43 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     struct UnusedStore;
+
+    #[tokio::test]
+    async fn when_the_total_timeout_is_disabled_then_media_should_outlive_a_previously_configured_deadline()
+     {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(Duration::from_millis(100))
+                    .set_body_raw(b"file".to_vec(), "image/png"),
+            )
+            .mount(&server)
+            .await;
+        for timeout in [Some(Duration::from_millis(5)), None] {
+            let client = RedditClient::builder()
+                .with_request_timeout(Duration::from_millis(5))
+                .with_request_timeout(timeout)
+                .with_mock_server("https://i.redd.it", &server)
+                .build()
+                .unwrap();
+
+            let result = client.get_media("https://i.redd.it/file").await;
+
+            if timeout.is_some() {
+                assert!(
+                    matches!(result, Err(Error::Transport(error)) if error.kind == TransportErrorKind::Timeout)
+                );
+            } else {
+                let mut body = result.unwrap().body;
+                let mut bytes = Vec::new();
+                while let Some(chunk) = body.next().await {
+                    bytes.extend_from_slice(&chunk.unwrap());
+                }
+                assert_eq!(bytes, b"file");
+            }
+        }
+    }
 
     impl StateStore for UnusedStore {
         async fn load(&self) -> Result<StateSnapshot, StorageError> {

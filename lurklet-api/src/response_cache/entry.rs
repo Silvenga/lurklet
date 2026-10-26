@@ -1,41 +1,50 @@
 use axum::body::Body;
 use axum::http::HeaderMap;
 use axum::response::Response;
-use bytes::Bytes;
-use headers::{Age, HeaderMapExt};
+use headers::{Age, ContentLength, HeaderMapExt};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, SystemTime};
+use tokio::fs::File;
+use tokio_util::io::ReaderStream;
 
-/// One complete representation, committed atomically with its freshness metadata.
+/// Metadata for one immutable content file, published only after completion.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Entry {
-    pub version: u8,
+pub struct Metadata {
     pub key: String,
     pub stored_at: SystemTime,
     pub fresh_for: Duration,
-    // Retained for the existing v1 record layout until the storage-format follow-up.
-    pub initial_age: Duration,
     #[serde(with = "http_serde::header_map")]
     pub headers: HeaderMap,
-    pub body: Bytes,
+    pub content_file: String,
+    pub content_length: u64,
+}
+
+/// An opened representation that remains readable if another process replaces it.
+pub struct Entry {
+    pub metadata: Metadata,
+    pub body: File,
 }
 
 impl Entry {
     /// Checks freshness without extending the persisted lifetime.
     pub fn is_fresh(&self) -> bool {
-        self.stored_at
+        self.metadata
+            .stored_at
             .elapsed()
-            .is_ok_and(|elapsed| elapsed < self.fresh_for)
+            .is_ok_and(|age| age < self.metadata.fresh_for)
     }
 
-    /// Restores representation headers and accounts for elapsed cache age.
+    /// Streams the content with its original policy, current age, and completed length.
     pub fn into_response(self) -> Response {
-        let age = self.stored_at.elapsed().unwrap_or_default();
-        let mut response = Response::new(Body::from(self.body));
-        *response.headers_mut() = self.headers;
+        let age = self.metadata.stored_at.elapsed().unwrap_or_default();
+        let mut response = Response::new(Body::from_stream(ReaderStream::new(self.body)));
+        *response.headers_mut() = self.metadata.headers;
         response
             .headers_mut()
             .typed_insert(Age::from_secs(age.as_secs()));
+        response
+            .headers_mut()
+            .typed_insert(ContentLength(self.metadata.content_length));
         response
     }
 }
@@ -49,13 +58,15 @@ mod tests {
     fn when_residence_time_has_fractional_seconds_then_age_should_use_whole_seconds() {
         let stored_at = SystemTime::now() - Duration::from_millis(1250);
         let entry = Entry {
-            version: 1,
-            key: "/resource".into(),
-            stored_at,
-            fresh_for: Duration::from_secs(300),
-            initial_age: Duration::ZERO,
-            headers: HeaderMap::new(),
-            body: Bytes::new(),
+            metadata: Metadata {
+                key: "/resource".into(),
+                stored_at,
+                fresh_for: Duration::from_secs(300),
+                headers: HeaderMap::new(),
+                content_file: "empty.body".into(),
+                content_length: 0,
+            },
+            body: File::from_std(tempfile::tempfile().unwrap()),
         };
         let before = stored_at.elapsed().unwrap().as_secs();
 

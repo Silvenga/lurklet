@@ -9,6 +9,7 @@ use std::io::{self, Write};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::time::Duration;
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
@@ -32,6 +33,15 @@ struct Arguments {
     /// Restore and save Reddit session state; otherwise state remains in memory.
     #[arg(long, env = "LURKLET_STATE_FILE")]
     state_file: Option<PathBuf>,
+    /// Total upstream request timeout in seconds; -1 disables it, including for streamed bodies.
+    #[arg(long, env = "LURKLET_REDDIT_REQUEST_TIMEOUT_SECONDS", default_value = "-1", allow_negative_numbers = true,
+        value_parser = |value: &str| -> Result<i64, &'static str> {
+            match value.parse::<i64>() {
+                Ok(value) if value == -1 || value > 0 => Ok(value),
+                _ => Err("must be -1 or a positive number of seconds"),
+            }
+        })]
+    reddit_request_timeout_seconds: i64,
     #[command(flatten)]
     rate_limit: RateLimitOptions,
     #[command(subcommand)]
@@ -86,6 +96,11 @@ async fn main() -> ExitCode {
                 let storage = Storage::new(SessionStore::new(arguments.state_file).await);
                 let reddit = RedditClient::builder()
                     .with_storage(storage)
+                    .with_request_timeout(
+                        u64::try_from(arguments.reddit_request_timeout_seconds)
+                            .ok()
+                            .map(Duration::from_secs),
+                    )
                     .build()
                     .context("failed to initialize Reddit client")?;
                 let rate_limit = RateLimit::new(arguments.rate_limit);
@@ -148,6 +163,7 @@ mod tests {
         assert!(arguments.rate_limit.trusted_proxies.is_empty());
         assert!(arguments.cache_dir.is_none());
         assert!(arguments.state_file.is_none());
+        assert_eq!(arguments.reddit_request_timeout_seconds, -1);
     }
 
     #[test]
@@ -156,5 +172,19 @@ mod tests {
             Arguments::try_parse_from(["lurklet-api", "--state-file", "session.json"]).unwrap();
 
         assert_eq!(arguments.state_file, Some(PathBuf::from("session.json")));
+    }
+
+    #[test]
+    fn when_a_request_timeout_is_selected_then_disabled_and_positive_values_should_parse() {
+        for value in [-1, 1, 60] {
+            let arguments = Arguments::try_parse_from([
+                "lurklet-api",
+                "--reddit-request-timeout-seconds",
+                &value.to_string(),
+            ])
+            .unwrap();
+
+            assert_eq!(arguments.reddit_request_timeout_seconds, value);
+        }
     }
 }

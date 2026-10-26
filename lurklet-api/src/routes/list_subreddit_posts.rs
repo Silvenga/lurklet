@@ -636,6 +636,7 @@ mod tests {
                 response.headers()[header::CACHE_CONTROL],
                 "public, max-age=300"
             );
+            to_bytes(response.into_body(), 16_384).await.unwrap();
         }
         let mut head = request("/subreddits/rust/posts?sort=new&after=one");
         *head.method_mut() = Method::HEAD;
