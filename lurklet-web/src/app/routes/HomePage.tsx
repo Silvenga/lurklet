@@ -1,5 +1,5 @@
 import { ArrowRightIcon } from "lucide-react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import {
   InputGroup,
@@ -7,6 +7,16 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+
+const SUGGESTED_SUBREDDITS = [
+  { name: "aww", description: "Cute animals and other adorable things" },
+  { name: "UpliftingNews", description: "Positive news stories" },
+  { name: "wholesomememes", description: "Feel-good memes" },
+  { name: "ContagiousLaughter", description: "Videos of infectious laughter" },
+  { name: "MadeMeSmile", description: "Moments that brighten someone's day" },
+  { name: "AnimalsBeingDerps", description: "Silly animals" },
+];
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -49,6 +59,23 @@ export function HomePage() {
           </Field>
         </FieldGroup>
       </form>
+      <nav aria-label="Suggested subreddits" className="w-full max-w-lg">
+        <ul className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm">
+          {SUGGESTED_SUBREDDITS.map(({ name, description }) => (
+            <li key={name}>
+              <TooltipTrigger>
+                <Link
+                  className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded-sm whitespace-nowrap underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4"
+                  to={`/r/${encodeURIComponent(name)}`}
+                >
+                  r/{name}
+                </Link>
+                <Tooltip>{description}</Tooltip>
+              </TooltipTrigger>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </div>
   );
 }
