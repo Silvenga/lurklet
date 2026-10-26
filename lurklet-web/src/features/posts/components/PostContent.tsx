@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { getPostOptions } from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
-import { ExternalLink } from "@/components/ExternalLink";
 import { Markdown } from "@/components/Markdown";
 import { Separator } from "@/components/ui/separator";
 import { PostError } from "@/features/posts/components/PostError";
 import { PostLoading } from "@/features/posts/components/PostLoading";
 import { PostMetadata } from "@/features/posts/components/PostMetadata";
+import { PostAttachments } from "./PostAttachments";
 
 export function PostContent({ postId }: { postId: string }) {
   const post = useQuery(getPostOptions({ path: { id: postId } }));
@@ -36,17 +36,7 @@ export function PostContent({ postId }: { postId: string }) {
           <Markdown>{value.bodyMarkdown}</Markdown>
         </section>
       )}
-      {value.attachments
-        .filter((attachment) => attachment.kind === "link")
-        .map((attachment) => (
-          <ExternalLink
-            key={attachment.url}
-            className="wrap-anywhere underline underline-offset-4"
-            href={attachment.url}
-          >
-            {attachment.url}
-          </ExternalLink>
-        ))}
+      <PostAttachments attachments={value.attachments} />
     </article>
   );
 }

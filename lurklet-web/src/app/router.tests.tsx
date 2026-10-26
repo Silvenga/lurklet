@@ -82,6 +82,43 @@ test("When a post has a link attachment then it should open an untrusted link wi
   expect(separator.nextElementSibling).toBe(link);
 });
 
+test("When a post contains unsupported attachments then their placeholders should appear outside its Markdown body", async () => {
+  server.use(
+    http.get("*/api/posts/:id", () =>
+      HttpResponse.json({
+        ...POST_RESPONSE,
+        bodyMarkdown: "Readable post text.",
+        attachments: [
+          {
+            kind: "image",
+            url: "https://images.example.com/diagram.png",
+            altText: "A diagram",
+            caption: "Diagram caption",
+          },
+          { kind: "video", posterUrl: null, sources: [] },
+        ],
+      }),
+    ),
+  );
+
+  renderPath(POST_PATH);
+
+  const article = await screen.findByRole("article");
+  const body = within(article).getByRole("region", { name: "Post content" });
+  const image = within(article).getByRole("img", { name: "Image unavailable: A diagram" });
+  const video = within(article).getByRole("img", { name: "Video unavailable" });
+  expect(body).toHaveTextContent("Readable post text.");
+  expect(body).not.toContainElement(image);
+  expect(body).not.toContainElement(video);
+  expect(body.nextElementSibling).toBe(image.closest("figure"));
+  expect(image.closest("figure")?.nextElementSibling).toBe(video);
+  expect(
+    article.querySelector(
+      "img, video, audio, iframe, source, object, embed, [src], [srcset], [poster]",
+    ),
+  ).toBeNull();
+});
+
 test("When a listing is opened then it should not request individual post details", async () => {
   let listingRequests = 0;
   let postRequests = 0;
@@ -120,7 +157,7 @@ test("When a Markdown Reddit link is followed then it should navigate locally an
 
   await user.click(link);
 
-  expect(await screen.findByRole("heading", { name: "r/rust - top" })).toBeVisible();
+  expect(await screen.findByRole("heading", { level: 1, name: "r/rust" })).toBeVisible();
   expect(router.state.location.pathname).toBe("/r/rust");
   expect(new URLSearchParams(router.state.location.search).get("sort")).toBe("top");
   expect(new URLSearchParams(router.state.location.search).get("t")).toBe("week");
@@ -168,7 +205,7 @@ test.each([
 
   renderPath(path);
 
-  expect(await screen.findByRole("heading", { level: 1, name: `r/rust - ${sort}` })).toBeVisible();
+  expect(await screen.findByRole("heading", { level: 1, name: "r/rust" })).toBeVisible();
   expect(await screen.findByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
   expect(requests).toHaveLength(1);
   expect(requests[0]?.pathname).toBe("/api/subreddits/rust/posts");
@@ -355,7 +392,7 @@ test("When navigating between listings and posts then the subreddit layout shoul
     await router.navigate("/r/rust?sort=top&t=week");
   });
 
-  expect(screen.getByRole("heading", { level: 1, name: "r/rust - top" })).toBeVisible();
+  expect(screen.getByRole("heading", { level: 1, name: "r/rust" })).toBeVisible();
   expect(router.state.location.search).toBe("?sort=top&t=week");
   expect(screen.getByRole("complementary")).toBe(sidebar);
 
@@ -371,7 +408,7 @@ test("When navigating between listings and posts then the subreddit layout shoul
     await router.navigate(-1);
   });
 
-  expect(screen.getByRole("heading", { level: 1, name: "r/rust - top" })).toBeVisible();
+  expect(screen.getByRole("heading", { level: 1, name: "r/rust" })).toBeVisible();
   expect(router.state.location.search).toBe("?sort=top&t=week");
   expect(screen.getByRole("banner")).toBe(header);
   expect(screen.getByRole("complementary")).toBe(sidebar);
@@ -660,6 +697,29 @@ test("When a sort path redirects then it should preserve the cursor and replace 
 
   expect(router.state.location.pathname).toBe("/");
   expect(screen.getByRole("textbox", { name: "r/" })).toBeVisible();
+});
+
+test("When listing filters render then they should be connected outline groups with the URL selection active", async () => {
+  renderPath("/r/rust?sort=top&t=week");
+
+  const sort = await screen.findByRole("radiogroup", { name: "Sort" });
+  const timeRange = screen.getByRole("radiogroup", { name: "Time range" });
+  for (const group of [sort, timeRange]) {
+    expect(group).toHaveAttribute("data-variant", "outline");
+    expect(group).toHaveAttribute("data-spacing", "0");
+    for (const option of within(group).getAllByRole("radio")) {
+      expect(option).toHaveAttribute("data-variant", "outline");
+      expect(option).toHaveAttribute("data-size", "default");
+    }
+  }
+  expect(within(sort).getByRole("radio", { name: "Top" })).toBeChecked();
+  expect(within(sort).getByRole("radio", { name: "Hot" })).not.toBeChecked();
+  expect(within(timeRange).getByRole("radio", { name: "Week" })).toBeChecked();
+  expect(within(timeRange).getByRole("radio", { name: "All time" })).not.toBeChecked();
+  expect(timeRange).not.toHaveClass("flex-wrap");
+  expect(timeRange.parentElement).toBe(sort.parentElement);
+  expect(sort.parentElement).toHaveClass("flex", "overflow-x-auto");
+  expect(sort.parentElement).not.toHaveClass("flex-col", "flex-wrap");
 });
 
 test("When the selected sort is pressed again then it should remain selected without refetching", async () => {

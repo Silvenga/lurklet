@@ -1,7 +1,12 @@
 import type { ComponentProps } from "react";
 
-export function Media({ alt, title }: Pick<ComponentProps<"img">, "src" | "alt" | "title">) {
-  const label = alt ? `Media unavailable: ${alt}` : "Media unavailable";
+export function Media({
+  alt,
+  title,
+  kind,
+}: Pick<ComponentProps<"img">, "src" | "alt" | "title"> & { kind?: "image" | "video" }) {
+  const type = kind === "image" ? "Image" : kind === "video" ? "Video" : "Media";
+  const label = alt ? `${type} unavailable: ${alt}` : `${type} unavailable`;
 
   return (
     <span

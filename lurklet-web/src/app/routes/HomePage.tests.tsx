@@ -53,7 +53,7 @@ test("When the submit button is pressed then it should navigate to the entered s
 
   await user.click(screen.getByRole("button", { name: "Go" }));
 
-  expect(await screen.findByRole("heading", { name: "r/rust - hot" })).toBeVisible();
+  expect(await screen.findByRole("heading", { level: 1, name: "r/rust" })).toBeVisible();
   expect(router.state.location.pathname).toBe("/r/rust");
 });
 
@@ -68,7 +68,7 @@ test.each([
 
     await user.type(screen.getByRole("textbox", { name: "r/" }), `${value}{Enter}`);
 
-    expect(await screen.findByRole("heading", { name: `r/${subreddit} - hot` })).toBeVisible();
+    expect(await screen.findByRole("heading", { level: 1, name: `r/${subreddit}` })).toBeVisible();
     expect(router.state.location.pathname).toBe(`/r/${subreddit}`);
   },
 );
@@ -121,7 +121,7 @@ test.each(SUGGESTIONS)("When r/%s is clicked then its posts page should open", a
 
   await user.click(screen.getByRole("link", { name: `r/${name}` }));
 
-  expect(await screen.findByRole("heading", { name: `r/${name} - hot` })).toBeVisible();
+  expect(await screen.findByRole("heading", { level: 1, name: `r/${name}` })).toBeVisible();
   expect(router.state.location.pathname).toBe(`/r/${name}`);
 });
 
@@ -152,6 +152,6 @@ test("When suggestions are explored with the keyboard then the tooltip should ap
 
   await user.keyboard("{Enter}");
 
-  expect(await screen.findByRole("heading", { name: "r/aww - hot" })).toBeVisible();
+  expect(await screen.findByRole("heading", { level: 1, name: "r/aww" })).toBeVisible();
   expect(router.state.location.pathname).toBe("/r/aww");
 });

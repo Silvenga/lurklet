@@ -28,9 +28,7 @@ export function PostListPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">
-        r/{subreddit} - {sort}
-      </h1>
+      <h1 className="text-2xl font-semibold">r/{subreddit}</h1>
       <PostListControls sort={sort} {...(timeRange ? { timeRange } : {})} />
       <PendingRegion
         pending={page.isPlaceholderData || (page.isFetching && page.data !== undefined)}
