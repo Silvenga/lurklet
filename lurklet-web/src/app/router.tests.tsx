@@ -6,6 +6,7 @@ import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { expect, onTestFinished, test } from "vitest";
 import {
+  COMMENTS_RESPONSE,
   POST_RESPONSE,
   SUBREDDIT_NEXT_PAGE_RESPONSE,
   SUBREDDIT_PAGE_RESPONSE,
@@ -61,6 +62,69 @@ async function waitForListing(sort: string, timeRange?: string) {
   });
 }
 
+test("When navigating between pages then the document title should follow the current route and cached post", async () => {
+  const router = renderPath("/");
+  expect(document.title).toBe("Home - Lurklet");
+
+  await act(async () => {
+    await router.navigate("/r/rust");
+  });
+
+  await screen.findByRole("link", { name: POST_RESPONSE.title });
+  expect(document.title).toBe("r/rust - Lurklet");
+
+  await act(async () => {
+    await router.navigate("/r/rust?sort=top&t=week&after=next");
+  });
+
+  expect(document.title).toBe("r/rust - Lurklet");
+
+  await act(async () => {
+    await router.navigate(POST_PATH);
+  });
+
+  await screen.findByRole("heading", { name: POST_RESPONSE.title });
+  expect(document.title).toBe(`${POST_RESPONSE.title} - Lurklet`);
+
+  await act(async () => {
+    await router.navigate(`${POST_PATH}/title/${COMMENTS_RESPONSE.items[0]!.comment.id}?sort=new`);
+  });
+
+  expect(document.title).toBe(`${POST_RESPONSE.title} - Lurklet`);
+
+  await act(async () => {
+    await router.navigate("/r/typescript");
+  });
+
+  expect(document.title).toBe("r/typescript - Lurklet");
+
+  await act(async () => {
+    await router.navigate(-1);
+  });
+
+  expect(document.title).toBe(`${POST_RESPONSE.title} - Lurklet`);
+
+  await act(async () => {
+    await router.navigate("/");
+  });
+
+  expect(document.title).toBe("Home - Lurklet");
+});
+
+test.each(["/unsupported", "/r/rust/unsupported", "/r/rust?sort=unsupported"])(
+  "When navigating to %s then the document title should identify the missing page",
+  async (path) => {
+    const router = renderPath("/");
+
+    await act(async () => {
+      await router.navigate(path);
+    });
+
+    await screen.findByRole("heading", { name: "Page not found" });
+    expect(document.title).toBe("Page not found - Lurklet");
+  },
+);
+
 test("When a subreddit is entered then its listing should link to the supplied post", async () => {
   const user = userEvent.setup();
   renderPath("/");
@@ -82,6 +146,20 @@ test("When a subreddit is entered then its listing should link to the supplied p
   expect(
     within(article).getByRole("link", { name: POST_RESPONSE.attachments[0]!.url }),
   ).toHaveAttribute("href", POST_RESPONSE.attachments[0]!.url);
+});
+
+test("When the post's subreddit link is followed then it should open the subreddit listing", async () => {
+  const user = userEvent.setup();
+  const router = renderPath(POST_PATH);
+  const post = await screen.findByRole("region", { name: "Post" });
+  const subreddit = within(post).getByRole("link", { name: "r/rust" });
+  expect(subreddit).toHaveAttribute("href", "/r/rust");
+  expect(subreddit).toHaveClass("text-sm", "text-muted-foreground");
+
+  await user.click(subreddit);
+
+  expect(await screen.findByRole("heading", { level: 1, name: "r/rust" })).toBeVisible();
+  expect(router.state.location.pathname).toBe("/r/rust");
 });
 
 test("When a post has a link attachment then it should open an untrusted link without referrer or opener access", async () => {
@@ -320,6 +398,7 @@ test("When a post is loading then only the post region should show a loading sta
   const sidebar = screen.getByRole("complementary");
   expect(within(header).getByRole("link", { name: "Lurklet" })).toBeVisible();
   expect(within(sidebar).getByRole("heading", { name: "r/rust" })).toBeVisible();
+  await waitFor(() => expect(document.title).toBe("Loading post - Lurklet"));
 
   await act(async () => pending.resolve(HttpResponse.json(POST_RESPONSE)));
 
@@ -374,6 +453,7 @@ test("When its query is explicitly invalidated then the post should be fetched a
   });
 
   expect(await screen.findByRole("heading", { name: "Updated post" })).toBeVisible();
+  expect(document.title).toBe("Updated post - Lurklet");
   expect(requests).toBe(2);
 });
 
@@ -480,12 +560,14 @@ test("When a post response arrives after navigating away then it should not repl
 
   expect(screen.getByRole("heading", { name: "Current post" })).toBeVisible();
   expect(screen.queryByRole("heading", { name: POST_RESPONSE.title })).not.toBeInTheDocument();
+  expect(document.title).toBe("Current post - Lurklet");
 });
 
 test("When a post does not exist then its not-found state should leave the page chrome visible", async () => {
   renderPath("/r/rust/comments/missing");
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Post not found");
+  expect(document.title).toBe("Post not found - Lurklet");
   expect(screen.getByRole("banner")).toBeVisible();
   expect(screen.getByRole("complementary")).toBeVisible();
 });
@@ -503,6 +585,7 @@ test("When the post request fails then its error should stay inside the post reg
   renderPath(POST_PATH);
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load post");
+  expect(document.title).toBe("Unable to load post - Lurklet");
   expect(screen.getByRole("banner")).toBeVisible();
   expect(screen.getByRole("complementary")).toBeVisible();
 });
@@ -1091,10 +1174,14 @@ test("When navigating away and back then completed post and listing queries shou
 test("When returning to an earlier sort or page then its cached result should not be requested again", async () => {
   const user = userEvent.setup();
   const requests: URL[] = [];
+  const newSort = Promise.withResolvers<Response>();
   server.use(
     http.get("*/api/subreddits/:subreddit/posts", ({ request }) => {
       const url = new URL(request.url);
       requests.push(url);
+      if (url.searchParams.get("sort") === "new") {
+        return newSort.promise;
+      }
       return HttpResponse.json(
         url.searchParams.has("after") ? SUBREDDIT_NEXT_PAGE_RESPONSE : SUBREDDIT_PAGE_RESPONSE,
       );
@@ -1107,15 +1194,26 @@ test("When returning to an earlier sort or page then its cached result should no
   await screen.findByRole("link", { name: SUBREDDIT_NEXT_PAGE_RESPONSE.posts[0]!.title });
   await user.click(screen.getByRole("link", { name: "First page" }));
 
-  expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
+  await waitForListing("Hot");
   expect(requests).toHaveLength(2);
 
   await user.click(screen.getByRole("radio", { name: "New" }));
-  await screen.findByRole("link", { name: POST_RESPONSE.title });
+  await waitFor(() =>
+    expect(
+      screen.getByRole("region", { name: "Page content" }).querySelector("[aria-busy]"),
+    ).toHaveAttribute("aria-busy", "true"),
+  );
+  expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
+  await act(async () => {
+    newSort.resolve(HttpResponse.json(SUBREDDIT_PAGE_RESPONSE));
+  });
+  await waitForListing("New");
+
   await act(async () => {
     await router.navigate(-1);
   });
 
+  await waitForListing("Hot");
   expect(router.state.location.search).toBe("");
   expect(screen.getByRole("radio", { name: "Hot" })).toBeChecked();
   expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
@@ -1124,6 +1222,13 @@ test("When returning to an earlier sort or page then its cached result should no
   ).not.toBeInTheDocument();
   expect(requests).toHaveLength(3);
   expect(requests[2]?.searchParams.get("sort")).toBe("new");
+
+  await act(async () => {
+    await router.navigate(1);
+  });
+
+  await waitForListing("New");
+  expect(requests).toHaveLength(3);
 });
 
 test("When a pending post is left behind then its generated query should abort the request", async () => {

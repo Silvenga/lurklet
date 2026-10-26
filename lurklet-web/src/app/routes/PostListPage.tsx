@@ -9,10 +9,12 @@ import { PostListControls } from "@/features/posts/components/PostListControls";
 import { PostListError } from "@/features/posts/components/PostListError";
 import { PostListLoading } from "@/features/posts/components/PostListLoading";
 import { PostListPagination } from "@/features/posts/components/PostListPagination";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { retainQueryView, type RetainedQueryView } from "@/utils/retain-query-view";
 
 export function PostListPage() {
   const { subreddit } = useParams();
+  usePageTitle(`r/${subreddit}`);
   const { options, sort, timeRange } = useLoaderData<typeof postListLoader>();
   const page = useQuery({
     ...listSubredditPostsOptions(options),

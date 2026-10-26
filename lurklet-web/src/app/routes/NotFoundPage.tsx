@@ -1,4 +1,8 @@
+import { usePageTitle } from "@/hooks/usePageTitle";
+
 export function NotFoundPage() {
+  usePageTitle("Page not found");
+
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-semibold">Page not found</h1>

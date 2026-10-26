@@ -9,7 +9,7 @@ export function SubredditLayout() {
       <section aria-label="Page content" className="min-w-0">
         <Outlet />
       </section>
-      <aside aria-label="Subreddit" className="flex min-w-0 flex-col gap-4 select-text">
+      <aside aria-label="Subreddit" className="flex min-w-0 flex-col gap-2 select-text">
         <h2 className="text-lg font-medium">
           <Link to={`/r/${encodeURIComponent(subreddit!)}`}>r/{subreddit}</Link>
         </h2>

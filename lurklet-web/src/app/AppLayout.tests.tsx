@@ -27,6 +27,7 @@ test("When a page renders then the shared header and page content should appear"
   expect(repositoryLink).toHaveAttribute("href", "https://github.com/Silvenga/lurklet");
   expect(repositoryLink).toHaveAttribute("target", "_blank");
   expect(repositoryLink).toHaveAttribute("rel", "noopener noreferrer");
+  expect(screen.getByRole("main")).toHaveClass("pt-2", "pb-4", "sm:py-8");
   expect(
     within(screen.getByRole("main")).getByRole("heading", { name: "Page content" }),
   ).toBeInTheDocument();

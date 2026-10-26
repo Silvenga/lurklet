@@ -18,7 +18,7 @@ export function AppLayout() {
           <FaGithub aria-hidden="true" className="size-5" />
         </a>
       </header>
-      <main className="py-8">
+      <main className="pt-2 pb-4 sm:py-8">
         <Outlet />
       </main>
     </div>

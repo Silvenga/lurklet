@@ -8,6 +8,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 const SUGGESTED_SUBREDDITS = [
   { name: "aww", description: "Cute animals and other adorable things" },
@@ -19,6 +20,7 @@ const SUGGESTED_SUBREDDITS = [
 
 export function HomePage() {
   const navigate = useNavigate();
+  usePageTitle("Home");
 
   return (
     <div className="flex flex-col items-center gap-6 py-20 text-center">

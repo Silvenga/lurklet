@@ -5,10 +5,20 @@ import { Separator } from "@/components/ui/separator";
 import { PostError } from "@/features/posts/components/PostError";
 import { PostLoading } from "@/features/posts/components/PostLoading";
 import { PostMetadata } from "@/features/posts/components/PostMetadata";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { PostAttachments } from "./PostAttachments";
 
 export function PostContent({ postId }: { postId: string }) {
   const post = useQuery(getPostOptions({ path: { id: postId } }));
+  usePageTitle(
+    post.isPending
+      ? "Loading post"
+      : post.isError
+        ? post.error?.status === 404
+          ? "Post not found"
+          : "Unable to load post"
+        : post.data.title,
+  );
 
   if (post.isPending) {
     return <PostLoading />;
