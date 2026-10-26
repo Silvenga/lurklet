@@ -34,7 +34,7 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "signal", "time", "sync", "fs", "io-util"] }
 tokio-util = { version = "0.7.20", features = ["io"] }
 tower = { workspace = true, features = ["util"] }
-tower-http = { workspace = true, features = ["fs", "set-header"] }
+tower-http = { workspace = true, features = ["fs", "set-header", "compression-gzip", "compression-br", "compression-deflate", "compression-zstd"] }
 tower_governor = { version = "0.8.0", default-features = false, features = ["axum"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
@@ -49,4 +49,5 @@ assert_fs = "1.1.4"
 brotli = "9.0.0"
 flate2 = "1.1.10"
 insta.workspace = true
+zstd = "0.13.3"
 tokio = { workspace = true, features = ["io-util", "sync", "time"] }

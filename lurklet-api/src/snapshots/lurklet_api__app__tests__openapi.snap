@@ -1003,6 +1003,16 @@ expression: document
               }
             }
           },
+          "406": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Acceptable"
+          },
           "429": {
             "content": {
               "application/problem+json": {
@@ -1094,6 +1104,16 @@ expression: document
                 }
               }
             }
+          },
+          "406": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No acceptable response encoding"
           }
         },
         "summary": "Check API liveness without contacting upstream services"
@@ -1158,6 +1178,16 @@ expression: document
                 }
               }
             }
+          },
+          "406": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Acceptable"
           },
           "429": {
             "content": {
@@ -1281,6 +1311,16 @@ expression: document
                 }
               }
             }
+          },
+          "406": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Acceptable"
           },
           "429": {
             "content": {
@@ -1429,6 +1469,16 @@ expression: document
               }
             }
           },
+          "406": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Acceptable"
+          },
           "429": {
             "content": {
               "application/problem+json": {
@@ -1551,6 +1601,16 @@ expression: document
                 }
               }
             }
+          },
+          "406": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Acceptable"
           },
           "429": {
             "content": {
@@ -1714,6 +1774,16 @@ expression: document
                 }
               }
             }
+          },
+          "406": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Acceptable"
           },
           "429": {
             "content": {

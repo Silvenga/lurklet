@@ -89,6 +89,16 @@
               }
             }
           },
+          "406": {
+            "description": "Not Acceptable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Too Many Requests",
             "headers": {
@@ -180,6 +190,16 @@
                 }
               }
             }
+          },
+          "406": {
+            "description": "No acceptable response encoding",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -237,6 +257,16 @@
                 "description": "Supported HTTP methods"
               }
             },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "Not Acceptable",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -360,6 +390,16 @@
                 "description": "Supported HTTP methods"
               }
             },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "Not Acceptable",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -515,6 +555,16 @@
               }
             }
           },
+          "406": {
+            "description": "Not Acceptable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Too Many Requests",
             "headers": {
@@ -630,6 +680,16 @@
                 "description": "Supported HTTP methods"
               }
             },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "Not Acceptable",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -793,6 +853,16 @@
                 "description": "Supported HTTP methods"
               }
             },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "Not Acceptable",
             "content": {
               "application/problem+json": {
                 "schema": {

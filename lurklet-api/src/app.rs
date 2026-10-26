@@ -1,6 +1,8 @@
 use crate::ResponseCache;
 use crate::error::{ApiError, Problem};
-use crate::middleware::{RateLimit, access_log, api_cache_policy, limit_requests};
+use crate::middleware::{
+    RateLimit, access_log, api_cache_policy, limit_requests, response_compression,
+};
 use crate::routes;
 use axum::Router;
 use axum::http::header;
@@ -35,15 +37,20 @@ pub fn application<B: RedditBackend + 'static>(
         )
     });
 
-    let (posts, _) = routes::get_post()
+    let (json_routes, _) = routes::get_post()
         .merge(routes::get_post_comments())
         .merge(routes::get_comment_thread())
         .merge(routes::get_subreddit())
-        .merge(routes::get_media())
         .merge(routes::list_subreddit_posts())
         .split_for_parts();
-    let api = data_api(posts, reddit, rate_limit, cache)
+    let json_routes = json_routes.fallback(|| async { ApiError::NotFound });
+    let json_api = data_api(json_routes, reddit.clone(), rate_limit, cache)
         .merge(health)
+        .layer(middleware::from_fn(response_compression));
+    let (media_routes, _) = routes::get_media().split_for_parts();
+    let media_api = data_api(media_routes, reddit, rate_limit, cache);
+    let api = json_api
+        .merge(media_api)
         .layer(middleware::from_fn(api_cache_policy))
         .layer(middleware::from_fn(access_log));
 
@@ -72,7 +79,6 @@ fn data_api<B: RedditBackend + 'static>(
     cache: Option<&ResponseCache>,
 ) -> Router {
     let mut api = routes
-        .fallback(|| async { ApiError::NotFound })
         .method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed })
         .with_state(reddit);
     if let Some(cache) = cache {
@@ -212,7 +218,13 @@ mod tests {
             );
             assert!(!response.headers().contains_key("x-ratelimit-limit"));
         }
-        for path in ["/api", "/api/", "/api/health/", "/api/robots.txt"] {
+        for path in [
+            "/api",
+            "/api/",
+            "/api/health/",
+            "/api/robots.txt",
+            "/api/media",
+        ] {
             let response = app.clone().oneshot(request(path)).await.unwrap();
 
             assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS, "{path}");
@@ -310,6 +322,155 @@ mod tests {
         let document = serde_json::to_value(specification).unwrap();
 
         insta::assert_json_snapshot!("openapi", document);
+    }
+
+    #[tokio::test]
+    async fn when_compression_is_requested_then_media_and_static_hosting_should_bypass_the_json_layer()
+     {
+        let directory = assert_fs::TempDir::new().unwrap();
+        directory
+            .child("index.html")
+            .write_str("<html>Static content remains outside dynamic API compression.</html>")
+            .unwrap();
+        let cache_directory = assert_fs::TempDir::new().unwrap();
+        let cache = ResponseCache::new(cache_directory.path()).await.unwrap();
+        let media = "A complete media fixture that is larger than the compression threshold.";
+        let seed = cache.wrap(Router::new().route(
+            "/api/media",
+            get(move || async move {
+                (
+                    [
+                        (header::CONTENT_TYPE, "video/mp4"),
+                        (header::CACHE_CONTROL, "public, max-age=300"),
+                    ],
+                    media,
+                )
+            }),
+        ));
+        let response = seed
+            .oneshot(
+                Request::builder()
+                    .uri("/api/media")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        to_bytes(response.into_body(), 4096).await.unwrap();
+        let reddit = RedditClient::builder().build().unwrap();
+        let app = super::application(reddit, &RateLimit::default(), Some(&cache))
+            .fallback_service(StaticHost::new(directory.path()).await.unwrap().router())
+            .layer(Extension(ConnectInfo(
+                "192.0.2.1:1234".parse::<SocketAddr>().unwrap(),
+            )));
+
+        for accept in [
+            "gzip, br, deflate, zstd",
+            "gzip;q=0, br;q=0, deflate;q=0, zstd;q=0, identity;q=0",
+        ] {
+            for (path, status) in [
+                ("/api/media", StatusCode::OK),
+                ("/api/media?missingUrl=true", StatusCode::BAD_REQUEST),
+            ] {
+                let response = app
+                    .clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri(path)
+                            .header(header::ACCEPT_ENCODING, accept)
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+
+                assert_eq!(response.status(), status, "{path}: {accept}");
+                assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
+                if status == StatusCode::OK {
+                    assert_eq!(response.headers()[header::CONTENT_TYPE], "video/mp4");
+                    assert_eq!(response.headers()["x-lurklet-cache"], "hit");
+                    assert_eq!(
+                        to_bytes(response.into_body(), 4096).await.unwrap(),
+                        media.as_bytes()
+                    );
+                } else {
+                    assert_eq!(
+                        response.headers()[header::CONTENT_TYPE],
+                        "application/problem+json"
+                    );
+                    assert_eq!(
+                        response.headers()[header::CACHE_CONTROL],
+                        "public, max-age=10"
+                    );
+                }
+            }
+        }
+        let json = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/missing")
+                    .header(header::ACCEPT_ENCODING, "gzip")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let site = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header(header::ACCEPT_ENCODING, "gzip, br")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(json.status(), StatusCode::NOT_FOUND);
+        assert_eq!(json.headers()[header::CONTENT_ENCODING], "gzip");
+        assert_eq!(json.headers()[header::CACHE_CONTROL], "public, max-age=10");
+        assert_eq!(site.status(), StatusCode::OK);
+        assert!(!site.headers().contains_key(header::CONTENT_ENCODING));
+    }
+
+    #[tokio::test]
+    async fn when_health_encoding_is_unacceptable_then_problem_details_should_remain_uncacheable() {
+        let app = application();
+
+        for method in [Method::GET, Method::HEAD, Method::POST] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method.clone())
+                        .uri("/api/health")
+                        .header(
+                            header::ACCEPT_ENCODING,
+                            "gzip;q=0, br;q=0, deflate;q=0, zstd;q=0, identity;q=0",
+                        )
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let status = response.status();
+            let headers = response.headers().clone();
+            let body = to_bytes(response.into_body(), 4096).await.unwrap();
+
+            assert_eq!(status, StatusCode::NOT_ACCEPTABLE, "{method}");
+            assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+            assert_eq!(headers[header::CONTENT_TYPE], "application/problem+json");
+            assert!(!headers.contains_key(header::CONTENT_ENCODING));
+            if method == Method::HEAD {
+                assert!(body.is_empty());
+            } else {
+                assert_eq!(
+                    serde_json::from_slice::<Value>(&body).unwrap(),
+                    json!({"type": "about:blank", "title": "Not Acceptable", "status": 406})
+                );
+            }
+        }
     }
 
     #[test]

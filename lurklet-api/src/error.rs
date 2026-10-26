@@ -18,6 +18,8 @@ pub enum ApiError {
     NotFound,
     #[error("method not allowed")]
     MethodNotAllowed,
+    #[error("no acceptable response encoding")]
+    NotAcceptable,
     #[error("too many requests")]
     TooManyRequests,
     #[error("internal server error")]
@@ -65,6 +67,7 @@ impl IntoResponses for ApiError {
             StatusCode::BAD_REQUEST,
             StatusCode::NOT_FOUND,
             StatusCode::METHOD_NOT_ALLOWED,
+            StatusCode::NOT_ACCEPTABLE,
             StatusCode::TOO_MANY_REQUESTS,
             StatusCode::INTERNAL_SERVER_ERROR,
             StatusCode::BAD_GATEWAY,
@@ -108,6 +111,7 @@ impl IntoResponse for ApiError {
             Self::BadRequest
             | Self::NotFound
             | Self::MethodNotAllowed
+            | Self::NotAcceptable
             | Self::InternalServerError
             | Self::BadGateway
             | Self::ServiceUnavailable { .. } => "public, max-age=10",
@@ -116,6 +120,7 @@ impl IntoResponse for ApiError {
             Self::BadRequest => (StatusCode::BAD_REQUEST, "Bad Request", None),
             Self::NotFound => (StatusCode::NOT_FOUND, "Not Found", None),
             Self::MethodNotAllowed => (StatusCode::METHOD_NOT_ALLOWED, "Method Not Allowed", None),
+            Self::NotAcceptable => (StatusCode::NOT_ACCEPTABLE, "Not Acceptable", None),
             Self::TooManyRequests => (StatusCode::TOO_MANY_REQUESTS, "Too Many Requests", None),
             Self::InternalServerError => (
                 StatusCode::INTERNAL_SERVER_ERROR,

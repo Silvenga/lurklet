@@ -33,7 +33,9 @@ pub fn router() -> OpenApiRouter {
         (status = 200, description = "The API is serving requests", body = Health),
         (status = 405, description = "The method is not supported", body = Problem,
             content_type = "application/problem+json",
-            headers(("Allow" = String, description = "GET,HEAD")))
+            headers(("Allow" = String, description = "GET,HEAD"))),
+        (status = 406, description = "No acceptable response encoding", body = Problem,
+            content_type = "application/problem+json")
     )
 )]
 async fn health() -> impl IntoResponse {
