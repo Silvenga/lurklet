@@ -36,7 +36,7 @@ jobs:
   docker:
     name: Docker build
     needs: release-please
-    if: ${{ !cancelled() && (needs.release-please.result == 'success' || needs.release-please.result == 'skipped') }}
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -52,18 +52,21 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Docker metadata
-        if: needs.release-please.outputs.release-created == 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         id: metadata
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          context: git
+          context: workflow
           images: ghcr.io/${{ github.repository }}
+          flavor: latest=${{ needs.release-please.outputs.release-created == 'true' }}
           tags: |
-            type=semver,pattern={{version}},value=${{ needs.release-please.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.version }}
+            type=raw,value=edge
+            type=semver,pattern={{version}},value=${{ needs.release-please.outputs.version }},enable=${{ needs.release-please.outputs.release-created == 'true' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.version }},enable=${{ needs.release-please.outputs.release-created == 'true' }}
+            type=semver,pattern={{major}},value=${{ needs.release-please.outputs.version }},enable=${{ needs.release-please.outputs.release-created == 'true' }}
 
       - name: Log in to GHCR
-        if: needs.release-please.outputs.release-created == 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
@@ -75,7 +78,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64
-          push: ${{ needs.release-please.outputs.release-created == 'true' }}
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha
