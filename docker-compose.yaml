@@ -7,7 +7,11 @@ services:
       LURKLET_CACHE_DIR: /cache
       LURKLET_STATE_FILE: /cache/state.json
       RUST_LOG: debug
-
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
     volumes:
       - cache:/cache
 
