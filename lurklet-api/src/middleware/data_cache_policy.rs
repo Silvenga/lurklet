@@ -8,7 +8,7 @@ use clap::Args;
 /// Shared freshness configuration for successful API data and media responses.
 #[derive(Args)]
 pub struct ApiCacheOptions {
-    /// Cache successful API data and media responses for this many seconds; zero makes them immediately stale.
+    /// How long to cache successful API data and media responses.
     #[arg(
         long,
         env = "LURKLET_API_CACHE_MAX_AGE_SECONDS",

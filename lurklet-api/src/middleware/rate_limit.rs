@@ -18,14 +18,13 @@ use tower_governor::key_extractor::KeyExtractor;
 /// API quota and opt-in client-IP forwarding configuration.
 #[derive(Args, Clone)]
 pub struct RateLimitOptions {
-    /// Sustained API requests per second per client; IPv6 clients share a /64.
+    /// Sustained API requests per second per client (IPv6 is by /64).
     #[arg(long, env = "LURKLET_RATE_LIMIT_RPS", default_value = "1")]
     pub rate_limit_rps: NonZeroU32,
     /// Maximum burst of API requests per client.
     #[arg(long, env = "LURKLET_RATE_LIMIT_BURST", default_value = "10")]
     pub rate_limit_burst: NonZeroU32,
-    /// Client-IP source. Header sources without trusted proxies trust every peer.
-    /// X-Forwarded-For uses the rightmost address; multi-hop ingress must normalize it.
+    /// Client-IP source.
     #[arg(
         long,
         env = "LURKLET_CLIENT_IP_SOURCE",
@@ -33,7 +32,7 @@ pub struct RateLimitOptions {
         default_value = "peer"
     )]
     pub client_ip_source: ClientIpSource,
-    /// Only these socket peers may supply the selected header. Empty trusts all peers.
+    /// Trusted upstream proxies. Empty trusts all proxies.
     #[arg(long, env = "LURKLET_TRUSTED_PROXIES", value_delimiter = ',')]
     pub trusted_proxies: Vec<IpNet>,
 }

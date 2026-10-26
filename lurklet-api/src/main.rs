@@ -25,15 +25,15 @@ struct Arguments {
     /// Address on which to serve HTTP.
     #[arg(long, env = "LURKLET_BIND", default_value = "127.0.0.1:3000")]
     bind: SocketAddr,
-    /// Directory containing the built website and its precompressed files.
+    /// Directory containing the built website.
     #[arg(long, env = "LURKLET_STATIC_DIR", default_value = "lurklet-api/static")]
     static_dir: PathBuf,
-    /// Enable persistent API response caching in this directory.
+    /// Save a persistent API response cache (cache-on-error).
     #[arg(long, env = "LURKLET_CACHE_DIR")]
     cache_dir: Option<PathBuf>,
     #[command(flatten)]
     api_cache: ApiCacheOptions,
-    /// Restore and save Reddit session state; otherwise state remains in memory.
+    /// Restore and save Reddit session state across restarts.
     #[arg(long, env = "LURKLET_STATE_FILE")]
     state_file: Option<PathBuf>,
     #[arg(
@@ -44,7 +44,7 @@ struct Arguments {
         help = "Proxy for Reddit requests (http, https, socks5, or socks5h)"
     )]
     proxy: Option<String>,
-    /// Total upstream request timeout in seconds; -1 disables it, including for streamed bodies.
+    /// Total upstream request timeout in seconds. -1 means no limit.
     #[arg(long, env = "LURKLET_REDDIT_REQUEST_TIMEOUT_SECONDS", default_value = "-1", allow_negative_numbers = true,
         value_parser = |value: &str| -> Result<i64, &'static str> {
             match value.parse::<i64>() {
