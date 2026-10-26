@@ -1,4 +1,6 @@
-use crate::middleware::{access_log, content_security_policy, referrer_policy, static_policy};
+use crate::middleware::{
+    access_log, content_security_policy, content_type_options, referrer_policy, static_policy,
+};
 use crate::routes::robots;
 use anyhow::{Context, ensure};
 use axum::Router;
@@ -54,6 +56,7 @@ impl StaticHost {
             .layer(middleware::from_fn(static_policy))
             .layer(content_security_policy())
             .layer(referrer_policy())
+            .layer(content_type_options())
             .layer(middleware::from_fn(access_log))
     }
 }
@@ -112,11 +115,16 @@ mod tests {
     const ROBOTS: &str = "User-agent: *\nDisallow: /\n";
     const HTML: &str = "<!doctype html><html><body>Static fixture</body></html>";
     const CSS: &str = "body { color: black; background-color: white; font-family: sans-serif; }";
+    const JS: &str = "window.staticFixture = true;";
 
     fn fixtures() -> TempDir {
         let directory = TempDir::new().unwrap();
         directory.child("assets").create_dir_all().unwrap();
-        for (path, body) in [("index.html", HTML), ("assets/main-abc12345.css", CSS)] {
+        for (path, body) in [
+            ("index.html", HTML),
+            ("assets/main-abc12345.css", CSS),
+            ("assets/main-abc12345.js", JS),
+        ] {
             directory.child(path).write_str(body).unwrap();
             let mut gzip = GzEncoder::new(Vec::new(), Compression::default());
             gzip.write_all(body.as_bytes()).unwrap();
@@ -151,7 +159,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_static_responses_are_served_then_browser_policies_should_restrict_resources_and_referrers_to_the_same_origin()
+    async fn when_static_responses_are_served_then_browser_policies_should_restrict_resources_referrers_and_sniffing()
      {
         let directory = fixtures();
         let app = app(&directory).await;
@@ -161,6 +169,7 @@ mod tests {
             "/index.html",
             "/r/rust",
             "/assets/main-abc12345.css",
+            "/assets/main-abc12345.js",
             "/robots.txt",
             "/favicon.ico",
             "/missing.js",
@@ -186,6 +195,58 @@ mod tests {
                     "same-origin",
                     "{path}"
                 );
+                assert_eq!(
+                    response.headers()[header::X_CONTENT_TYPE_OPTIONS],
+                    "nosniff",
+                    "{path}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn when_static_assets_are_served_then_mime_types_should_match_even_with_precompression() {
+        let directory = fixtures();
+        let app = app(&directory).await;
+
+        for (path, content_type) in [
+            ("/index.html", "text/html"),
+            ("/assets/main-abc12345.css", "text/css"),
+            ("/assets/main-abc12345.js", "text/javascript"),
+        ] {
+            for (encoding, expected_encoding) in [
+                ("identity", None),
+                ("gzip", Some("gzip")),
+                ("br", Some("br")),
+            ] {
+                for method in [Method::GET, Method::HEAD] {
+                    let request = Request::builder()
+                        .method(method.clone())
+                        .uri(path)
+                        .header(header::ACCEPT_ENCODING, encoding)
+                        .body(Body::empty())
+                        .unwrap();
+
+                    let response = app.clone().oneshot(request).await.unwrap();
+
+                    assert_eq!(
+                        response.status(),
+                        StatusCode::OK,
+                        "{method} {path} {encoding}"
+                    );
+                    assert_eq!(response.headers()[header::CONTENT_TYPE], content_type);
+                    assert_eq!(
+                        response.headers()[header::X_CONTENT_TYPE_OPTIONS],
+                        "nosniff"
+                    );
+                    assert_eq!(
+                        response
+                            .headers()
+                            .get(header::CONTENT_ENCODING)
+                            .map(|value| value.to_str().unwrap()),
+                        expected_encoding
+                    );
+                }
             }
         }
     }
@@ -379,6 +440,7 @@ mod tests {
 
             assert_eq!(status, StatusCode::NOT_FOUND, "{path} {accept}");
             assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+            assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
             assert!(!body.starts_with(b"<!doctype html>"));
         }
     }
@@ -436,12 +498,14 @@ mod tests {
                 let body = to_bytes(response.into_body(), 4096).await.unwrap();
 
                 assert_eq!(status, StatusCode::NOT_MODIFIED, "{path} {encoding}");
+                assert_eq!(cached_headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
                 for name in [
                     header::ETAG,
                     header::CACHE_CONTROL,
                     header::VARY,
                     header::CONTENT_SECURITY_POLICY,
                     header::REFERRER_POLICY,
+                    header::X_CONTENT_TYPE_OPTIONS,
                 ] {
                     assert_eq!(cached_headers.get(&name), headers.get(&name), "{name}");
                 }
@@ -506,6 +570,10 @@ mod tests {
                 assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
                 assert_eq!(response.headers()[header::ALLOW], "GET,HEAD");
                 assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+                assert_eq!(
+                    response.headers()[header::X_CONTENT_TYPE_OPTIONS],
+                    "nosniff"
+                );
             }
         }
     }
@@ -537,6 +605,10 @@ mod tests {
 
             assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
             assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+            assert_eq!(
+                response.headers()[header::X_CONTENT_TYPE_OPTIONS],
+                "nosniff"
+            );
             assert!(
                 to_bytes(response.into_body(), 4096)
                     .await

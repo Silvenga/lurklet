@@ -1,7 +1,8 @@
 use crate::ResponseCache;
 use crate::error::{ApiError, Problem};
 use crate::middleware::{
-    RateLimit, access_log, api_cache_policy, limit_requests, response_compression,
+    RateLimit, access_log, api_cache_policy, api_content_security_policy, content_type_options,
+    limit_requests, response_compression,
 };
 use crate::routes;
 use axum::Router;
@@ -52,6 +53,8 @@ pub fn application<B: RedditBackend + 'static>(
     let api = json_api
         .merge(media_api)
         .layer(middleware::from_fn(api_cache_policy))
+        .layer(api_content_security_policy())
+        .layer(content_type_options())
         .layer(middleware::from_fn(access_log));
 
     // Service nesting reserves /api, /api/, and descendants, including unmatched paths.
@@ -98,7 +101,7 @@ mod tests {
     use axum::Extension;
     use axum::body::{Body, to_bytes};
     use axum::extract::{ConnectInfo, State};
-    use axum::http::{Method, Request, StatusCode, header};
+    use axum::http::{HeaderMap, HeaderValue, Method, Request, StatusCode, header};
     use axum::response::Html;
     use axum::routing::get;
     use lurklet_reddit::{StateStore, Storage};
@@ -111,6 +114,26 @@ mod tests {
         let app = super::application(reddit, &RateLimit::default(), None);
         let peer: SocketAddr = "192.0.2.1:1234".parse().unwrap();
         app.layer(Extension(ConnectInfo(peer)))
+    }
+
+    fn assert_browser_policy(headers: &HeaderMap) {
+        for (name, expected) in [
+            (
+                header::CONTENT_SECURITY_POLICY,
+                "default-src 'none'; sandbox; style-src 'unsafe-inline'; media-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+            ),
+            (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+        ] {
+            assert_eq!(
+                headers
+                    .get_all(&name)
+                    .iter()
+                    .map(|value| value.to_str().unwrap())
+                    .collect::<Vec<_>>(),
+                [expected],
+                "{name}"
+            );
+        }
     }
 
     #[tokio::test]
@@ -155,6 +178,22 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+        assert_browser_policy(response.headers());
+    }
+
+    #[tokio::test]
+    async fn when_client_ip_is_unavailable_then_internal_errors_should_keep_browser_policies() {
+        let reddit = RedditClient::builder().build().unwrap();
+        let app = super::application(reddit, &RateLimit::default(), None);
+        let request = Request::builder()
+            .uri("/api/media")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_browser_policy(response.headers());
     }
 
     #[tokio::test]
@@ -228,6 +267,7 @@ mod tests {
             let response = app.clone().oneshot(request(path)).await.unwrap();
 
             assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS, "{path}");
+            assert_browser_policy(response.headers());
         }
     }
 
@@ -254,6 +294,7 @@ mod tests {
             let body = to_bytes(response.into_body(), 4096).await.unwrap();
 
             assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
+            assert_browser_policy(&headers);
             assert_eq!(headers[header::CONTENT_TYPE], "application/problem+json");
             assert_eq!(headers[header::CACHE_CONTROL], "no-store");
             assert_eq!(headers[header::ALLOW], "GET,HEAD");
@@ -285,6 +326,7 @@ mod tests {
             let body = to_bytes(response.into_body(), 4096).await.unwrap();
 
             assert_eq!(status, StatusCode::NOT_FOUND, "{path}");
+            assert_browser_policy(&headers);
             assert_eq!(headers[header::CONTENT_TYPE], "application/problem+json");
             assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=10");
             assert!(!headers.contains_key("x-ratelimit-limit"));
@@ -311,6 +353,8 @@ mod tests {
 
             assert_eq!(status, StatusCode::OK, "{path}");
             assert!(!headers.contains_key(header::CACHE_CONTROL));
+            assert!(!headers.contains_key(header::CONTENT_SECURITY_POLICY));
+            assert!(!headers.contains_key(header::X_CONTENT_TYPE_OPTIONS));
             assert_eq!(body.as_ref(), b"SPA");
         }
     }
@@ -385,6 +429,7 @@ mod tests {
                     .unwrap();
 
                 assert_eq!(response.status(), status, "{path}: {accept}");
+                assert_browser_policy(response.headers());
                 assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
                 if status == StatusCode::OK {
                     assert_eq!(response.headers()[header::CONTENT_TYPE], "video/mp4");
@@ -428,6 +473,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(json.status(), StatusCode::NOT_FOUND);
+        assert_browser_policy(json.headers());
         assert_eq!(json.headers()[header::CONTENT_ENCODING], "gzip");
         assert_eq!(json.headers()[header::CACHE_CONTROL], "public, max-age=10");
         assert_eq!(site.status(), StatusCode::OK);
@@ -459,6 +505,7 @@ mod tests {
             let body = to_bytes(response.into_body(), 4096).await.unwrap();
 
             assert_eq!(status, StatusCode::NOT_ACCEPTABLE, "{method}");
+            assert_browser_policy(&headers);
             assert_eq!(headers[header::CACHE_CONTROL], "no-store");
             assert_eq!(headers[header::CONTENT_TYPE], "application/problem+json");
             assert!(!headers.contains_key(header::CONTENT_ENCODING));
@@ -529,6 +576,7 @@ mod tests {
     async fn when_data_input_is_invalid_then_the_mounted_endpoint_should_return_problem_details() {
         let app = application();
         for uri in [
+            "/api/posts/%FF",
             "/api/subreddits/rust/posts?sort=invalid",
             "/api/subreddits/%FF",
             "/api/media",
@@ -540,6 +588,7 @@ mod tests {
             let response = app.clone().oneshot(request).await.unwrap();
 
             assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+            assert_browser_policy(response.headers());
             assert_eq!(
                 response.headers()[header::CONTENT_TYPE],
                 "application/problem+json"
@@ -629,6 +678,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(first.status(), StatusCode::OK);
+        assert_browser_policy(first.headers());
         assert_eq!(first.headers()["x-lurklet-cache"], "hit");
         assert!(!first.headers().contains_key("x-ratelimit-remaining"));
         assert_eq!(
@@ -636,8 +686,10 @@ mod tests {
             b"cached".as_slice()
         );
         assert_eq!(second.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_browser_policy(second.headers());
         assert!(!second.headers().contains_key("x-lurklet-cache"));
         assert_eq!(health.status(), StatusCode::OK);
+        assert_browser_policy(health.headers());
         assert!(!health.headers().contains_key("x-lurklet-cache"));
         assert_eq!(health.headers()[header::CACHE_CONTROL], "no-store");
         assert_eq!(
@@ -645,6 +697,91 @@ mod tests {
                 .unwrap(),
             json!({"health": "ok"})
         );
+    }
+
+    #[tokio::test]
+    async fn when_media_was_cached_without_isolation_then_hits_and_stale_responses_should_use_current_browser_policies()
+     {
+        const SVG: &str =
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>"#;
+
+        for (cache_control, outcome) in [
+            ("public, max-age=300", "hit"),
+            ("public, max-age=0", "stale"),
+        ] {
+            for old_policy in [None, Some("default-src * 'unsafe-inline'")] {
+                let directory = assert_fs::TempDir::new().unwrap();
+                let cache = ResponseCache::new(directory.path()).await.unwrap();
+                let seed = cache.wrap(Router::new().route(
+                    "/api/media",
+                    get(move || async move {
+                        let mut headers = HeaderMap::from_iter([
+                            (
+                                header::CONTENT_TYPE,
+                                HeaderValue::from_static("image/svg+xml"),
+                            ),
+                            (
+                                header::CACHE_CONTROL,
+                                HeaderValue::from_static(cache_control),
+                            ),
+                        ]);
+                        if let Some(policy) = old_policy {
+                            headers.append(
+                                header::CONTENT_SECURITY_POLICY,
+                                HeaderValue::from_static(policy),
+                            );
+                            headers.append(
+                                header::CONTENT_SECURITY_POLICY,
+                                HeaderValue::from_static("sandbox allow-scripts allow-same-origin"),
+                            );
+                            headers.insert(
+                                header::X_CONTENT_TYPE_OPTIONS,
+                                HeaderValue::from_static("invalid"),
+                            );
+                        }
+                        (headers, SVG)
+                    }),
+                ));
+                let request = Request::builder()
+                    .uri("/api/media")
+                    .body(Body::empty())
+                    .unwrap();
+                let response = seed.oneshot(request).await.unwrap();
+                to_bytes(response.into_body(), 4096).await.unwrap();
+                let reddit = RedditClient::builder().build().unwrap();
+                let app = super::application(reddit, &RateLimit::default(), Some(&cache)).layer(
+                    Extension(ConnectInfo("192.0.2.1:1234".parse::<SocketAddr>().unwrap())),
+                );
+
+                for method in [Method::GET, Method::HEAD] {
+                    let request = Request::builder()
+                        .method(method.clone())
+                        .uri("/api/media")
+                        .body(Body::empty())
+                        .unwrap();
+
+                    let response = app.clone().oneshot(request).await.unwrap();
+                    let status = response.status();
+                    let headers = response.headers().clone();
+                    let body = to_bytes(response.into_body(), 4096).await.unwrap();
+
+                    assert_eq!(status, StatusCode::OK);
+                    assert_browser_policy(&headers);
+                    assert_eq!(headers["x-lurklet-cache"], outcome);
+                    assert_eq!(headers[header::CONTENT_TYPE], "image/svg+xml");
+                    assert_eq!(headers[header::CACHE_CONTROL], cache_control);
+                    assert_eq!(headers[header::CONTENT_LENGTH], SVG.len().to_string());
+                    assert_eq!(
+                        body.as_ref(),
+                        if method == Method::HEAD {
+                            b""
+                        } else {
+                            SVG.as_bytes()
+                        }
+                    );
+                }
+            }
+        }
     }
 
     #[tokio::test]
@@ -692,6 +829,7 @@ mod tests {
                 "/api/comments/anchor/thread",
                 StatusCode::METHOD_NOT_ALLOWED,
             ),
+            (Method::POST, "/api/media", StatusCode::METHOD_NOT_ALLOWED),
             (Method::GET, "/api/health", StatusCode::OK),
             (Method::HEAD, "/api/health", StatusCode::OK),
         ] {
@@ -714,11 +852,18 @@ mod tests {
                     "public, max-age=10"
                 );
             }
-            for name in [header::CONTENT_SECURITY_POLICY, header::REFERRER_POLICY] {
+            if path.starts_with("/api/") {
+                assert_browser_policy(response.headers());
+                assert!(!response.headers().contains_key(header::REFERRER_POLICY));
+            } else {
                 assert_eq!(
-                    response.headers().contains_key(&name),
-                    !path.starts_with("/api/"),
-                    "{path}: {name}"
+                    response.headers()[header::CONTENT_SECURITY_POLICY],
+                    "default-src 'self'; style-src-elem 'self' 'unsafe-inline'; style-src-attr 'none'"
+                );
+                assert_eq!(response.headers()[header::REFERRER_POLICY], "same-origin");
+                assert_eq!(
+                    response.headers()[header::X_CONTENT_TYPE_OPTIONS],
+                    "nosniff"
                 );
             }
             assert!(

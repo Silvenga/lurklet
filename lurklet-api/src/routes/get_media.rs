@@ -77,9 +77,11 @@ async fn get_media<B: RedditBackend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ResponseCache;
+    use crate::{RateLimit, ResponseCache, application};
     use axum::Router;
-    use axum::http::{Request, StatusCode};
+    use axum::body::to_bytes;
+    use axum::extract::ConnectInfo;
+    use axum::http::{Method, Request, StatusCode};
     use bytes::Bytes;
     use futures_util::{StreamExt, stream};
     use lurklet_reddit::{
@@ -87,6 +89,7 @@ mod tests {
         RedditId, ResponseError, RetryAfter, Subreddit, SubredditPage, SubredditSort,
     };
     use std::future::IntoFuture;
+    use std::net::SocketAddr;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
@@ -95,6 +98,9 @@ mod tests {
 
     struct FakeBackend {
         error: Option<RedditError>,
+        content_type: &'static str,
+        kind: MediaKind,
+        body: [&'static [u8]; 2],
         length: Option<u64>,
         calls: Arc<Mutex<Vec<String>>>,
         chunks: Arc<AtomicUsize>,
@@ -108,13 +114,13 @@ mod tests {
             }
             let chunks = self.chunks.clone();
             Ok(MediaFile {
-                content_type: "video/mp4".into(),
-                kind: MediaKind::Mp4,
+                content_type: self.content_type.into(),
+                kind: self.kind,
                 content_length: self.length,
                 body: Box::pin(
                     stream::iter([
-                        Ok(Bytes::from_static(b"hello")),
-                        Ok(Bytes::from_static(b" world")),
+                        Ok(Bytes::from_static(self.body[0])),
+                        Ok(Bytes::from_static(self.body[1])),
                     ])
                     .inspect(move |_| {
                         chunks.fetch_add(1, Ordering::SeqCst);
@@ -167,6 +173,9 @@ mod tests {
             .0
             .with_state(RedditClient::from_backend(FakeBackend {
                 error,
+                content_type: "video/mp4",
+                kind: MediaKind::Mp4,
+                body: [b"hello", b" world"],
                 length,
                 calls,
                 chunks,
@@ -217,6 +226,83 @@ mod tests {
             assert_eq!(chunks.load(Ordering::SeqCst), 1);
             drop(body);
             assert_eq!(chunks.load(Ordering::SeqCst), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn when_svg_media_is_served_through_the_api_then_browser_policies_should_preserve_streaming_and_caching()
+     {
+        const SVG: [&[u8]; 2] = [
+            br#"<svg xmlns="http://www.w3.org/2000/svg">"#,
+            b"<script>alert(1)</script></svg>",
+        ];
+        let expected = SVG.concat();
+
+        for caching in [false, true] {
+            let directory = assert_fs::TempDir::new().unwrap();
+            let cache = ResponseCache::new(directory.path()).await.unwrap();
+            let calls = Arc::new(Mutex::new(Vec::new()));
+            let chunks = Arc::new(AtomicUsize::new(0));
+            let reddit = RedditClient::from_backend(FakeBackend {
+                error: None,
+                content_type: "image/svg+xml",
+                kind: MediaKind::Image,
+                body: SVG,
+                length: Some(expected.len() as u64),
+                calls: calls.clone(),
+                chunks: chunks.clone(),
+            });
+            let app = application(reddit, &RateLimit::default(), caching.then_some(&cache));
+
+            for (method, outcome) in [
+                (Method::HEAD, "miss"),
+                (Method::GET, "miss"),
+                (Method::GET, "hit"),
+                (Method::HEAD, "hit"),
+            ] {
+                let request = Request::builder()
+                    .method(method.clone())
+                    .uri("/api/media?url=https%3A%2F%2Fi.redd.it%2Ffixture.svg")
+                    .extension(ConnectInfo("192.0.2.1:1234".parse::<SocketAddr>().unwrap()))
+                    .body(Body::empty())
+                    .unwrap();
+                let previous_chunks = chunks.load(Ordering::SeqCst);
+
+                let response = app.clone().oneshot(request).await.unwrap();
+
+                assert_eq!(response.status(), StatusCode::OK);
+                assert_eq!(chunks.load(Ordering::SeqCst), previous_chunks);
+                assert_eq!(response.headers()[header::CONTENT_TYPE], "image/svg+xml");
+                assert_eq!(
+                    response.headers()[header::CONTENT_LENGTH],
+                    expected.len().to_string()
+                );
+                assert_eq!(response.headers()[header::CACHE_CONTROL], CACHE_POLICY);
+                assert_eq!(
+                    response.headers()[header::CONTENT_SECURITY_POLICY],
+                    "default-src 'none'; sandbox; style-src 'unsafe-inline'; media-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+                );
+                assert_eq!(
+                    response.headers()[header::X_CONTENT_TYPE_OPTIONS],
+                    "nosniff"
+                );
+                assert_eq!(
+                    response.headers().get("x-lurklet-cache"),
+                    caching.then(|| HeaderValue::from_static(outcome)).as_ref()
+                );
+                assert!(!response.headers().contains_key(header::ACCEPT_RANGES));
+                let body = to_bytes(response.into_body(), 4096).await.unwrap();
+                assert_eq!(
+                    body.as_ref(),
+                    if method == Method::HEAD {
+                        b""
+                    } else {
+                        expected.as_slice()
+                    }
+                );
+            }
+            assert_eq!(calls.lock().unwrap().len(), if caching { 2 } else { 4 });
+            assert_eq!(chunks.load(Ordering::SeqCst), if caching { 2 } else { 4 });
         }
     }
 
