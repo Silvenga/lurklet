@@ -41,6 +41,22 @@ function renderPath(path = POST_PATH) {
   return router;
 }
 
+test("When comment filters render then they should form a connected outline group with the URL selection active", async () => {
+  renderPath(`${POST_PATH}?sort=top`);
+
+  const group = await screen.findByRole("radiogroup", { name: "Comment sort" });
+
+  expect(group).toHaveAttribute("data-variant", "outline");
+  expect(group).toHaveAttribute("data-spacing", "0");
+  for (const option of within(group).getAllByRole("radio")) {
+    expect(option).toHaveAttribute("data-variant", "outline");
+    expect(option).toHaveAttribute("data-size", "default");
+  }
+  expect(within(group).getByRole("radio", { name: "Top" })).toBeChecked();
+  expect(within(group).getByRole("radio", { name: "Best" })).not.toBeChecked();
+  expect(within(group).getByRole("radio", { name: "New" })).not.toBeChecked();
+});
+
 test("When comments resolve first then they should render independently of the post and metadata", async () => {
   const comments = Promise.withResolvers<Response>();
   const post = Promise.withResolvers<Response>();

@@ -12,7 +12,6 @@ import { APP_ROUTES } from "../router";
 
 const SUGGESTIONS = [
   ["aww", "Cute animals and other adorable things"],
-  ["UpliftingNews", "Positive news stories"],
   ["wholesomememes", "Feel-good memes"],
   ["ContagiousLaughter", "Videos of infectious laughter"],
   ["MadeMeSmile", "Moments that brighten someone's day"],

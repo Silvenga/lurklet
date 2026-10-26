@@ -731,6 +731,7 @@ test("When listing filters render then they should be connected outline groups w
     expect(group).toHaveAttribute("data-spacing", "0");
     for (const option of within(group).getAllByRole("radio")) {
       expect(option).toHaveAttribute("data-variant", "outline");
+      expect(option).toHaveAttribute("data-size", "default");
     }
   }
   expect(within(sort).getByRole("radio", { name: "Top" })).toBeChecked();

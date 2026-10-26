@@ -67,6 +67,8 @@ export function CommentDiscussion() {
       </div>
       <ToggleGroup
         aria-label="Comment sort"
+        variant="outline"
+        spacing={0}
         selectionMode="single"
         disallowEmptySelection
         selectedKeys={isValidSort ? [sort] : []}

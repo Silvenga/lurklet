@@ -11,7 +11,7 @@ export function PostListControls({ sort, timeRange }: PostListControlsProps) {
   const [searchParams, setSearchParams] = useSearchParams();
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <ToggleGroup
         aria-label="Sort"
         variant="outline"
@@ -43,7 +43,6 @@ export function PostListControls({ sort, timeRange }: PostListControlsProps) {
           className="max-w-full overflow-x-auto"
           variant="outline"
           spacing={0}
-          size="sm"
           selectionMode="single"
           disallowEmptySelection
           selectedKeys={[timeRange ?? "all"]}

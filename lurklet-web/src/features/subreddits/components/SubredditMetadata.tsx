@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { getSubredditOptions } from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
+import { DateAgo } from "@/components/DateAgo";
 import { Markdown } from "@/components/Markdown";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const NUMBER_FORMAT = new Intl.NumberFormat();
-const DATE_FORMAT = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 const MARKDOWN_CLASS = "prose-sm max-w-none overflow-x-auto wrap-anywhere";
 
 export function SubredditMetadata({ subreddit }: { subreddit: string }) {
@@ -75,9 +75,7 @@ export function SubredditMetadata({ subreddit }: { subreddit: string }) {
                 <div>
                   <dt className="text-muted-foreground whitespace-nowrap">Created</dt>
                   <dd>
-                    <time dateTime={value.createdAt}>
-                      {DATE_FORMAT.format(new Date(value.createdAt))}
-                    </time>
+                    <DateAgo dateTime={value.createdAt} />
                   </dd>
                 </div>
               )}

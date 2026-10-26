@@ -1,14 +1,13 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import type { CommentItem } from "@/clients/lurklet-api/generated/types.gen";
+import { DateAgo } from "@/components/DateAgo";
 import { Markdown } from "@/components/Markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import type { CommentContext } from "@/features/comments/types";
 import { CommentList } from "./CommentList";
-
-const DATE_FORMAT = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
 type CommentNode = Extract<CommentItem, { kind: "comment" }>;
 
@@ -50,11 +49,7 @@ export function CommentRow({
         </Button>
         <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm select-text">
           <span>{comment.author?.name ? `u/${comment.author.name}` : "Unknown author"}</span>
-          {comment.createdAt && (
-            <time dateTime={comment.createdAt}>
-              {DATE_FORMAT.format(new Date(comment.createdAt))}
-            </time>
-          )}
+          {comment.createdAt && <DateAgo dateTime={comment.createdAt} />}
           {comment.score !== null && (
             <span>
               {comment.score} {comment.score === 1 ? "point" : "points"}

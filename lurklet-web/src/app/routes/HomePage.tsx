@@ -11,7 +11,6 @@ import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 
 const SUGGESTED_SUBREDDITS = [
   { name: "aww", description: "Cute animals and other adorable things" },
-  { name: "UpliftingNews", description: "Positive news stories" },
   { name: "wholesomememes", description: "Feel-good memes" },
   { name: "ContagiousLaughter", description: "Videos of infectious laughter" },
   { name: "MadeMeSmile", description: "Moments that brighten someone's day" },
