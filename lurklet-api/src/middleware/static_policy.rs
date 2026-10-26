@@ -34,11 +34,11 @@ pub async fn static_policy(request: Request, next: Next) -> Response {
         next.run(request).await
     };
     let policy = if response.status().is_client_error() || response.status().is_server_error() {
-        "no-store"
+        "public, max-age=10"
     } else if immutable {
         "public, max-age=31536000, immutable"
     } else {
-        "public, no-cache"
+        "public, max-age=0, stale-while-revalidate=86400"
     };
     let vary = if response
         .headers()

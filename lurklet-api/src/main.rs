@@ -2,7 +2,8 @@ use crate::session_store::SessionStore;
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use lurklet_api::{
-    RateLimit, RateLimitOptions, ResponseCache, StaticHost, application, specification,
+    ApiCacheOptions, RateLimit, RateLimitOptions, ResponseCache, StaticHost, application,
+    specification,
 };
 use lurklet_reddit::{RedditClient, Storage};
 use std::io::{self, Write};
@@ -30,6 +31,8 @@ struct Arguments {
     /// Enable persistent API response caching in this directory.
     #[arg(long, env = "LURKLET_CACHE_DIR")]
     cache_dir: Option<PathBuf>,
+    #[command(flatten)]
+    api_cache: ApiCacheOptions,
     /// Restore and save Reddit session state; otherwise state remains in memory.
     #[arg(long, env = "LURKLET_STATE_FILE")]
     state_file: Option<PathBuf>,
@@ -124,7 +127,7 @@ async fn main() -> ExitCode {
                     ),
                     None => None,
                 };
-                let app = application(reddit, &rate_limit, cache.as_ref());
+                let app = application(reddit, &rate_limit, cache.as_ref(), &arguments.api_cache);
                 let static_host = StaticHost::new(&arguments.static_dir)
                     .await
                     .context("failed to initialize static hosting")?;
@@ -174,9 +177,34 @@ mod tests {
         ));
         assert!(arguments.rate_limit.trusted_proxies.is_empty());
         assert!(arguments.cache_dir.is_none());
+        assert_eq!(arguments.api_cache.api_cache_max_age_seconds, 3600);
         assert!(arguments.state_file.is_none());
         assert!(arguments.proxy.is_none());
         assert_eq!(arguments.reddit_request_timeout_seconds, -1);
+    }
+
+    #[test]
+    fn when_api_freshness_is_selected_then_zero_and_positive_values_should_parse() {
+        for seconds in [0, 1, 42, 3600] {
+            let arguments = Arguments::try_parse_from([
+                "lurklet-api",
+                "--api-cache-max-age-seconds",
+                &seconds.to_string(),
+            ])
+            .unwrap();
+
+            assert_eq!(arguments.api_cache.api_cache_max_age_seconds, seconds);
+        }
+    }
+
+    #[test]
+    fn when_api_freshness_is_invalid_then_argument_parsing_should_reject_it() {
+        for seconds in ["-1", "1.5", "invalid", "18446744073709551616"] {
+            let result =
+                Arguments::try_parse_from(["lurklet-api", "--api-cache-max-age-seconds", seconds]);
+
+            assert!(result.is_err(), "{seconds}");
+        }
     }
 
     #[test]

@@ -2,7 +2,6 @@ use crate::error::ApiError;
 use axum::Json;
 use axum::extract::rejection::PathRejection;
 use axum::extract::{Path, State};
-use axum::http::header;
 use axum::response::IntoResponse;
 use chrono::{DateTime, Utc};
 use lurklet_reddit::{
@@ -14,8 +13,6 @@ use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
-
-const CACHE_POLICY: &str = "public, max-age=300";
 
 #[derive(Deserialize, IntoParams)]
 #[serde(rename_all = "camelCase")]
@@ -199,19 +196,16 @@ async fn get_post<B: RedditBackend>(
 ) -> Result<impl IntoResponse, ApiError> {
     let Path(input) = input.map_err(|_| ApiError::BadRequest)?;
     let post = reddit.get_post(&input.id).await?;
-    Ok((
-        [(header::CACHE_CONTROL, CACHE_POLICY)],
-        Json(Post::from(post)),
-    ))
+    Ok(Json(Post::from(post)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ResponseCache;
+    use crate::{ApiCacheOptions, ResponseCache};
     use axum::Router;
     use axum::body::{Body, to_bytes};
-    use axum::http::{Method, Request, StatusCode};
+    use axum::http::{Method, Request, StatusCode, header};
     use axum::routing::get;
     use lurklet_reddit::{
         AnonymousSession, ClockError, CommentForest, CommentSort, CommentThread, Error, MediaFile,
@@ -326,7 +320,7 @@ mod tests {
     fn app(result: Result<RedditPost, Error>, calls: Arc<AtomicUsize>) -> Router {
         let client = RedditClient::from_backend(FakeBackend { result, calls });
         let (router, _) = router().split_for_parts();
-        router.with_state(client)
+        ApiCacheOptions::default().wrap(router.with_state(client))
     }
 
     fn request() -> Request<Body> {
@@ -351,7 +345,7 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         assert_eq!(status, StatusCode::OK);
         assert_eq!(headers[header::CONTENT_TYPE], "application/json");
-        assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=300");
+        assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=3600");
         assert_eq!(
             body,
             json!({
@@ -542,7 +536,7 @@ mod tests {
 
             assert_eq!(status, StatusCode::OK);
             assert_eq!(headers["x-lurklet-cache"], outcome);
-            assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=300");
+            assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=3600");
             assert!(headers.contains_key(header::AGE));
             assert_eq!(body.is_empty(), method == Method::HEAD);
         }

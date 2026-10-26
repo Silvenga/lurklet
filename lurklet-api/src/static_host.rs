@@ -398,7 +398,10 @@ mod tests {
 
             assert_eq!(status, StatusCode::OK, "{path}");
             assert_eq!(headers[header::CONTENT_TYPE], "text/html");
-            assert_eq!(headers[header::CACHE_CONTROL], "public, no-cache");
+            assert_eq!(
+                headers[header::CACHE_CONTROL],
+                "public, max-age=0, stale-while-revalidate=86400"
+            );
             assert_eq!(headers[header::VARY], "Accept, Accept-Encoding");
             assert!(!headers.contains_key(header::LOCATION));
             assert_eq!(decoded, HTML);
@@ -439,14 +442,14 @@ mod tests {
             let body = to_bytes(response.into_body(), 4096).await.unwrap();
 
             assert_eq!(status, StatusCode::NOT_FOUND, "{path} {accept}");
-            assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+            assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=10");
             assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
             assert!(!body.starts_with(b"<!doctype html>"));
         }
     }
 
     #[tokio::test]
-    async fn when_files_are_unversioned_then_responses_should_require_revalidation() {
+    async fn when_files_are_unversioned_then_responses_should_allow_stale_while_revalidating() {
         let directory = fixtures();
         let app = app(&directory).await;
 
@@ -458,7 +461,7 @@ mod tests {
             assert_eq!(response.status(), StatusCode::OK, "{path}");
             assert_eq!(
                 response.headers()[header::CACHE_CONTROL],
-                "public, no-cache"
+                "public, max-age=0, stale-while-revalidate=86400"
             );
         }
     }
@@ -536,7 +539,10 @@ mod tests {
 
                 assert_eq!(status, StatusCode::OK);
                 assert_eq!(headers[header::CONTENT_TYPE], "text/plain; charset=utf-8");
-                assert_eq!(headers[header::CACHE_CONTROL], "public, no-cache");
+                assert_eq!(
+                    headers[header::CACHE_CONTROL],
+                    "public, max-age=0, stale-while-revalidate=86400"
+                );
                 assert_eq!(headers[header::CONTENT_LENGTH], ROBOTS.len().to_string());
                 assert_eq!(
                     body.as_ref(),
@@ -551,7 +557,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_static_method_is_unsupported_then_response_should_be_uncacheable_method_not_allowed()
+    async fn when_static_method_is_unsupported_then_response_should_be_briefly_cacheable_method_not_allowed()
      {
         let directory = fixtures();
         let app = app(&directory).await;
@@ -569,7 +575,10 @@ mod tests {
 
                 assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
                 assert_eq!(response.headers()[header::ALLOW], "GET,HEAD");
-                assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+                assert_eq!(
+                    response.headers()[header::CACHE_CONTROL],
+                    "public, max-age=10"
+                );
                 assert_eq!(
                     response.headers()[header::X_CONTENT_TYPE_OPTIONS],
                     "nosniff"
@@ -604,7 +613,10 @@ mod tests {
             let response = app.clone().oneshot(request).await.unwrap();
 
             assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
-            assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+            assert_eq!(
+                response.headers()[header::CACHE_CONTROL],
+                "public, max-age=10"
+            );
             assert_eq!(
                 response.headers()[header::X_CONTENT_TYPE_OPTIONS],
                 "nosniff"

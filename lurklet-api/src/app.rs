@@ -1,8 +1,8 @@
 use crate::ResponseCache;
 use crate::error::{ApiError, Problem};
 use crate::middleware::{
-    RateLimit, access_log, api_cache_policy, api_content_security_policy, content_type_options,
-    limit_requests, response_compression,
+    ApiCacheOptions, RateLimit, access_log, api_cache_policy, api_content_security_policy,
+    content_type_options, limit_requests, response_compression,
 };
 use crate::routes;
 use axum::Router;
@@ -29,6 +29,7 @@ pub fn application<B: RedditBackend + 'static>(
     reddit: RedditClient<B>,
     rate_limit: &RateLimit,
     cache: Option<&ResponseCache>,
+    cache_options: &ApiCacheOptions,
 ) -> Router {
     let (health, _) = routes::health().split_for_parts();
     let health = health.method_not_allowed_fallback(|| async {
@@ -45,11 +46,17 @@ pub fn application<B: RedditBackend + 'static>(
         .merge(routes::list_subreddit_posts())
         .split_for_parts();
     let json_routes = json_routes.fallback(|| async { ApiError::NotFound });
-    let json_api = data_api(json_routes, reddit.clone(), rate_limit, cache)
-        .merge(health)
-        .layer(middleware::from_fn(response_compression));
+    let json_api = data_api(
+        json_routes,
+        reddit.clone(),
+        rate_limit,
+        cache,
+        cache_options,
+    )
+    .merge(health)
+    .layer(middleware::from_fn(response_compression));
     let (media_routes, _) = routes::get_media().split_for_parts();
-    let media_api = data_api(media_routes, reddit, rate_limit, cache);
+    let media_api = data_api(media_routes, reddit, rate_limit, cache, cache_options);
     let api = json_api
         .merge(media_api)
         .layer(middleware::from_fn(api_cache_policy))
@@ -80,10 +87,12 @@ fn data_api<B: RedditBackend + 'static>(
     reddit: RedditClient<B>,
     rate_limit: &RateLimit,
     cache: Option<&ResponseCache>,
+    cache_options: &ApiCacheOptions,
 ) -> Router {
-    let mut api = routes
+    let api = routes
         .method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed })
         .with_state(reddit);
+    let mut api = cache_options.wrap(api);
     if let Some(cache) = cache {
         api = cache.wrap(api);
     }
@@ -98,20 +107,27 @@ mod tests {
     use super::*;
     use crate::{RateLimitOptions, StaticHost};
     use assert_fs::prelude::*;
-    use axum::Extension;
     use axum::body::{Body, to_bytes};
     use axum::extract::{ConnectInfo, State};
     use axum::http::{HeaderMap, HeaderValue, Method, Request, StatusCode, header};
     use axum::response::Html;
     use axum::routing::get;
+    use axum::{Extension, Json};
     use lurklet_reddit::{StateStore, Storage};
     use serde_json::{Value, json};
     use std::net::SocketAddr;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use tower::ServiceExt;
 
     fn application() -> Router {
         let reddit = RedditClient::builder().build().unwrap();
-        let app = super::application(reddit, &RateLimit::default(), None);
+        let app = super::application(
+            reddit,
+            &RateLimit::default(),
+            None,
+            &ApiCacheOptions::default(),
+        );
         let peer: SocketAddr = "192.0.2.1:1234".parse().unwrap();
         app.layer(Extension(ConnectInfo(peer)))
     }
@@ -152,7 +168,13 @@ mod tests {
                 "/resource",
                 get(|State(_reddit): State<RedditClient>| async { StatusCode::NO_CONTENT }),
             );
-            let app = data_api(routes, reddit.clone(), &RateLimit::default(), cache);
+            let app = data_api(
+                routes,
+                reddit.clone(),
+                &RateLimit::default(),
+                cache,
+                &ApiCacheOptions::default(),
+            );
             let request = Request::builder()
                 .uri("/resource")
                 .extension(ConnectInfo("192.0.2.1:1234".parse::<SocketAddr>().unwrap()))
@@ -167,8 +189,85 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn when_api_freshness_is_configured_then_response_headers_and_disk_expiration_should_agree()
+     {
+        for seconds in [0, 42, 3600] {
+            for caching in [false, true] {
+                let directory = assert_fs::TempDir::new().unwrap();
+                let cache = ResponseCache::new(directory.path()).await.unwrap();
+                let calls = Arc::new(AtomicUsize::new(0));
+                let routes = Router::new().route(
+                    "/resource",
+                    get({
+                        let calls = calls.clone();
+                        move || {
+                            calls.fetch_add(1, Ordering::SeqCst);
+                            async { Json(json!({"value": "fresh"})) }
+                        }
+                    }),
+                );
+                let app = data_api(
+                    routes,
+                    RedditClient::builder().build().unwrap(),
+                    &RateLimit::default(),
+                    caching.then_some(&cache),
+                    &ApiCacheOptions {
+                        api_cache_max_age_seconds: seconds,
+                    },
+                );
+
+                for attempt in 0..2 {
+                    let request = Request::builder()
+                        .uri("/resource")
+                        .extension(ConnectInfo("192.0.2.1:1234".parse::<SocketAddr>().unwrap()))
+                        .body(Body::empty())
+                        .unwrap();
+
+                    let response = app.clone().oneshot(request).await.unwrap();
+                    let headers = response.headers().clone();
+                    let status = response.status();
+                    let body = to_bytes(response.into_body(), 4096).await.unwrap();
+
+                    assert_eq!(status, StatusCode::OK);
+                    assert_eq!(
+                        headers[header::CACHE_CONTROL],
+                        format!("public, max-age={seconds}")
+                    );
+                    assert_eq!(
+                        serde_json::from_slice::<Value>(&body).unwrap(),
+                        json!({"value": "fresh"})
+                    );
+                    assert_eq!(
+                        headers.get("x-lurklet-cache"),
+                        caching
+                            .then(
+                                || HeaderValue::from_static(if attempt == 0 || seconds == 0 {
+                                    "miss"
+                                } else {
+                                    "hit"
+                                })
+                            )
+                            .as_ref(),
+                    );
+                }
+                assert_eq!(
+                    calls.load(Ordering::SeqCst),
+                    if caching && seconds > 0 { 1 } else { 2 }
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
     async fn when_health_is_requested_through_the_api_then_response_should_disable_caching() {
-        let app = application();
+        let app = super::application(
+            RedditClient::builder().build().unwrap(),
+            &RateLimit::default(),
+            None,
+            &ApiCacheOptions {
+                api_cache_max_age_seconds: 42,
+            },
+        );
         let request = Request::builder()
             .uri("/api/health")
             .body(Body::empty())
@@ -184,7 +283,12 @@ mod tests {
     #[tokio::test]
     async fn when_client_ip_is_unavailable_then_internal_errors_should_keep_browser_policies() {
         let reddit = RedditClient::builder().build().unwrap();
-        let app = super::application(reddit, &RateLimit::default(), None);
+        let app = super::application(
+            reddit,
+            &RateLimit::default(),
+            None,
+            &ApiCacheOptions::default(),
+        );
         let request = Request::builder()
             .uri("/api/media")
             .body(Body::empty())
@@ -209,7 +313,7 @@ mod tests {
             ..RateLimitOptions::default()
         });
         let reddit = RedditClient::builder().build().unwrap();
-        let app = super::application(reddit, &limiter, None);
+        let app = super::application(reddit, &limiter, None, &ApiCacheOptions::default());
         let peer: SocketAddr = "192.0.2.1:1234".parse().unwrap();
         let app = app
             .fallback_service(StaticHost::new(directory.path()).await.unwrap().router())
@@ -402,11 +506,16 @@ mod tests {
             .unwrap();
         to_bytes(response.into_body(), 4096).await.unwrap();
         let reddit = RedditClient::builder().build().unwrap();
-        let app = super::application(reddit, &RateLimit::default(), Some(&cache))
-            .fallback_service(StaticHost::new(directory.path()).await.unwrap().router())
-            .layer(Extension(ConnectInfo(
-                "192.0.2.1:1234".parse::<SocketAddr>().unwrap(),
-            )));
+        let app = super::application(
+            reddit,
+            &RateLimit::default(),
+            Some(&cache),
+            &ApiCacheOptions::default(),
+        )
+        .fallback_service(StaticHost::new(directory.path()).await.unwrap().router())
+        .layer(Extension(ConnectInfo(
+            "192.0.2.1:1234".parse::<SocketAddr>().unwrap(),
+        )));
 
         for accept in [
             "gzip, br, deflate, zstd",
@@ -625,7 +734,7 @@ mod tests {
             ..RateLimitOptions::default()
         });
         let reddit = RedditClient::builder().build().unwrap();
-        let app = super::application(reddit, &limiter, Some(&cache));
+        let app = super::application(reddit, &limiter, Some(&cache), &ApiCacheOptions::default());
         for _ in 0..12 {
             let response = app
                 .clone()
@@ -749,9 +858,15 @@ mod tests {
                 let response = seed.oneshot(request).await.unwrap();
                 to_bytes(response.into_body(), 4096).await.unwrap();
                 let reddit = RedditClient::builder().build().unwrap();
-                let app = super::application(reddit, &RateLimit::default(), Some(&cache)).layer(
-                    Extension(ConnectInfo("192.0.2.1:1234".parse::<SocketAddr>().unwrap())),
-                );
+                let app = super::application(
+                    reddit,
+                    &RateLimit::default(),
+                    Some(&cache),
+                    &ApiCacheOptions::default(),
+                )
+                .layer(Extension(ConnectInfo(
+                    "192.0.2.1:1234".parse::<SocketAddr>().unwrap(),
+                )));
 
                 for method in [Method::GET, Method::HEAD] {
                     let request = Request::builder()
@@ -792,7 +907,12 @@ mod tests {
         let cache_directory = assert_fs::TempDir::new().unwrap();
         let cache = ResponseCache::new(cache_directory.path()).await.unwrap();
         let reddit = RedditClient::builder().build().unwrap();
-        let app = super::application(reddit, &RateLimit::default(), Some(&cache));
+        let app = super::application(
+            reddit,
+            &RateLimit::default(),
+            Some(&cache),
+            &ApiCacheOptions::default(),
+        );
         let app = app
             .fallback_service(StaticHost::new(directory.path()).await.unwrap().router())
             .layer(Extension(ConnectInfo(

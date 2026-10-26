@@ -2,7 +2,6 @@ use crate::error::ApiError;
 use axum::Json;
 use axum::extract::rejection::{PathRejection, QueryRejection};
 use axum::extract::{Path, Query, State};
-use axum::http::header;
 use axum::response::IntoResponse;
 use chrono::{DateTime, Utc};
 use lurklet_reddit::{
@@ -14,8 +13,6 @@ use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
-
-const CACHE_POLICY: &str = "public, max-age=300";
 
 #[derive(Deserialize, IntoParams)]
 #[serde(rename_all = "camelCase")]
@@ -212,19 +209,16 @@ async fn list_subreddit_posts<B: RedditBackend>(
             RedditError::InvalidRequest { field: "after" } => ApiError::BadRequest,
             error => error.into(),
         })?;
-    Ok((
-        [(header::CACHE_CONTROL, CACHE_POLICY)],
-        Json(SubredditPage::from(page)),
-    ))
+    Ok(Json(SubredditPage::from(page)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ResponseCache;
+    use crate::{ApiCacheOptions, ResponseCache};
     use axum::Router;
     use axum::body::{Body, to_bytes};
-    use axum::http::{Method, Request, StatusCode};
+    use axum::http::{Method, Request, StatusCode, header};
     use axum::routing::get;
     use lurklet_reddit::{
         AnonymousSession, CommentForest, CommentSort, CommentThread, MediaFile, Post as RedditPost,
@@ -338,11 +332,12 @@ mod tests {
         calls: Arc<Mutex<Vec<ListingCall>>>,
     ) -> Router {
         let reddit = RedditClient::from_backend(FakeBackend { result, calls });
-        router()
+        let routes = router()
             .split_for_parts()
             .0
             .method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed })
-            .with_state(reddit)
+            .with_state(reddit);
+        ApiCacheOptions::default().wrap(routes)
     }
 
     fn request(uri: &str) -> Request<Body> {
@@ -511,7 +506,7 @@ mod tests {
 
         assert_eq!(status, StatusCode::OK);
         assert_eq!(headers[header::CONTENT_TYPE], "application/json");
-        assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=300");
+        assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=3600");
         assert_eq!(calls.lock().unwrap().len(), 1);
         assert_eq!(
             serde_json::from_slice::<Value>(&body).unwrap(),
@@ -634,7 +629,7 @@ mod tests {
             assert_eq!(response.headers()["x-lurklet-cache"], outcome, "{uri}");
             assert_eq!(
                 response.headers()[header::CACHE_CONTROL],
-                "public, max-age=300"
+                "public, max-age=3600"
             );
             to_bytes(response.into_body(), 16_384).await.unwrap();
         }

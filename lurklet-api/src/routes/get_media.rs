@@ -11,8 +11,6 @@ use utoipa::IntoParams;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
-const CACHE_POLICY: &str = "public, max-age=300";
-
 #[derive(Deserialize, IntoParams)]
 #[serde(rename_all = "camelCase")]
 #[into_params(parameter_in = Query)]
@@ -64,10 +62,6 @@ async fn get_media<B: RedditBackend>(
     response
         .headers_mut()
         .insert(header::CONTENT_TYPE, content_type);
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static(CACHE_POLICY),
-    );
     if let Some(length) = media.content_length {
         response.headers_mut().typed_insert(ContentLength(length));
     }
@@ -77,7 +71,7 @@ async fn get_media<B: RedditBackend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{RateLimit, ResponseCache, application};
+    use crate::{ApiCacheOptions, RateLimit, ResponseCache, application};
     use axum::Router;
     use axum::body::to_bytes;
     use axum::extract::ConnectInfo;
@@ -168,7 +162,7 @@ mod tests {
         calls: Arc<Mutex<Vec<String>>>,
         chunks: Arc<AtomicUsize>,
     ) -> Router {
-        router()
+        let routes = router()
             .split_for_parts()
             .0
             .with_state(RedditClient::from_backend(FakeBackend {
@@ -179,7 +173,8 @@ mod tests {
                 length,
                 calls,
                 chunks,
-            }))
+            }));
+        ApiCacheOptions::default().wrap(routes)
     }
 
     fn request() -> Request<Body> {
@@ -211,7 +206,7 @@ mod tests {
             assert_eq!(response.headers()[header::CONTENT_TYPE], "video/mp4");
             assert_eq!(
                 response.headers()[header::CACHE_CONTROL],
-                "public, max-age=300"
+                "public, max-age=3600"
             );
             assert_eq!(
                 response
@@ -252,7 +247,14 @@ mod tests {
                 calls: calls.clone(),
                 chunks: chunks.clone(),
             });
-            let app = application(reddit, &RateLimit::default(), caching.then_some(&cache));
+            let app = application(
+                reddit,
+                &RateLimit::default(),
+                caching.then_some(&cache),
+                &ApiCacheOptions {
+                    api_cache_max_age_seconds: 42,
+                },
+            );
 
             for (method, outcome) in [
                 (Method::HEAD, "miss"),
@@ -277,7 +279,10 @@ mod tests {
                     response.headers()[header::CONTENT_LENGTH],
                     expected.len().to_string()
                 );
-                assert_eq!(response.headers()[header::CACHE_CONTROL], CACHE_POLICY);
+                assert_eq!(
+                    response.headers()[header::CACHE_CONTROL],
+                    "public, max-age=42"
+                );
                 assert_eq!(
                     response.headers()[header::CONTENT_SECURITY_POLICY],
                     "default-src 'none'; sandbox; style-src 'unsafe-inline'; media-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
