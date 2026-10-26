@@ -90,7 +90,8 @@ COPY --from=frontend-build /app/lurklet-web/dist/ /app/static/
 COPY --from=backend-builder --chown=65532:65532 /cache /cache
 
 ENV LURKLET_BIND=0.0.0.0:3000 \
-    LURKLET_STATIC_DIR=/app/static
+    LURKLET_STATIC_DIR=/app/static \
+    LURKLET_STATE_FILE=/cache/state.json
 
 EXPOSE 3000/tcp
 VOLUME ["/cache"]
