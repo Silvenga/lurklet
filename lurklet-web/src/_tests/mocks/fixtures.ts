@@ -239,7 +239,13 @@ export const SUBREDDIT_PAGE_RESPONSE = {
     {
       id: "1xf9qev",
       title: "This Month in Redox OS - September 2026",
-      thumbnail: null,
+      thumbnail: {
+        url: "https://preview.redd.it/mock-redox.png?width=140&format=png",
+        width: 140,
+        height: 140,
+        isObfuscated: false,
+        obfuscatedUrl: null,
+      },
       score: 10,
       commentCount: 1,
       authorName: "ribbon_45",
@@ -251,7 +257,13 @@ export const SUBREDDIT_PAGE_RESPONSE = {
     {
       id: "1xeyq76",
       title: "I want more mobile apps to be developed in Rust",
-      thumbnail: null,
+      thumbnail: {
+        url: "https://preview.redd.it/mock-mobile.png?width=140&format=png",
+        width: 140,
+        height: 140,
+        isObfuscated: true,
+        obfuscatedUrl: "https://preview.redd.it/mock-mobile.png?width=140&blur=40&format=png",
+      },
       score: 30,
       commentCount: 41,
       authorName: "kosumi_dev",

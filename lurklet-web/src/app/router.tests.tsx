@@ -1411,6 +1411,10 @@ test("When navigating within a subreddit and returning to it then metadata shoul
         name: String(params.subreddit),
         title: `About r/${params.subreddit}`,
         descriptionMarkdown: null,
+        styles: {
+          ...SUBREDDIT_RESPONSE.styles,
+          iconUrl: `https://styles.redditmedia.com/${params.subreddit}.png`,
+        },
       });
     }),
     http.get("*/api/posts/:id", ({ params }) =>
@@ -1420,6 +1424,10 @@ test("When navigating within a subreddit and returning to it then metadata shoul
   const router = renderPath("/r/rust");
   const sidebar = await screen.findByRole("complementary");
   await within(sidebar).findByText("About r/rust");
+  const icon = within(sidebar).getByRole("img", { name: "r/rust icon" });
+  expect(new URL(icon.getAttribute("src")!).searchParams.get("url")).toBe(
+    "https://styles.redditmedia.com/rust.png",
+  );
 
   for (const path of [
     "/r/rust?sort=new",
@@ -1433,6 +1441,7 @@ test("When navigating within a subreddit and returning to it then metadata shoul
     });
     expect(screen.getByRole("complementary")).toBe(sidebar);
     expect(within(sidebar).getByText("About r/rust")).toBeVisible();
+    expect(within(sidebar).getByRole("img", { name: "r/rust icon" })).toBe(icon);
     expect(within(sidebar).queryByRole("status")).not.toBeInTheDocument();
   }
   expect(metadataRequests).toEqual(["rust"]);
@@ -1441,6 +1450,11 @@ test("When navigating within a subreddit and returning to it then metadata shoul
     await router.navigate("/r/typescript");
   });
   await within(sidebar).findByText("About r/typescript");
+  const nextIcon = within(sidebar).getByRole("img", { name: "r/typescript icon" });
+  expect(new URL(nextIcon.getAttribute("src")!).searchParams.get("url")).toBe(
+    "https://styles.redditmedia.com/typescript.png",
+  );
+  expect(nextIcon).not.toBe(icon);
   await act(async () => {
     await router.navigate("/");
   });

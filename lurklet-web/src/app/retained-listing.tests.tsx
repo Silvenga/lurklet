@@ -48,12 +48,19 @@ test("When paging then the old rows and pagination should remain mounted until t
   const content = screen.getByRole("region", { name: "Page content" });
   const list = within(content).getByRole("list");
   const pendingRegion = list.closest("[aria-busy]");
+  const thumbnailTitle = SUBREDDIT_PAGE_RESPONSE.posts[3]!.title;
+  await user.click(screen.getByRole("button", { name: `Reveal thumbnail for ${thumbnailTitle}` }));
+  const thumbnail = screen.getByRole("img", { name: `Thumbnail for ${thumbnailTitle}` });
 
   await user.click(screen.getByRole("link", { name: "Next" }));
 
   await waitFor(() => expect(pendingRegion).toHaveAttribute("aria-busy", "true"));
 
   expect(within(content).getByRole("list")).toBe(list);
+  expect(screen.getByRole("img", { name: `Thumbnail for ${thumbnailTitle}` })).toBe(thumbnail);
+  expect(
+    screen.queryByRole("button", { name: `Reveal thumbnail for ${thumbnailTitle}` }),
+  ).toBeNull();
   expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
   expect(pendingRegion).toHaveAttribute("aria-busy", "true");
   expect(pendingRegion).toHaveClass("opacity-80");
@@ -85,6 +92,9 @@ test("When paging then the old rows and pagination should remain mounted until t
   await user.click(screen.getByRole("link", { name: "First page" }));
 
   expect(await screen.findByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: `Reveal thumbnail for ${thumbnailTitle}` }),
+  ).toBeVisible();
   expect(pendingRegion).toHaveAttribute("aria-busy", "false");
   expect(within(content).queryByRole("status")).toBeNull();
   expect(requests).toBe(2);

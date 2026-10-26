@@ -1,23 +1,41 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 import { getSubredditOptions } from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
 import { DateAgo } from "@/components/DateAgo";
 import { Markdown } from "@/components/Markdown";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Media } from "@/features/media/components/Media";
 
 const NUMBER_FORMAT = new Intl.NumberFormat();
 const MARKDOWN_CLASS = "prose-sm max-w-none overflow-x-auto wrap-anywhere";
 
 export function SubredditMetadata({ subreddit }: { subreddit: string }) {
   const metadata = useQuery(getSubredditOptions({ path: { subreddit } }));
+  const details = metadata.isSuccess && metadata.data.kind === "available" ? metadata.data : null;
+  const iconUrl = details?.styles?.iconUrl || details?.styles?.legacyIconUrl;
+  const header = (
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex items-center gap-3">
+        {iconUrl && <Media kind="image" variant="icon" src={iconUrl} alt={`r/${subreddit} icon`} />}
+        <h2 className="min-w-0 text-lg font-medium">
+          <Link to={`/r/${encodeURIComponent(subreddit)}`}>r/{subreddit}</Link>
+        </h2>
+      </div>
+      {details?.title && <p className="font-medium">{details.title}</p>}
+    </div>
+  );
 
   if (metadata.isPending) {
     return (
-      <div role="status" className="flex flex-col gap-4">
-        <span className="sr-only">Loading subreddit details</span>
-        <Skeleton className="h-6 w-3/4" />
-        <Skeleton className="h-24 w-full" />
+      <div className="flex flex-col gap-4 wrap-anywhere select-text">
+        {header}
+        <div role="status" className="flex flex-col gap-4">
+          <span className="sr-only">Loading subreddit details</span>
+          <Skeleton className="h-6 w-3/4" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       </div>
     );
   }
@@ -27,14 +45,17 @@ export function SubredditMetadata({ subreddit }: { subreddit: string }) {
     const isNotFound =
       typeof error === "object" && error !== null && "status" in error && error.status === 404;
     return (
-      <Alert variant={isNotFound ? "default" : "destructive"}>
-        <AlertTitle>
-          {isNotFound ? "Subreddit details not found" : "Unable to load subreddit details"}
-        </AlertTitle>
-        <AlertDescription>
-          {isNotFound ? "No metadata was found for this subreddit." : "Please try again later."}
-        </AlertDescription>
-      </Alert>
+      <div className="flex flex-col gap-4 wrap-anywhere select-text">
+        {header}
+        <Alert variant={isNotFound ? "default" : "destructive"}>
+          <AlertTitle>
+            {isNotFound ? "Subreddit details not found" : "Unable to load subreddit details"}
+          </AlertTitle>
+          <AlertDescription>
+            {isNotFound ? "No metadata was found for this subreddit." : "Please try again later."}
+          </AlertDescription>
+        </Alert>
+      </div>
     );
   }
 
@@ -49,9 +70,9 @@ export function SubredditMetadata({ subreddit }: { subreddit: string }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-4 wrap-anywhere select-text">
+      {header}
       {value.kind === "available" ? (
         <>
-          {value.title && <p className="font-medium">{value.title}</p>}
           {value.shortDescription && (
             <p className="prose prose-sm dark:prose-invert max-w-none">{value.shortDescription}</p>
           )}

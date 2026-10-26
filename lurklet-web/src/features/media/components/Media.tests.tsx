@@ -109,3 +109,31 @@ test("When the media mock is requested then it should provide image bytes withou
     Uint8Array.from(atob(MEDIA_PNG_BASE64), (char) => char.charCodeAt(0)),
   );
 });
+
+test.each([
+  ["thumbnail", "size-16", "rounded-lg"],
+  ["icon", "size-10", "rounded-full"],
+] as const)(
+  "When an image uses the %s variant then it should keep fixed dimensions and a compact failure placeholder",
+  (variant, size, shape) => {
+    const src = "https://styles.redditmedia.com/community.png?width=64&token=a%2Bb";
+    const { container } = render(<Media kind="image" variant={variant} src={src} alt="Preview" />);
+    const image = screen.getByRole("img", { name: "Preview" });
+    const url = new URL(image.getAttribute("src")!);
+    expect(url.origin).toBe(location.origin);
+    expect(url.pathname).toBe("/api/media");
+    expect(url.searchParams.get("url")).toBe(src);
+    expect(image).toHaveClass(size, shape, "object-cover");
+    expect(image).not.toHaveClass("h-auto");
+    expect(image).toHaveAttribute("loading", "lazy");
+    expect(image).toHaveAttribute("referrerpolicy", "no-referrer");
+
+    fireEvent.error(image);
+
+    const fallback = screen.getByRole("img", { name: "Image unavailable: Preview" });
+    expect(fallback).toHaveClass(size, shape);
+    expect(fallback).toHaveTextContent("");
+    expect(fallback.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(container.querySelector("img, [src], [srcset]")).toBeNull();
+  },
+);

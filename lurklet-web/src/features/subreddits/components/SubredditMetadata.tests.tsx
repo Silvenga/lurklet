@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { expect, onTestFinished, test } from "vitest";
 import { SUBREDDIT_RESPONSE } from "@/_tests/mocks/fixtures";
@@ -73,7 +73,13 @@ test("When metadata is available then it should show the summary and accurately 
   expect(screen.queryByRole("heading", { name: "Observe our code of conduct" })).toBeNull();
   expect(container.querySelectorAll(".prose")).toHaveLength(1);
   expect(container.firstElementChild).toHaveClass("select-text");
-  expect(screen.queryByRole("img")).toBeNull();
+  const icon = screen.getByRole("img", { name: "r/rust icon" });
+  const iconUrl = new URL(icon.getAttribute("src")!);
+  expect(iconUrl.origin).toBe(location.origin);
+  expect(iconUrl.pathname).toBe("/api/media");
+  expect(iconUrl.searchParams.get("url")).toBe(SUBREDDIT_RESPONSE.styles.iconUrl);
+  expect(icon).toHaveClass("size-10", "rounded-full");
+  expect(screen.getByRole("link", { name: "r/rust" })).toHaveAttribute("href", "/r/rust");
 });
 
 test("When metadata fields are unknown then they should be omitted rather than inferred", () => {
@@ -90,10 +96,12 @@ test("When metadata fields are unknown then they should be omitted rather than i
     isNsfw: null,
     isQuarantined: null,
     isPostingRestricted: null,
+    styles: null,
   });
 
-  expect(container.textContent).toBe("");
+  expect(container.textContent).toBe("r/rust");
   expect(container.querySelector("dl, time, .prose")).toBeNull();
+  expect(screen.queryByRole("img")).toBeNull();
   expect(screen.queryByRole("alert")).toBeNull();
 });
 
@@ -183,4 +191,44 @@ test("When an unavailable community has no explanation then it should show a neu
   expect(screen.getByRole("alert")).toHaveTextContent("Subreddit unavailable");
   expect(screen.getByText("This subreddit is unavailable.")).toBeVisible();
   expect(screen.queryByText(/banned|private|deleted/i)).toBeNull();
+});
+
+test.each([null, ""])(
+  "When the primary subreddit icon is %j then the legacy icon should be proxied",
+  (iconUrl) => {
+    renderMetadata({
+      ...SUBREDDIT_RESPONSE,
+      styles: { ...SUBREDDIT_RESPONSE.styles, iconUrl },
+    });
+
+    const icon = screen.getByRole("img", { name: "r/rust icon" });
+
+    expect(new URL(icon.getAttribute("src")!).searchParams.get("url")).toBe(
+      SUBREDDIT_RESPONSE.styles.legacyIconUrl,
+    );
+  },
+);
+
+test("When neither subreddit icon is available then the heading should render without an image", () => {
+  renderMetadata({
+    ...SUBREDDIT_RESPONSE,
+    styles: { ...SUBREDDIT_RESPONSE.styles, iconUrl: null, legacyIconUrl: null },
+  });
+
+  expect(screen.getByRole("heading", { name: "r/rust" })).toBeVisible();
+  expect(screen.getByText(SUBREDDIT_RESPONSE.title)).toBeVisible();
+  expect(screen.queryByRole("img")).toBeNull();
+});
+
+test("When the subreddit icon fails then its placeholder should not hide metadata or request an upstream fallback", () => {
+  const { container } = renderMetadata(SUBREDDIT_RESPONSE);
+
+  fireEvent.error(screen.getByRole("img", { name: "r/rust icon" }));
+
+  expect(screen.getByRole("img", { name: "Image unavailable: r/rust icon" })).toHaveClass(
+    "size-10",
+  );
+  expect(screen.getByRole("link", { name: "r/rust" })).toBeVisible();
+  expect(screen.getByText(SUBREDDIT_RESPONSE.title)).toBeVisible();
+  expect(container.querySelector("img, [src], [srcset]")).toBeNull();
 });

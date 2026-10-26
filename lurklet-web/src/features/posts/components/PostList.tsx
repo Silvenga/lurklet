@@ -3,6 +3,7 @@ import type { ListedPost } from "@/clients/lurklet-api/generated/types.gen";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { PostMetadata } from "./PostMetadata";
+import { PostThumbnail } from "./PostThumbnail";
 
 type PostListProps = {
   subreddit: string;
@@ -24,24 +25,34 @@ export function PostList({ subreddit, posts }: PostListProps) {
   return (
     <ul className="flex flex-col gap-6">
       {posts.map((post) => (
-        <li key={post.id} className="flex flex-col gap-2 select-text">
-          <div className="flex items-start gap-2">
-            <h2 className="min-w-0 flex-1 text-lg font-medium">
-              <Link
-                className="hover:underline"
-                to={`/r/${encodeURIComponent(subreddit)}/comments/${encodeURIComponent(post.id)}`}
-              >
-                {post.title ?? `Post ${post.id}`}
-              </Link>
-            </h2>
-            {post.isPinned && <Badge variant="secondary">Pinned</Badge>}
+        <li key={post.id} className="flex items-start gap-3 select-text">
+          {post.thumbnail && (
+            <PostThumbnail
+              key={post.thumbnail.url}
+              thumbnail={post.thumbnail}
+              title={post.title ?? `Post ${post.id}`}
+              isSensitive={post.isNsfw || post.isSpoiler || post.thumbnail.isObfuscated === true}
+            />
+          )}
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <div className="flex items-start gap-2">
+              <h2 className="min-w-0 flex-1 text-lg font-medium wrap-anywhere">
+                <Link
+                  className="hover:underline"
+                  to={`/r/${encodeURIComponent(subreddit)}/comments/${encodeURIComponent(post.id)}`}
+                >
+                  {post.title ?? `Post ${post.id}`}
+                </Link>
+              </h2>
+              {post.isPinned && <Badge variant="secondary">Pinned</Badge>}
+            </div>
+            <PostMetadata
+              authorName={post.authorName}
+              createdAt={post.createdAt}
+              score={post.score}
+              commentCount={post.commentCount}
+            />
           </div>
-          <PostMetadata
-            authorName={post.authorName}
-            createdAt={post.createdAt}
-            score={post.score}
-            commentCount={post.commentCount}
-          />
         </li>
       ))}
     </ul>

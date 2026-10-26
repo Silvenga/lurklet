@@ -1,3 +1,5 @@
+import { cn } from "cn";
+import { ImageOffIcon } from "lucide-react";
 import { useState, type ComponentProps } from "react";
 import { client } from "@/clients/lurklet-api/generated/client.gen";
 import type { GetMediaData } from "@/clients/lurklet-api/generated/types.gen";
@@ -7,11 +9,20 @@ export function Media({
   alt,
   title,
   kind,
-}: Pick<ComponentProps<"img">, "src" | "alt" | "title"> & { kind?: "image" | "video" }) {
+  variant = "content",
+}: Pick<ComponentProps<"img">, "src" | "alt" | "title"> & {
+  kind?: "image" | "video";
+  variant?: "content" | "thumbnail" | "icon";
+}) {
   const [failedSource, setFailedSource] = useState<string | null>(null);
   if (failedSource !== null && failedSource !== src) {
     setFailedSource(null);
   }
+  const compactClassName = cn(
+    variant !== "content" && "shrink-0 select-none",
+    variant === "thumbnail" && "size-16 rounded-lg",
+    variant === "icon" && "size-10 rounded-full",
+  );
 
   if (src && kind !== "video" && failedSource !== src) {
     return (
@@ -23,7 +34,12 @@ export function Media({
         loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"
-        className="inline-block h-auto max-w-full self-start rounded-lg align-middle"
+        className={cn(
+          variant === "content"
+            ? "inline-block h-auto max-w-full self-start rounded-lg align-middle"
+            : "bg-muted block object-cover",
+          compactClassName,
+        )}
         onError={() => setFailedSource(src)}
       />
     );
@@ -37,9 +53,19 @@ export function Media({
       role="img"
       aria-label={label}
       title={title}
-      className="text-muted-foreground wrap-anywhere"
+      className={cn(
+        "text-muted-foreground",
+        variant === "content"
+          ? "wrap-anywhere"
+          : "bg-muted inline-flex items-center justify-center",
+        compactClassName,
+      )}
     >
-      [{label}]
+      {variant === "content" ? (
+        `[${label}]`
+      ) : (
+        <ImageOffIcon aria-hidden="true" className="size-4" />
+      )}
     </span>
   );
 }
