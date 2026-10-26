@@ -108,6 +108,7 @@ test.each(SUGGESTIONS)(
     const user = userEvent.setup();
     renderHome();
 
+    await user.hover(document.body);
     await user.hover(screen.getByRole("link", { name: `r/${name}` }));
 
     expect(await screen.findByRole("tooltip")).toHaveTextContent(description);

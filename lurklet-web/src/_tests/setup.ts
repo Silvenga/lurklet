@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, configure } from "@testing-library/react";
+import { cleanup } from "@testing-library/react";
 import { Agent, getGlobalDispatcher, setGlobalDispatcher } from "undici";
 import { afterAll, afterEach, beforeAll, beforeEach, expect } from "vitest";
 import { server } from "./mocks/server";
@@ -8,8 +8,6 @@ import { networkGuard } from "./network-guard";
 
 const previousDispatcher = getGlobalDispatcher();
 let dispatcher: Agent;
-
-configure({ asyncUtilTimeout: 250 });
 
 beforeAll(() => {
   expect(networkGuard.violations).toEqual([]);
