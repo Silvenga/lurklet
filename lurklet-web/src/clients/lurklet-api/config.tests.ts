@@ -6,6 +6,7 @@ import { http, HttpResponse } from "msw/http";
 import { afterAll, expect, expectTypeOf, test, vi } from "vitest";
 import { HEALTH_RESPONSE } from "@/_tests/mocks/fixtures";
 import { server } from "@/_tests/mocks/server";
+import { networkGuard } from "@/_tests/network-guard";
 import type { Health, Problem } from "./generated/types.gen";
 
 vi.stubGlobal("location", new URL("http://localhost:3000"));
@@ -91,7 +92,7 @@ test("When the caller aborts then the client should cancel the pending request",
   await expect(result).rejects.toMatchObject({ name: "AbortError" });
 });
 
-test.each(["/api", "/api/unhandled"])(
+test.each(["/api", "/api/unhandled", "/unhandled"])(
   "When %s has no mock handler then its request should fail instead of reaching a server",
   async (path) => {
     let liveRequests = 0;
@@ -112,6 +113,9 @@ test.each(["/api", "/api/unhandled"])(
       await expect(result).rejects.toThrow();
       expect(log).toHaveBeenCalled();
       expect(liveRequests).toBe(0);
+      expect(networkGuard.violations.splice(0)).toEqual([
+        `Unhandled test request: http://127.0.0.1:${address.port}${path}`,
+      ]);
     } finally {
       log.mockRestore();
       backend.closeAllConnections();

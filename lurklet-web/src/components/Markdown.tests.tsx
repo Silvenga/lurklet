@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
 import { Markdown } from "./Markdown";
@@ -76,7 +76,7 @@ test("When Markdown contains a fenced code block then its contents should remain
   expect(container.querySelector("strong")).toBeNull();
 });
 
-test("When Markdown contains links and images then links should use their policy and images should be placeholders", () => {
+test("When Markdown contains links and images then links should use their policy and images should use the media proxy", () => {
   const content = [
     "[Subreddit](/r/example)",
     "[External](https://example.com/post)",
@@ -95,10 +95,13 @@ test("When Markdown contains links and images then links should use their policy
     "rel",
     "noopener noreferrer nofollow ugc external",
   );
-  const image = screen.getByRole("img", { name: "Media unavailable: Example image" });
-  expect(image).not.toHaveAttribute("src");
+  const image = screen.getByRole("img", { name: "Example image" });
+  const url = new URL(image.getAttribute("src")!);
+  expect(url.origin).toBe(location.origin);
+  expect(url.pathname).toBe("/api/media");
+  expect(url.searchParams.get("url")).toBe("https://images.example.test/example.png");
   expect(image).toHaveAttribute("title", "Image title");
-  expect(container.querySelector("img, video, audio, iframe, source")).toBeNull();
+  expect(container.querySelector("video, audio, iframe, source")).toBeNull();
 });
 
 test("When Markdown contains raw HTML then it should render as text rather than executable elements", () => {
@@ -252,32 +255,53 @@ test("When a Reddit path begins with two slashes then rewriting should not turn 
   expect(url.hash).toBe("#fragment");
 });
 
-test("When an image is inline inside a link then its media placeholder should preserve valid paragraph structure", () => {
+test("When an image is inline inside a link then its proxied image and failure placeholder should preserve valid paragraph structure", () => {
   const { container } = renderMarkdown(
     'Before [![A Rust diagram](https://i.redd.it/example.png "Diagram title")](https://www.reddit.com/r/rust) after.',
   );
 
-  const media = screen.getByRole("img", { name: "Media unavailable: A Rust diagram" });
-  const link = screen.getByRole("link", { name: "Media unavailable: A Rust diagram" });
-  expect(media.tagName).toBe("SPAN");
+  const media = screen.getByRole("img", { name: "A Rust diagram" });
+  const link = screen.getByRole("link", { name: "A Rust diagram" });
+  expect(media.tagName).toBe("IMG");
   expect(media).toHaveAttribute("title", "Diagram title");
   expect(link).toHaveAttribute("href", "/r/rust");
   expect(link).toContainElement(media);
-  expect(media.closest("p")).toHaveTextContent("Before [Media unavailable: A Rust diagram] after.");
-  expect(container.querySelector("p div, p figure, img, video, audio, iframe, source")).toBeNull();
+  expect(media.closest("p")).toHaveTextContent("Before after.");
+  expect(container.querySelector("p div, p figure, video, audio, iframe, source")).toBeNull();
+
+  fireEvent.error(media);
+
+  const placeholder = screen.getByRole("img", { name: "Media unavailable: A Rust diagram" });
+  expect(link).toContainElement(placeholder);
+  expect(placeholder.closest("p")).toHaveTextContent(
+    "Before [Media unavailable: A Rust diagram] after.",
+  );
+  expect(container.querySelector("p div, p figure, img")).toBeNull();
 });
 
-test.each(["https://i.redd.it/example.png", "/media/example.png", "data:image/png;base64,example"])(
-  "When inline media uses %s without alt text then a non-fetching placeholder should appear",
+test.each(["https://i.redd.it/example.png", "/media/example.png"])(
+  "When inline media uses %s without alt text then its source should only be passed to the media API",
   (src) => {
     const { container } = renderMarkdown(`![](${src})`);
 
-    expect(screen.getByRole("img", { name: "Media unavailable" })).toBeVisible();
+    const image = container.querySelector("img");
+    expect(image).toHaveAttribute("alt", "");
+    const url = new URL(image!.getAttribute("src")!);
+    expect(url.origin).toBe(location.origin);
+    expect(url.pathname).toBe("/api/media");
+    expect(url.searchParams.get("url")).toBe(src);
     expect(
-      container.querySelector("[src], [srcset], video, audio, iframe, source, object, embed"),
+      container.querySelector("[srcset], video, audio, iframe, source, object, embed"),
     ).toBeNull();
   },
 );
+
+test("When the Markdown URL filter removes an unsafe image source then it should remain a non-fetching placeholder", () => {
+  const { container } = renderMarkdown("![](data:image/png;base64,example)");
+
+  expect(screen.getByRole("img", { name: "Media unavailable" })).toBeVisible();
+  expect(container.querySelector("img, [src], [srcset]")).toBeNull();
+});
 
 test("When raw HTML contains media then it should remain text rather than create media or embeds", () => {
   const html =

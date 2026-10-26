@@ -9,6 +9,9 @@ import type {
 
 export const HEALTH_RESPONSE = { health: "ok" } satisfies Health;
 
+export const MEDIA_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAADklEQVR4nGP4z8AAQv8BD/kD/YURmXYAAAAASUVORK5CYII=";
+
 export const COMMENTS_RESPONSE = {
   appliedSort: "best",
   items: [

@@ -28,7 +28,11 @@ test("When attachments mix links images and videos then their order and link pol
     "SPAN",
     "A",
   ]);
-  expect(screen.getByRole("img", { name: "Image unavailable: A diagram" })).toBeVisible();
+  const image = screen.getByRole("img", { name: "A diagram" });
+  expect(image.tagName).toBe("IMG");
+  expect(new URL(image.getAttribute("src")!).searchParams.get("url")).toBe(
+    "https://images.example.com/image.png",
+  );
   expect(screen.getByText("Diagram caption").tagName).toBe("FIGCAPTION");
   expect(screen.getByRole("img", { name: "Video unavailable" })).toBeVisible();
   expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
@@ -42,7 +46,7 @@ test("When attachments mix links images and videos then their order and link pol
 });
 
 test.each([null, ""])(
-  "When an image has %j text fields then it should show a generic placeholder without a caption",
+  "When an image has %j text fields then it should preserve its alt text choice without a caption",
   (text) => {
     const { container } = render(
       <PostAttachments
@@ -57,7 +61,7 @@ test.each([null, ""])(
       />,
     );
 
-    expect(screen.getByRole("img", { name: "Image unavailable" })).toBeVisible();
+    expect(container.querySelector("img")).toHaveAttribute("alt", text ?? "Image");
     expect(container.querySelector("figcaption")).toBeNull();
   },
 );
@@ -78,7 +82,7 @@ test("When image text contains markup then it should remain plain text", () => {
     />,
   );
 
-  expect(screen.getByRole("img", { name: "Image unavailable: <em>Diagram</em>" })).toBeVisible();
+  expect(screen.getByRole("img", { name: "<em>Diagram</em>" })).toBeVisible();
   expect(screen.getByText(caption)).toBeVisible();
   expect(container.querySelector("script, em, strong")).toBeNull();
 });
@@ -101,12 +105,6 @@ test.each([
     const { container } = render(
       <PostAttachments
         attachments={[
-          {
-            kind: "image",
-            url: "https://images.example.com/image.png",
-            altText: null,
-            caption: null,
-          },
           { kind: "video", posterUrl: "https://images.example.com/poster.png", sources },
         ]}
       />,

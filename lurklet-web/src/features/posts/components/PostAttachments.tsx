@@ -20,7 +20,7 @@ export function PostAttachments({ attachments }: { attachments: PostAttachment[]
           case "image":
             return (
               <figure key={index} className="flex flex-col gap-2">
-                <Media kind="image" alt={attachment.altText ?? undefined} />
+                <Media kind="image" src={attachment.url} alt={attachment.altText ?? undefined} />
                 {attachment.caption && (
                   <figcaption className="text-muted-foreground text-sm wrap-anywhere">
                     {attachment.caption}

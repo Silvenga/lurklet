@@ -1,14 +1,36 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll } from "vitest";
-import { MOCK_OPTIONS } from "./mocks/options";
+import { cleanup, configure } from "@testing-library/react";
+import { Agent, getGlobalDispatcher, setGlobalDispatcher } from "undici";
+import { afterAll, afterEach, beforeAll, beforeEach, expect } from "vitest";
 import { server } from "./mocks/server";
+import { TEST_MOCK_OPTIONS } from "./mocks/test-options";
+import { networkGuard } from "./network-guard";
 
-beforeAll(() => server.listen(MOCK_OPTIONS));
+const previousDispatcher = getGlobalDispatcher();
+let dispatcher: Agent;
 
-afterEach(() => {
-  cleanup();
-  server.resetHandlers();
+configure({ asyncUtilTimeout: 250 });
+
+beforeAll(() => {
+  expect(networkGuard.violations).toEqual([]);
+  networkGuard.phase = "mocking";
+  server.listen(TEST_MOCK_OPTIONS);
 });
 
-afterAll(() => server.close());
+beforeEach(() => {
+  dispatcher = new Agent();
+  setGlobalDispatcher(dispatcher);
+});
+
+afterEach(async () => {
+  cleanup();
+  await dispatcher.destroy();
+  server.resetHandlers();
+  expect(networkGuard.violations.splice(0)).toEqual([]);
+});
+
+afterAll(() => {
+  networkGuard.phase = "closed";
+  server.close();
+  setGlobalDispatcher(previousDispatcher);
+});

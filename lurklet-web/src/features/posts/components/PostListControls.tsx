@@ -11,15 +11,9 @@ export function PostListControls({ sort, timeRange }: PostListControlsProps) {
   const [searchParams, setSearchParams] = useSearchParams();
 
   return (
-    <div
-      className="flex max-w-full scroll-p-1 items-center gap-3 overflow-x-auto p-1"
-      onFocusCapture={(event) => {
-        event.target.scrollIntoView({ block: "nearest", inline: "nearest" });
-      }}
-    >
+    <div className="flex flex-col gap-3">
       <ToggleGroup
         aria-label="Sort"
-        className="shrink-0"
         variant="outline"
         spacing={0}
         selectionMode="single"
@@ -46,9 +40,10 @@ export function PostListControls({ sort, timeRange }: PostListControlsProps) {
       {sort === "top" && (
         <ToggleGroup
           aria-label="Time range"
-          className="shrink-0"
+          className="max-w-full overflow-x-auto"
           variant="outline"
           spacing={0}
+          size="sm"
           selectionMode="single"
           disallowEmptySelection
           selectedKeys={[timeRange ?? "all"]}

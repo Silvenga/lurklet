@@ -24,7 +24,10 @@ export default defineConfig(({ command, mode }) => ({
     },
   },
   test: {
-    environment: "happy-dom",
+    environment: "./src/_tests/environment.ts",
+    testTimeout: 1000,
+    hookTimeout: 1000,
+    teardownTimeout: 1000,
     setupFiles: ["./src/_tests/setup.ts"],
     include: ["src/**/*.tests.{ts,tsx}", "scripts/**/*.tests.ts"],
   },

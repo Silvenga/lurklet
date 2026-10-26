@@ -4,6 +4,7 @@ import {
   COMMENTS_RESPONSE,
   COMMENT_THREAD_RESPONSE,
   HEALTH_RESPONSE,
+  MEDIA_PNG_BASE64,
   POST_RESPONSE,
   SUBREDDIT_NEXT_PAGE_RESPONSE,
   SUBREDDIT_PAGE_RESPONSE,
@@ -11,6 +12,17 @@ import {
 } from "./fixtures";
 
 export const handlers = [
+  http.get("*/api/media", ({ request }) =>
+    new URL(request.url).searchParams.get("url")
+      ? HttpResponse.arrayBuffer(
+          Uint8Array.from(atob(MEDIA_PNG_BASE64), (char) => char.charCodeAt(0)).buffer,
+          { headers: { "Content-Type": "image/png", "Cache-Control": "no-store" } },
+        )
+      : HttpResponse.json(
+          { type: "about:blank", title: "Bad Request", status: 400 } satisfies Problem,
+          { status: 400 },
+        ),
+  ),
   http.get("*/api/posts/:id/comments", ({ params, request }) =>
     HttpResponse.json(
       params.id === POST_RESPONSE.id && !new URL(request.url).searchParams.has("cursor")

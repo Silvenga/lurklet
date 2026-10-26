@@ -41,6 +41,26 @@ function renderPath(path: string, queryClient = createQueryClient()) {
   return router;
 }
 
+async function waitForListing(sort: string, timeRange?: string) {
+  await waitFor(() => {
+    const content = screen.getByRole("region", { name: "Page content" });
+    expect(
+      within(within(content).getByRole("radiogroup", { name: "Sort" })).getByRole("radio", {
+        name: sort,
+      }),
+    ).toBeChecked();
+    if (timeRange) {
+      expect(
+        within(within(content).getByRole("radiogroup", { name: "Time range" })).getByRole("radio", {
+          name: timeRange,
+        }),
+      ).toBeChecked();
+    }
+    expect(content.querySelector("[aria-busy]")).toHaveAttribute("aria-busy", "false");
+    expect(within(content).getByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
+  });
+}
+
 test("When a subreddit is entered then its listing should link to the supplied post", async () => {
   const user = userEvent.setup();
   renderPath("/");
@@ -82,7 +102,7 @@ test("When a post has a link attachment then it should open an untrusted link wi
   expect(separator.nextElementSibling).toBe(link);
 });
 
-test("When a post contains unsupported attachments then their placeholders should appear outside its Markdown body", async () => {
+test("When a post contains media attachments then proxied images and video placeholders should appear outside its Markdown body", async () => {
   server.use(
     http.get("*/api/posts/:id", () =>
       HttpResponse.json({
@@ -105,7 +125,7 @@ test("When a post contains unsupported attachments then their placeholders shoul
 
   const article = await screen.findByRole("article");
   const body = within(article).getByRole("region", { name: "Post content" });
-  const image = within(article).getByRole("img", { name: "Image unavailable: A diagram" });
+  const image = within(article).getByRole("img", { name: "A diagram" });
   const video = within(article).getByRole("img", { name: "Video unavailable" });
   expect(body).toHaveTextContent("Readable post text.");
   expect(body).not.toContainElement(image);
@@ -113,10 +133,12 @@ test("When a post contains unsupported attachments then their placeholders shoul
   expect(body.nextElementSibling).toBe(image.closest("figure"));
   expect(image.closest("figure")?.nextElementSibling).toBe(video);
   expect(
-    article.querySelector(
-      "img, video, audio, iframe, source, object, embed, [src], [srcset], [poster]",
-    ),
+    article.querySelector("video, audio, iframe, source, object, embed, [srcset], [poster]"),
   ).toBeNull();
+  const mediaUrl = new URL(image.getAttribute("src")!);
+  expect(mediaUrl.origin).toBe(location.origin);
+  expect(mediaUrl.pathname).toBe("/api/media");
+  expect(mediaUrl.searchParams.get("url")).toBe("https://images.example.com/diagram.png");
 });
 
 test("When a listing is opened then it should not request individual post details", async () => {
@@ -709,7 +731,6 @@ test("When listing filters render then they should be connected outline groups w
     expect(group).toHaveAttribute("data-spacing", "0");
     for (const option of within(group).getAllByRole("radio")) {
       expect(option).toHaveAttribute("data-variant", "outline");
-      expect(option).toHaveAttribute("data-size", "default");
     }
   }
   expect(within(sort).getByRole("radio", { name: "Top" })).toBeChecked();
@@ -717,9 +738,6 @@ test("When listing filters render then they should be connected outline groups w
   expect(within(timeRange).getByRole("radio", { name: "Week" })).toBeChecked();
   expect(within(timeRange).getByRole("radio", { name: "All time" })).not.toBeChecked();
   expect(timeRange).not.toHaveClass("flex-wrap");
-  expect(timeRange.parentElement).toBe(sort.parentElement);
-  expect(sort.parentElement).toHaveClass("flex", "overflow-x-auto");
-  expect(sort.parentElement).not.toHaveClass("flex-col", "flex-wrap");
 });
 
 test("When the selected sort is pressed again then it should remain selected without refetching", async () => {
@@ -756,7 +774,7 @@ test("When the sort changes on a later page then it should clear the cursor and 
 
   await user.click(screen.getByRole("radio", { name: "New" }));
 
-  await screen.findByRole("link", { name: POST_RESPONSE.title });
+  await waitForListing("New");
   expect(router.state.location.search).toBe("?sort=new&utm_source=example");
   expect(screen.getByRole("radio", { name: "New" })).toBeChecked();
   expect(screen.queryByRole("radio", { name: "Week" })).not.toBeInTheDocument();
@@ -790,7 +808,7 @@ test.each([
 
     await user.click(screen.getByRole("radio", { name: label }));
 
-    await screen.findByRole("link", { name: POST_RESPONSE.title });
+    await waitForListing("Top", label);
     expect(router.state.location.search).toBe(`?sort=top&t=${timeRange}`);
     expect(screen.getByRole("radio", { name: label })).toBeChecked();
     expect(requests).toHaveLength(2);
@@ -889,10 +907,10 @@ test("When browser history changes then controls and posts should follow the URL
   await screen.findByRole("link", { name: POST_RESPONSE.title });
 
   await user.click(screen.getByRole("radio", { name: "Top" }));
-  await screen.findByRole("link", { name: POST_RESPONSE.title });
+  await waitForListing("Top", "All time");
   expect(screen.getByRole("radio", { name: "All time" })).toBeChecked();
   await user.click(screen.getByRole("radio", { name: "Week" }));
-  await screen.findByRole("link", { name: POST_RESPONSE.title });
+  await waitForListing("Top", "Week");
   await user.click(screen.getByRole("link", { name: "Next" }));
   await screen.findByRole("link", { name: SUBREDDIT_NEXT_PAGE_RESPONSE.posts[0]!.title });
 
@@ -900,7 +918,7 @@ test("When browser history changes then controls and posts should follow the URL
     await router.navigate(-1);
   });
 
-  await screen.findByRole("link", { name: POST_RESPONSE.title });
+  await waitForListing("Top", "Week");
   expect(router.state.location.search).toBe("?sort=top&t=week");
   expect(screen.getByRole("radio", { name: "Week" })).toBeChecked();
   expect(screen.queryByRole("link", { name: "First page" })).not.toBeInTheDocument();
@@ -909,7 +927,7 @@ test("When browser history changes then controls and posts should follow the URL
     await router.navigate(-1);
   });
 
-  await screen.findByRole("link", { name: POST_RESPONSE.title });
+  await waitForListing("Top", "All time");
   expect(router.state.location.search).toBe("?sort=top");
   expect(screen.getByRole("radio", { name: "All time" })).toBeChecked();
 
@@ -917,7 +935,7 @@ test("When browser history changes then controls and posts should follow the URL
     await router.navigate(1);
   });
 
-  await screen.findByRole("link", { name: POST_RESPONSE.title });
+  await waitForListing("Top", "Week");
   expect(router.state.location.search).toBe("?sort=top&t=week");
   expect(screen.getByRole("radio", { name: "Week" })).toBeChecked();
 });
@@ -938,6 +956,9 @@ test("When a later page is pending then sorting should remain usable while the o
   await user.click(screen.getByRole("link", { name: "Next" }));
 
   const content = screen.getByRole("region", { name: "Page content" });
+  await waitFor(() =>
+    expect(content.querySelector("[aria-busy]")).toHaveAttribute("aria-busy", "true"),
+  );
   expect(within(content).queryByRole("status")).not.toBeInTheDocument();
   expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
   expect(content.querySelector("[aria-busy]")).toHaveAttribute("aria-busy", "true");
@@ -987,7 +1008,7 @@ test("When keyboard navigation changes the sort then the URL should follow the s
   expect(screen.getByRole("radio", { name: "New" })).toHaveFocus();
   await user.keyboard(" ");
 
-  await screen.findByRole("link", { name: POST_RESPONSE.title });
+  await waitForListing("New");
   expect(router.state.location.search).toBe("?sort=new");
   expect(screen.getByRole("radio", { name: "New" })).toBeChecked();
 });

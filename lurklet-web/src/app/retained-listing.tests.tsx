@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw/http";
 import { createMemoryRouter } from "react-router";
@@ -51,6 +51,8 @@ test("When paging then the old rows and pagination should remain mounted until t
 
   await user.click(screen.getByRole("link", { name: "Next" }));
 
+  await waitFor(() => expect(pendingRegion).toHaveAttribute("aria-busy", "true"));
+
   expect(within(content).getByRole("list")).toBe(list);
   expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
   expect(pendingRegion).toHaveAttribute("aria-busy", "true");
@@ -82,7 +84,7 @@ test("When paging then the old rows and pagination should remain mounted until t
 
   await user.click(screen.getByRole("link", { name: "First page" }));
 
-  expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
+  expect(await screen.findByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
   expect(pendingRegion).toHaveAttribute("aria-busy", "false");
   expect(within(content).queryByRole("status")).toBeNull();
   expect(requests).toBe(2);
@@ -102,6 +104,13 @@ test("When changing sort from a final page then its First page control should re
   await screen.findByRole("link", { name: SUBREDDIT_NEXT_PAGE_RESPONSE.posts[0]!.title });
 
   await user.click(screen.getByRole("radio", { name: "New" }));
+
+  await waitFor(() =>
+    expect(screen.getByRole("link", { name: "First page" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    ),
+  );
 
   expect(
     screen.getByRole("link", { name: SUBREDDIT_NEXT_PAGE_RESPONSE.posts[0]!.title }),
@@ -247,6 +256,8 @@ test("When the top time range changes then the existing posts should remain visi
   const oldPost = await screen.findByRole("link", { name: POST_RESPONSE.title });
 
   await user.click(screen.getByRole("radio", { name: "Month" }));
+
+  await waitFor(() => expect(oldPost.closest("[aria-busy]")).toHaveAttribute("aria-busy", "true"));
 
   expect(router.state.location.search).toBe("?sort=top&t=month");
   expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBe(oldPost);
