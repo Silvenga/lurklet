@@ -10,6 +10,8 @@ Lurklet is a lightweight and modern privacy front-end for Reddit.
 
 - `lurklet-api/`: Rust API binary, depending on `lurklet-reddit`.
 - `lurklet-reddit/`: Reusable Rust library for communicating with Reddit, independent of the API server.
+- `lurklet-reddit-cli/`: A testing harness for testing the `lurklet-reddit` manually.
+- `lurklet-web/`: A SPA frontend for `lurklet-api`.
 
 ## Logging
 
@@ -27,6 +29,7 @@ that `info` and higher log levels can be publicly uploaded.
 ## Conventions
 
 - Do not add code without justification of current or immediate future needs. This abstention applies to defensive coding without evidence the additional protections are required.
+- Do not write documentation (e.g. MD files), without direction from the User.
 
 ## Conventions - Rust
 
@@ -34,10 +37,17 @@ that `info` and higher log levels can be publicly uploaded.
 
 ## Principals
 
-- Favor cacheability of API endpoints where the path/query are the caching key. 
+- Favor cacheability of API endpoints where the path/query are the caching key.
   - Avoid creating endpoints that accept many unrelated inputs for batch retrieval.
   - Each endpoint should have a single purpose.
-  - Minimize the returned data for each endpoint - minimizing requested fields avoids needless coupling and improves forward compatiblity.
+  - Minimize the returned data for each endpoint - minimizing requested fields avoids needless coupling and improves forward compatibility.
+
+## Testing
+
+- Appropriate tests that confirm correctness are required.
+- Minimize the number of tests. Every test must be justified.
+- Tests must execute offline and must not connect with Reddit.
+- Surface the lack of tests or duplicate/needless tests to the User upon discovery.
 
 ## Verification
 
