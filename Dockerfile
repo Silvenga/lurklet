@@ -1,4 +1,4 @@
-FROM ghcr.io/pnpm/pnpm:12.15.0 AS frontend-build
+FROM ghcr.io/pnpm/pnpm:12.17.0 AS frontend-build
 
 WORKDIR /app
 
