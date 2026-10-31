@@ -49,5 +49,5 @@ assert_fs = "1.1.4"
 brotli = "9.0.0"
 flate2 = "1.1.10"
 insta.workspace = true
-zstd = "0.13.3"
+zstd = "0.14.3"
 tokio = { workspace = true, features = ["io-util", "sync", "time"] }
