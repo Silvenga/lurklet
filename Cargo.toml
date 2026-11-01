@@ -58,4 +58,4 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 utoipa = { version = "6.0.0", features = ["axum_extras"] }
 utoipa-axum = "0.3.0"
 wiremock = "0.6.5"
-wreq = { version = "0.16.1", features = ["json", "gzip", "brotli"] }
+wreq = { version = "0.16.3", features = ["json", "gzip", "brotli"] }
