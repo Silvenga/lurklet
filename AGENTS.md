@@ -5,6 +5,7 @@ Lurklet is a lightweight and modern privacy front-end for Reddit.
 ## Preflight
 
 - Load the `conventions-code-rust` once in a session before modifying rust code.
+- Read the `./README.md` file once in a session for doing work.
 
 ## Structure
 
