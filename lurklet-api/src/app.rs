@@ -467,8 +467,10 @@ mod tests {
     fn when_openapi_is_generated_then_contract_should_document_api_routes() {
         let specification = specification();
 
-        let document = serde_json::to_value(specification).unwrap();
+        let mut document = serde_json::to_value(specification).unwrap();
 
+        assert_eq!(document["info"]["version"], env!("CARGO_PKG_VERSION"));
+        document["info"]["version"] = json!("[package version]");
         insta::assert_json_snapshot!("openapi", document);
     }
 
