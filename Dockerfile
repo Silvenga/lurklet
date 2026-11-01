@@ -1,4 +1,4 @@
-FROM ghcr.io/pnpm/pnpm:12.15.0 AS frontend-build
+FROM ghcr.io/pnpm/pnpm:12@sha256:172468925f0ca368313c09867081a43e298eaeb13dee8f7e4356bfad45dd8b15 AS frontend-build
 
 WORKDIR /app
 
@@ -31,7 +31,7 @@ RUN set -xe \
     && pnpm test \
     && pnpm publish:web
 
-FROM rust:1-slim-trixie AS backend-chef
+FROM rust:1-slim-trixie@sha256:b8e062b1c3a80183df83d9ba187cadd2b5ab84bc78d453dbfeb2fccd5f982247 AS backend-chef
 
 RUN set -xe \
     && apt-get update \
@@ -83,7 +83,7 @@ RUN set -xe \
 
 RUN install -d -m 0755 /cache
 
-FROM gcr.io/distroless/cc-debian13:nonroot AS backend-runtime
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:08476c244888bfb425bae1ae4dd7c17f093e972aab8426883d97f3c6f280f7c1 AS backend-runtime
 
 COPY --from=backend-builder --chmod=0555 /app/target/release/lurklet-api /usr/local/bin/lurklet-api
 COPY --from=frontend-build /app/lurklet-web/dist/ /app/static/
