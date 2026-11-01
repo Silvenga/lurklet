@@ -1,5 +1,6 @@
 import { FaGithub } from "react-icons/fa";
 import { Link, Outlet } from "react-router";
+import { version } from "../../package.json";
 
 export function AppLayout() {
   return (
@@ -21,6 +22,9 @@ export function AppLayout() {
       <main className="pt-2 pb-4 sm:py-8">
         <Outlet />
       </main>
+      <footer className="text-muted-foreground py-4 text-center text-xs select-text">
+        Lurklet v{version}
+      </footer>
     </div>
   );
 }

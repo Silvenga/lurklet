@@ -3,10 +3,11 @@ import { Suspense } from "react";
 import { Await, createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { expect, test } from "vitest";
+import { version } from "../../package.json";
 import { AppLayout } from "./AppLayout";
 import { HomePage } from "./routes/HomePage";
 
-test("When a page renders then the shared header and page content should appear", () => {
+test("When a page renders then the shared header, version footer, and page content should appear", () => {
   const router = createMemoryRouter([
     {
       path: "/",
@@ -31,9 +32,10 @@ test("When a page renders then the shared header and page content should appear"
   expect(
     within(screen.getByRole("main")).getByRole("heading", { name: "Page content" }),
   ).toBeInTheDocument();
+  expect(screen.getByRole("contentinfo")).toHaveTextContent(`Lurklet v${version}`);
 });
 
-test("When the home link is activated then navigation should preserve the shared header", async () => {
+test("When the home link is activated then navigation should preserve the shared header and footer", async () => {
   const router = createMemoryRouter(
     [
       {
@@ -49,15 +51,17 @@ test("When the home link is activated then navigation should preserve the shared
   );
   render(<RouterProvider router={router} />);
   const header = screen.getByRole("banner");
+  const footer = screen.getByRole("contentinfo");
 
   fireEvent.click(within(header).getByRole("link", { name: "Lurklet" }));
 
   expect(await screen.findByRole("heading", { name: "Lurklet" })).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Example page" })).not.toBeInTheDocument();
   expect(screen.getByRole("banner")).toBe(header);
+  expect(screen.getByRole("contentinfo")).toBe(footer);
 });
 
-test("When page content suspends then the shared header should remain visible", async () => {
+test("When page content suspends then the shared header and footer should remain visible", async () => {
   const content = Promise.withResolvers<string>();
   const router = createMemoryRouter([
     {
@@ -79,7 +83,9 @@ test("When page content suspends then the shared header should remain visible", 
   render(<RouterProvider router={router} />);
 
   const header = screen.getByRole("banner");
+  const footer = screen.getByRole("contentinfo");
   expect(within(header).getByRole("link", { name: "Lurklet" })).toBeVisible();
+  expect(footer).toBeVisible();
   expect(within(screen.getByRole("main")).getByText("Loading page content")).toBeVisible();
 
   await act(async () => content.resolve("Loaded page content"));
@@ -87,4 +93,5 @@ test("When page content suspends then the shared header should remain visible", 
   expect(within(screen.getByRole("main")).getByText("Loaded page content")).toBeVisible();
   expect(screen.queryByText("Loading page content")).not.toBeInTheDocument();
   expect(screen.getByRole("banner")).toBe(header);
+  expect(screen.getByRole("contentinfo")).toBe(footer);
 });
