@@ -25,7 +25,7 @@ const COMPONENTS: Components = {
 
 export function Markdown({ value, className }: { value: MarkdownValue; className?: string }) {
   return (
-    <div className={cn("prose dark:prose-invert", className)}>
+    <div className={cn("prose dark:prose-invert wrap-anywhere", className)}>
       <ReactMarkdown
         remarkPlugins={[
           remarkGfm,
