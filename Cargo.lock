@@ -1406,7 +1406,7 @@ dependencies = [
 
 [[package]]
 name = "lurklet-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1450,7 +1450,7 @@ dependencies = [
 
 [[package]]
 name = "lurklet-reddit"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -1476,7 +1476,7 @@ dependencies = [
 
 [[package]]
 name = "lurklet-reddit-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "assert_cmd",
  "assert_fs",
