@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { Button } from "@/components/ui/button";
@@ -86,17 +86,86 @@ test("When the date receives keyboard focus then its tooltip should describe the
   expect(trigger).toHaveFocus();
 });
 
-test("When the date is hovered then the same full timestamp should be visible", async () => {
-  const user = userEvent.setup();
+test("When the date is hovered then its tooltip should stay closed regardless of elapsed time", async () => {
+  vi.useFakeTimers();
   const dateTime = "2026-10-26T11:00:00Z";
   render(<DateAgo dateTime={dateTime} />);
+  const trigger = screen.getByRole("button", { name: RELATIVE_FORMAT.format(-1, "hour") });
 
-  await user.hover(document.body);
-  await user.hover(screen.getByRole("button", { name: RELATIVE_FORMAT.format(-1, "hour") }));
+  fireEvent.pointerMove(document.body, { pointerType: "mouse" });
+  fireEvent.pointerOver(trigger, { pointerType: "mouse" });
 
-  expect(await screen.findByRole("tooltip")).toHaveTextContent(
-    DATE_FORMAT.format(new Date(dateTime)),
+  expect(screen.queryByRole("tooltip")).toBeNull();
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5000);
+  });
+
+  expect(screen.queryByRole("tooltip")).toBeNull();
+});
+
+test.each(["click", "touch", "Enter", "Space"])(
+  "When the date receives %s activation then its tooltip should toggle immediately and reopen after Escape",
+  async (activation) => {
+    const user = userEvent.setup();
+    const dateTime = "2026-10-26T11:00:00Z";
+    const fullDate = DATE_FORMAT.format(new Date(dateTime));
+    render(<DateAgo dateTime={dateTime} />);
+    const trigger = screen.getByRole("button", { name: RELATIVE_FORMAT.format(-1, "hour") });
+
+    if (activation === "Enter" || activation === "Space") {
+      await user.tab();
+      await user.keyboard("{Escape}");
+    }
+
+    const activate = async () => {
+      if (activation === "click") {
+        await user.click(trigger);
+      } else if (activation === "touch") {
+        await user.pointer({ keys: "[TouchA]", target: trigger });
+      } else {
+        await user.keyboard(activation === "Enter" ? "{Enter}" : " ");
+      }
+    };
+
+    await activate();
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent(fullDate);
+    expect(trigger).toHaveAccessibleDescription(fullDate);
+
+    await activate();
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    await activate();
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent(fullDate);
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    await activate();
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent(fullDate);
+  },
+);
+
+test("When focus leaves a date while its tooltip is hovered then the tooltip should close", async () => {
+  const user = userEvent.setup();
+  render(
+    <>
+      <DateAgo dateTime="2026-10-26T11:00:00Z" />
+      <Button>Next control</Button>
+    </>,
   );
+  await user.tab();
+  await user.hover(screen.getByRole("tooltip"));
+
+  await user.tab();
+
+  expect(screen.getByRole("button", { name: "Next control" })).toHaveFocus();
+  expect(screen.queryByRole("tooltip")).toBeNull();
 });
 
 test("When a date is activated inside a comment disclosure then it should not collapse the comment", async () => {

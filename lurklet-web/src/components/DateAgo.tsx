@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
@@ -15,6 +16,7 @@ const UNITS = [
 ] as const;
 
 export function DateAgo({ dateTime, className }: { dateTime: string; className?: string }) {
+  const [isOpen, setIsOpen] = useState(false);
   const now = useMinuteClock();
   const date = new Date(dateTime);
   const difference = date.getTime() - now;
@@ -24,18 +26,22 @@ export function DateAgo({ dateTime, className }: { dateTime: string; className?:
     : "just now";
 
   return (
-    <TooltipTrigger>
+    <TooltipTrigger
+      trigger="focus"
+      isOpen={isOpen}
+      onOpenChange={setIsOpen}
+      shouldCloseOnPress={false}
+    >
       <Button
         type="button"
         slot={null}
         variant="ghost"
         className={cn("h-auto p-0 font-[weight:inherit]", className)}
+        onPress={() => setIsOpen((open) => !open)}
       >
-        <time dateTime={dateTime} className="select-text">
-          {label}
-        </time>
+        <time dateTime={dateTime}>{label}</time>
       </Button>
-      <Tooltip className="select-text">{DATE_FORMAT.format(date)}</Tooltip>
+      <Tooltip>{DATE_FORMAT.format(date)}</Tooltip>
     </TooltipTrigger>
   );
 }
