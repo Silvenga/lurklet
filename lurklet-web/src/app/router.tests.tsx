@@ -241,34 +241,45 @@ test("When a listing is opened then it should not request individual post detail
   expect(postRequests).toBe(0);
 });
 
-test("When a Markdown Reddit link is followed then it should navigate locally and preserve the shared layout", async () => {
-  const user = userEvent.setup();
-  server.use(
-    http.get("*/api/posts/:id", () =>
-      HttpResponse.json({
-        ...POST_RESPONSE,
-        markdown: {
-          content: "[Rust listing](https://old.reddit.com/r/rust/top?t=week#results)",
-          media: [],
-        },
-      }),
-    ),
-  );
-  const router = renderPath(POST_PATH);
-  const link = await screen.findByRole("link", { name: "Rust listing" });
-  const header = screen.getByRole("banner");
-  const sidebar = screen.getByRole("complementary");
+test.each(["Markdown link", "link attachment"])(
+  "When a Reddit %s is followed then it should navigate locally and preserve the shared layout",
+  async (kind) => {
+    const user = userEvent.setup();
+    const url = "https://old.reddit.com/r/rust/top?t=week#results";
+    server.use(
+      http.get("*/api/posts/:id", () =>
+        HttpResponse.json({
+          ...POST_RESPONSE,
+          markdown:
+            kind === "Markdown link"
+              ? {
+                  content: `[Rust listing](${url})`,
+                  media: [],
+                }
+              : null,
+          attachments: kind === "link attachment" ? [{ kind: "link", url }] : [],
+        }),
+      ),
+    );
+    const router = renderPath(POST_PATH);
+    const link = await screen.findByRole("link", {
+      name: kind === "Markdown link" ? "Rust listing" : url,
+    });
+    expect(link).toHaveAttribute("href", "/r/rust/top?t=week#results");
+    const header = screen.getByRole("banner");
+    const sidebar = screen.getByRole("complementary");
 
-  await user.click(link);
+    await user.click(link);
 
-  expect(await screen.findByRole("heading", { level: 1, name: "r/rust" })).toBeVisible();
-  expect(router.state.location.pathname).toBe("/r/rust");
-  expect(new URLSearchParams(router.state.location.search).get("sort")).toBe("top");
-  expect(new URLSearchParams(router.state.location.search).get("t")).toBe("week");
-  expect(router.state.location.hash).toBe("#results");
-  expect(screen.getByRole("banner")).toBe(header);
-  expect(screen.getByRole("complementary")).toBe(sidebar);
-});
+    expect(await screen.findByRole("heading", { level: 1, name: "r/rust" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/r/rust");
+    expect(new URLSearchParams(router.state.location.search).get("sort")).toBe("top");
+    expect(new URLSearchParams(router.state.location.search).get("t")).toBe("week");
+    expect(router.state.location.hash).toBe("#results");
+    expect(screen.getByRole("banner")).toBe(header);
+    expect(screen.getByRole("complementary")).toBe(sidebar);
+  },
+);
 
 test("When Markdown links to an unsupported Reddit path then it should show the local not-found page", async () => {
   const user = userEvent.setup();

@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { expect, onTestFinished, test, vi } from "vitest";
 import type { PostAttachment } from "@/clients/lurklet-api/generated/types.gen";
 import { PostAttachments } from "./PostAttachments";
@@ -20,7 +21,9 @@ test("When attachments mix links images and videos then their order and link pol
     { kind: "link", url: "https://example.com/last" },
   ];
 
-  const { container } = render(<PostAttachments attachments={attachments} />);
+  const { container } = render(<PostAttachments attachments={attachments} />, {
+    wrapper: MemoryRouter,
+  });
 
   expect([...container.children].map((element) => element.tagName)).toEqual([
     "A",
@@ -40,9 +43,25 @@ test("When attachments mix links images and videos then their order and link pol
     "https://example.com/last",
   ]);
   for (const link of screen.getAllByRole("link")) {
+    expect(link).toHaveClass("wrap-anywhere", "underline", "underline-offset-4");
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer nofollow ugc external");
   }
+});
+
+test("When a link attachment points to Reddit then it should render a styled local link", () => {
+  const url = "https://www.reddit.com/r/DataHoarder/";
+
+  render(<PostAttachments attachments={[{ kind: "link", url }]} />, {
+    wrapper: MemoryRouter,
+  });
+
+  const link = screen.getByRole("link", { name: url });
+  expect(link).toHaveAttribute("href", "/r/DataHoarder/");
+  expect(link).toHaveClass("wrap-anywhere", "underline", "underline-offset-4");
+  expect(link).not.toHaveAttribute("target");
+  expect(link).not.toHaveAttribute("rel");
+  expect(link.querySelector("svg")).toBeNull();
 });
 
 test.each([null, ""])(

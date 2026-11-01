@@ -1,5 +1,5 @@
 import type { PostAttachment } from "@/clients/lurklet-api/generated/types.gen";
-import { ExternalLink } from "@/components/ExternalLink";
+import { ContentLink } from "@/components/ContentLink";
 import { Media } from "@/features/media/components/Media";
 
 export function PostAttachments({ attachments }: { attachments: PostAttachment[] }) {
@@ -9,13 +9,13 @@ export function PostAttachments({ attachments }: { attachments: PostAttachment[]
         switch (attachment.kind) {
           case "link":
             return (
-              <ExternalLink
+              <ContentLink
                 key={index}
                 className="wrap-anywhere underline underline-offset-4"
                 href={attachment.url}
               >
                 {attachment.url}
-              </ExternalLink>
+              </ContentLink>
             );
           case "image":
             return (
