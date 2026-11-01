@@ -5,6 +5,7 @@ import { http, HttpResponse } from "msw/http";
 import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { expect, onTestFinished, test } from "vitest";
+import { expectJsonMenu } from "@/_tests/expect-json-menu";
 import {
   COMMENTS_RESPONSE,
   POST_RESPONSE,
@@ -314,6 +315,8 @@ test.each([
   expect(requests[0]?.pathname).toBe("/api/subreddits/rust/posts");
   expect(requests[0]?.searchParams.get("sort")).toBe(sort);
   expect(requests[0]?.searchParams.get("timeRange")).toBe(sort === "top" ? "week" : null);
+  await expectJsonMenu("Listing actions", requests[0]!.href);
+  await expectJsonMenu("Subreddit actions", new URL("/api/subreddits/rust", location.origin).href);
   expect(
     within(screen.getByRole("complementary")).getByRole("link", { name: "r/rust" }),
   ).toHaveAttribute("href", "/r/rust");
@@ -370,6 +373,13 @@ test.each([
       await screen.findByRole("heading", { level: 1, name: POST_RESPONSE.title }),
     ).toBeVisible();
     expect(requests).toEqual([`/api/posts/${POST_RESPONSE.id}`]);
+    await expectJsonMenu(
+      "Post actions",
+      new URL(`/api/posts/${POST_RESPONSE.id}`, location.origin).href,
+    );
+    expect(screen.getByRole("button", { name: "Post actions" }).closest(".relative")).toBe(
+      screen.getByRole("region", { name: "Post" }),
+    );
     expect(screen.getByText("Markdown").tagName).toBe("STRONG");
     expect(screen.getByRole("article")).toHaveClass("select-text");
     const content = screen.getByRole("region", { name: "Post content" });
@@ -405,6 +415,10 @@ test("When a post is loading then only the post region should show a loading sta
   expect(within(header).getByRole("link", { name: "Lurklet" })).toBeVisible();
   expect(within(sidebar).getByRole("heading", { name: "r/rust" })).toBeVisible();
   await waitFor(() => expect(document.title).toBe("Loading post - Lurklet"));
+  await expectJsonMenu(
+    "Post actions",
+    new URL(`/api/posts/${POST_RESPONSE.id}`, location.origin).href,
+  );
 
   await act(async () => pending.resolve(HttpResponse.json(POST_RESPONSE)));
 
@@ -591,6 +605,14 @@ test("When the post request fails then its error should stay inside the post reg
   renderPath(POST_PATH);
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load post");
+  await expectJsonMenu(
+    "Post actions",
+    new URL(`/api/posts/${POST_RESPONSE.id}`, location.origin).href,
+  );
+  await expectJsonMenu(
+    "Comments actions",
+    new URL(`/api/posts/${POST_RESPONSE.id}/comments?sort=best`, location.origin).href,
+  );
   expect(document.title).toBe("Unable to load post - Lurklet");
   expect(screen.getByRole("banner")).toBeVisible();
   expect(screen.getByRole("complementary")).toBeVisible();
@@ -662,6 +684,7 @@ test("When listing options change then only relevant parameters should trigger a
   expect(requests[1]?.searchParams.get("timeRange")).toBe("week");
   expect(requests[1]?.searchParams.has("t")).toBe(false);
   expect(requests[1]?.searchParams.has("utm_source")).toBe(false);
+  await expectJsonMenu("Listing actions", requests[1]!.href);
   expect(screen.getByRole("complementary")).toBe(sidebar);
 
   await act(async () => {
@@ -699,6 +722,7 @@ test("When a continuation cursor is supplied then it should reach the API unchan
   expect(await screen.findByText("No posts")).toBeVisible();
   expect(requests[0]?.searchParams.get("after")).toBe(cursor);
   expect(requests[0]?.searchParams.get("sort")).toBe("hot");
+  await expectJsonMenu("Listing actions", requests[0]!.href);
 });
 
 test.each([

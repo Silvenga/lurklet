@@ -133,3 +133,9 @@
     cursor: pointer;
   }
 }
+
+@layer utilities {
+  [role="menuitem"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}

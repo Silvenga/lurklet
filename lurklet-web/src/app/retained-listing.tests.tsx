@@ -5,6 +5,7 @@ import { http, HttpResponse } from "msw/http";
 import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { expect, onTestFinished, test } from "vitest";
+import { expectJsonMenu } from "@/_tests/expect-json-menu";
 import {
   POST_RESPONSE,
   SUBREDDIT_PAGE_RESPONSE,
@@ -68,12 +69,18 @@ test("When paging then the old rows and pagination should remain mounted until t
   const next = screen.getByRole("link", { name: "Next" });
   expect(next).toHaveAttribute("aria-disabled", "true");
   expect(next).not.toHaveAttribute("href");
+  await expectJsonMenu("Listing actions", undefined, user);
+  await expectJsonMenu(
+    "Subreddit actions",
+    new URL("/api/subreddits/rust", location.origin).href,
+    user,
+  );
   expect(screen.queryByRole("link", { name: "First page" })).toBeNull();
-  const location = router.state.location;
+  const previousLocation = router.state.location;
 
   await user.click(next);
 
-  expect(router.state.location).toBe(location);
+  expect(router.state.location).toBe(previousLocation);
   expect(
     queryClient.getQueryData(
       listSubredditPostsQueryKey({ path: { subreddit: "rust" }, query: { sort: "hot" } }),
@@ -88,6 +95,14 @@ test("When paging then the old rows and pagination should remain mounted until t
   expect(pendingRegion).toHaveAttribute("aria-busy", "false");
   expect(pendingRegion).not.toHaveClass("opacity-80");
   expect(screen.queryByRole("link", { name: "Next" })).toBeNull();
+  await expectJsonMenu(
+    "Listing actions",
+    new URL(
+      `/api/subreddits/rust/posts?sort=hot&after=${encodeURIComponent(SUBREDDIT_PAGE_RESPONSE.nextCursor)}`,
+      location.origin,
+    ).href,
+    user,
+  );
 
   await user.click(screen.getByRole("link", { name: "First page" }));
 
@@ -98,6 +113,11 @@ test("When paging then the old rows and pagination should remain mounted until t
   expect(pendingRegion).toHaveAttribute("aria-busy", "false");
   expect(within(content).queryByRole("status")).toBeNull();
   expect(requests).toBe(2);
+  await expectJsonMenu(
+    "Listing actions",
+    new URL("/api/subreddits/rust/posts?sort=hot", location.origin).href,
+    user,
+  );
 });
 
 test("When changing sort from a final page then its First page control should remain in place but disabled", async () => {
@@ -273,6 +293,7 @@ test("When the top time range changes then the existing posts should remain visi
   expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBe(oldPost);
   expect(oldPost.closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
   expect(screen.getByRole("radio", { name: "Month" })).toBeChecked();
+  await expectJsonMenu("Listing actions", undefined, user);
 
   await act(async () => {
     pending.resolve(HttpResponse.json(SUBREDDIT_NEXT_PAGE_RESPONSE));
@@ -282,4 +303,9 @@ test("When the top time range changes then the existing posts should remain visi
     name: SUBREDDIT_NEXT_PAGE_RESPONSE.posts[0]!.title,
   });
   expect(result.closest("[aria-busy]")).toHaveAttribute("aria-busy", "false");
+  await expectJsonMenu(
+    "Listing actions",
+    new URL("/api/subreddits/rust/posts?sort=top&timeRange=month", location.origin).href,
+    user,
+  );
 });

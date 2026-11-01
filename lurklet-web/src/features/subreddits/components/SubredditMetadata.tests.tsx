@@ -2,6 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { expect, onTestFinished, test } from "vitest";
+import { expectJsonMenu } from "@/_tests/expect-json-menu";
 import { SUBREDDIT_RESPONSE } from "@/_tests/mocks/fixtures";
 import { createQueryClient } from "@/app/query-client";
 import { getSubredditQueryKey } from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
@@ -25,7 +26,7 @@ function renderMetadata(value: Subreddit) {
   return result;
 }
 
-test("When metadata is available then it should show the summary and accurately labeled counts", () => {
+test("When metadata is available then it should show the summary and accurately labeled counts", async () => {
   const { container } = renderMetadata(SUBREDDIT_RESPONSE);
 
   expect(screen.getByText(SUBREDDIT_RESPONSE.title, { selector: "p" })).toBeVisible();
@@ -80,6 +81,7 @@ test("When metadata is available then it should show the summary and accurately 
   expect(iconUrl.searchParams.get("url")).toBe(SUBREDDIT_RESPONSE.styles.iconUrl);
   expect(icon).toHaveClass("size-10", "rounded-full");
   expect(screen.getByRole("link", { name: "r/rust" })).toHaveAttribute("href", "/r/rust");
+  await expectJsonMenu("Subreddit actions", new URL("/api/subreddits/rust", location.origin).href);
 });
 
 test("When metadata fields are unknown then they should be omitted rather than inferred", () => {

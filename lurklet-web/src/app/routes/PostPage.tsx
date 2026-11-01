@@ -8,9 +8,9 @@ export function PostPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <section aria-label="Post" className="flex min-w-0 flex-col gap-2">
+      <section aria-label="Post" className="relative flex min-w-0 flex-col gap-2">
         <Link
-          className="text-muted-foreground w-fit text-sm hover:underline"
+          className="text-muted-foreground w-fit max-w-full pr-10 text-sm wrap-anywhere hover:underline"
           to={`/r/${encodeURIComponent(subreddit!)}`}
         >
           r/{subreddit}

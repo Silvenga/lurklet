@@ -1,28 +1,30 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { getSubredditOptions } from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
 import { DateAgo } from "@/components/DateAgo";
 import { Markdown } from "@/components/Markdown";
+import { PaneMenu } from "@/components/PaneMenu";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Media } from "@/features/media/components/Media";
+import { useJsonQuery } from "@/hooks/useJsonQuery";
 
 const NUMBER_FORMAT = new Intl.NumberFormat();
 const MARKDOWN_CLASS = "prose-sm max-w-none overflow-x-auto wrap-anywhere";
 
 export function SubredditMetadata({ subreddit }: { subreddit: string }) {
-  const metadata = useQuery(getSubredditOptions({ path: { subreddit } }));
+  const { query: metadata, jsonHref } = useJsonQuery(getSubredditOptions({ path: { subreddit } }));
   const details = metadata.isSuccess && metadata.data.kind === "available" ? metadata.data : null;
   const iconUrl = details?.styles?.iconUrl || details?.styles?.legacyIconUrl;
   const header = (
-    <div className="flex min-w-0 flex-col gap-2">
-      <div className="flex items-center gap-3">
+    <div className="relative flex min-w-0 flex-col gap-2">
+      <div className="flex min-w-0 items-center gap-3 pr-10">
         {iconUrl && <Media kind="image" variant="icon" src={iconUrl} alt={`r/${subreddit} icon`} />}
         <h2 className="min-w-0 text-lg font-medium">
           <Link to={`/r/${encodeURIComponent(subreddit)}`}>r/{subreddit}</Link>
         </h2>
       </div>
+      <PaneMenu jsonHref={jsonHref} label="Subreddit actions" />
       {details?.title && <p className="font-medium">{details.title}</p>}
     </div>
   );

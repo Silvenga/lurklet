@@ -27,6 +27,9 @@ export default defineConfig({
       name: "@tanstack/react-query",
       infiniteQueryOptions: false,
       mutationOptions: false,
+      queryOptions: {
+        meta: (operation) => ({ apiPath: operation.path }),
+      },
     },
   ],
 });

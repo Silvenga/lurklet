@@ -5,6 +5,7 @@ import { http, HttpResponse } from "msw/http";
 import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { expect, onTestFinished, test } from "vitest";
+import { expectJsonMenu } from "@/_tests/expect-json-menu";
 import { COMMENTS_RESPONSE, POST_RESPONSE, SUBREDDIT_RESPONSE } from "@/_tests/mocks/fixtures";
 import { server } from "@/_tests/mocks/server";
 import { createQueryClient } from "@/app/query-client";
@@ -104,6 +105,10 @@ test("When comment filters render then they should form a connected outline grou
   expect(within(group).getByRole("radio", { name: "Top" })).toBeChecked();
   expect(within(group).getByRole("radio", { name: "Best" })).not.toBeChecked();
   expect(within(group).getByRole("radio", { name: "New" })).not.toBeChecked();
+  await expectJsonMenu(
+    "Comments actions",
+    new URL(`/api/posts/${POST_RESPONSE.id}/comments?sort=top`, location.origin).href,
+  );
 });
 
 test("When comments resolve first then they should render independently of the post and metadata", async () => {
@@ -199,6 +204,11 @@ test("When comments fail then their retry should not refetch the post or metadat
   renderPath();
   const discussion = await screen.findByRole("region", { name: "Comments" });
   expect(await within(discussion).findByRole("alert")).toHaveTextContent("Unable to load comments");
+  await expectJsonMenu(
+    "Comments actions",
+    new URL(`/api/posts/${POST_RESPONSE.id}/comments?sort=best`, location.origin).href,
+    user,
+  );
   await screen.findByRole("heading", { name: POST_RESPONSE.title });
 
   await user.click(within(discussion).getByRole("button", { name: "Retry" }));
@@ -509,8 +519,16 @@ test("When Continue thread is followed then the focused route should preserve so
     "true",
   );
   expect(router.state.location.pathname).toBe(`${POST_PATH}/_/target`);
+  await expectJsonMenu(
+    "Comment thread actions",
+    new URL("/api/comments/target/thread?sort=top", location.origin).href,
+    user,
+  );
+  expect(screen.queryByRole("button", { name: "Comments actions" })).toBeNull();
   const trigger = screen.getByRole("button", { name: "Continue thread" });
 
+  // Move the pointer before entering the tooltip after closing the menu with Escape.
+  await user.hover(screen.getByRole("heading", { name: "Comment thread" }));
   await user.hover(trigger);
 
   expect(await screen.findByRole("tooltip")).toHaveTextContent(
@@ -524,6 +542,11 @@ test("When Continue thread is followed then the focused route should preserve so
   expect(await screen.findByRole("link", { name: "Continue thread" })).toBeVisible();
   expect(router.state.location.pathname).toBe(POST_PATH);
   expect(router.state.location.search).toBe("?sort=top");
+  await expectJsonMenu(
+    "Comments actions",
+    new URL(`/api/posts/${POST_RESPONSE.id}/comments?sort=top`, location.origin).href,
+    user,
+  );
   expect(requests.filter((path) => path === `/api/posts/${POST_RESPONSE.id}`)).toHaveLength(1);
   expect(requests.filter((path) => path === "/api/subreddits/rust")).toHaveLength(1);
   expect(requests.filter((path) => path.endsWith("/comments"))).toHaveLength(1);
@@ -610,6 +633,7 @@ test("When the comment sort is unsupported then the post should still render wit
   expect(
     within(screen.getByRole("region", { name: "Comments" })).getByRole("alert"),
   ).toHaveTextContent("Unsupported comment sort");
+  await expectJsonMenu("Comments actions", undefined);
   expect(requests).toBe(0);
 });
 
@@ -641,6 +665,7 @@ test("When a focused thread is opened directly then it should load without reque
   expect(threadRequests).toHaveLength(1);
   expect(threadRequests[0]?.pathname).toBe("/api/comments/target/thread");
   expect(threadRequests[0]?.searchParams.get("sort")).toBe("new");
+  await expectJsonMenu("Comment thread actions", threadRequests[0]!.href);
 
   await act(async () => {
     pending.resolve(HttpResponse.json(POST_RESPONSE));
@@ -757,6 +782,7 @@ test("When comment sorting is pending then the old tree should preserve collapse
   const continuation = screen.getByRole("link", { name: "Continue thread" });
   expect(continuation).toHaveAttribute("aria-disabled", "true");
   expect(continuation).not.toHaveAttribute("href");
+  await expectJsonMenu("Comments actions", undefined, user);
 
   await user.click(more);
   await user.click(continuation);
@@ -777,6 +803,11 @@ test("When comment sorting is pending then the old tree should preserve collapse
   });
 
   expect(await screen.findByText("New comment result")).toBeVisible();
+  await expectJsonMenu(
+    "Comments actions",
+    new URL(`/api/posts/${POST_RESPONSE.id}/comments?sort=new`, location.origin).href,
+    user,
+  );
   expect(screen.queryByText("Already loaded reply")).toBeNull();
   expect(region).toHaveAttribute("aria-busy", "false");
   expect(region).not.toHaveClass("opacity-80");
@@ -808,6 +839,7 @@ test("When a focused thread sort is pending then its existing collapse state sho
   expect(toggle).toHaveAttribute("aria-expanded", "false");
   expect(screen.getByText("Old thread result")).not.toBeVisible();
   expect(screen.getByText("Selected comment")).toBeVisible();
+  await expectJsonMenu("Comment thread actions", undefined, user);
 
   await act(async () => {
     pending.resolve(
@@ -819,6 +851,11 @@ test("When a focused thread sort is pending then its existing collapse state sho
   });
 
   expect(await screen.findByText("New thread result")).toBeVisible();
+  await expectJsonMenu(
+    "Comment thread actions",
+    new URL("/api/comments/target/thread?sort=new", location.origin).href,
+    user,
+  );
   expect(region).toHaveAttribute("aria-busy", "false");
   expect(screen.queryByText("Old thread result")).toBeNull();
 });
