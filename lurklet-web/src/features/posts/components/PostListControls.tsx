@@ -30,7 +30,7 @@ export function PostListControls({ sort, timeRange }: PostListControlsProps) {
           if (nextSort !== "top") {
             next.delete("t");
           }
-          void setSearchParams(next);
+          void setSearchParams(next, { preventScrollReset: true });
         }}
       >
         <ToggleGroupItem id="hot">Hot</ToggleGroupItem>
@@ -54,7 +54,7 @@ export function PostListControls({ sort, timeRange }: PostListControlsProps) {
             const next = new URLSearchParams(searchParams);
             next.set("t", nextTimeRange);
             next.delete("after");
-            void setSearchParams(next);
+            void setSearchParams(next, { preventScrollReset: true });
           }}
         >
           <ToggleGroupItem id="hour">Hour</ToggleGroupItem>

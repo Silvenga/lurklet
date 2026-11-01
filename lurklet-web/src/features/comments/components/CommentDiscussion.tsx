@@ -82,7 +82,7 @@ export function CommentDiscussion() {
           if (nextSort === requestedSort) return;
           const next = new URLSearchParams(searchParams);
           next.set("sort", nextSort);
-          void setSearchParams(next);
+          void setSearchParams(next, { preventScrollReset: true });
         }}
       >
         <ToggleGroupItem id="best">Best</ToggleGroupItem>

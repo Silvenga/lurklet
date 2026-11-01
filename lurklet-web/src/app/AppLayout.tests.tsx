@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { Suspense } from "react";
 import { Await, createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
-import { expect, test } from "vitest";
+import { expect, onTestFinished, test, vi } from "vitest";
 import { version } from "../../package.json";
 import { AppLayout } from "./AppLayout";
 import { HomePage } from "./routes/HomePage";
@@ -94,4 +94,29 @@ test("When page content suspends then the shared header and footer should remain
   expect(screen.queryByText("Loading page content")).not.toBeInTheDocument();
   expect(screen.getByRole("banner")).toBe(header);
   expect(screen.getByRole("contentinfo")).toBe(footer);
+});
+
+test("When navigating to a fragment then scrolling should target the matching element", async () => {
+  const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
+  const router = createMemoryRouter([
+    {
+      path: "/",
+      Component: AppLayout,
+      children: [{ index: true, element: <h1 id="target">Anchor target</h1> }],
+    },
+  ]);
+  const { unmount } = render(<RouterProvider router={router} />);
+  onTestFinished(() => {
+    unmount();
+    router.dispose();
+    scrollIntoView.mockRestore();
+  });
+
+  await act(async () => {
+    await router.navigate("/#target");
+  });
+
+  expect(scrollIntoView.mock.contexts).toEqual([
+    screen.getByRole("heading", { name: "Anchor target" }),
+  ]);
 });
