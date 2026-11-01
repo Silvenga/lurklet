@@ -17,6 +17,10 @@ export function PostListPage() {
   const { subreddit } = useParams();
   usePageTitle(`r/${subreddit}`);
   const { options, sort, timeRange } = useLoaderData<typeof postListLoader>();
+  const redditUrl = new URL(`https://www.reddit.com/r/${encodeURIComponent(subreddit!)}/${sort}/`);
+  if (timeRange) {
+    redditUrl.searchParams.set("t", timeRange);
+  }
   const { query: page, jsonHref } = useJsonQuery({
     ...listSubredditPostsOptions(options),
     placeholderData: (previous, previousQuery) =>
@@ -32,7 +36,7 @@ export function PostListPage() {
   return (
     <div className="relative flex flex-col gap-6">
       <h1 className="pr-10 text-2xl font-semibold wrap-anywhere">r/{subreddit}</h1>
-      <PaneMenu jsonHref={jsonHref} label="Listing actions" />
+      <PaneMenu jsonHref={jsonHref} redditHref={redditUrl.href} label="Listing actions" />
       <PostListControls sort={sort} {...(timeRange ? { timeRange } : {})} />
       <PendingRegion
         pending={page.isPlaceholderData || (page.isFetching && page.data !== undefined)}

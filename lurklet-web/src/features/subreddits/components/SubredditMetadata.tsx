@@ -20,7 +20,7 @@ export function SubredditMetadata({ subreddit }: { subreddit: string }) {
     <div className="relative flex min-w-0 flex-col gap-2">
       <div className="flex min-w-0 items-center gap-3 pr-10">
         {iconUrl && <Media kind="image" variant="icon" src={iconUrl} alt={`r/${subreddit} icon`} />}
-        <h2 className="min-w-0 text-lg font-medium">
+        <h2 className="min-w-0 truncate text-lg font-medium">
           <Link to={`/r/${encodeURIComponent(subreddit)}`}>r/{subreddit}</Link>
         </h2>
       </div>

@@ -1,3 +1,4 @@
+import { useParams } from "react-router";
 import { getPostOptions } from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
 import { Markdown } from "@/components/Markdown";
 import { PaneMenu } from "@/components/PaneMenu";
@@ -10,6 +11,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { PostAttachments } from "./PostAttachments";
 
 export function PostContent({ postId }: { postId: string }) {
+  const { subreddit } = useParams();
   const { query: post, jsonHref } = useJsonQuery(getPostOptions({ path: { id: postId } }));
   usePageTitle(
     post.isPending
@@ -21,7 +23,13 @@ export function PostContent({ postId }: { postId: string }) {
         : post.data.title,
   );
 
-  const menu = <PaneMenu jsonHref={jsonHref} label="Post actions" />;
+  const menu = (
+    <PaneMenu
+      jsonHref={jsonHref}
+      redditHref={`https://www.reddit.com/r/${encodeURIComponent(subreddit!)}/comments/${encodeURIComponent(postId)}/`}
+      label="Post actions"
+    />
+  );
 
   if (!post.isSuccess) {
     return (

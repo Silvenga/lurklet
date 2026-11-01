@@ -26,10 +26,46 @@ test("When a pane menu opens with the keyboard then its JSON item should be a ne
   expect(link).toHaveAccessibleDescription("Opens in a new tab");
   expect(link).not.toHaveAttribute("aria-disabled");
   expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  expect(screen.queryByRole("menuitem", { name: "Open on Reddit" })).not.toBeInTheDocument();
 
   await user.keyboard("{Escape}");
 
   expect(screen.queryByRole("menu")).toBeNull();
+  await waitFor(() => expect(trigger).toHaveFocus());
+});
+
+test("When JSON is unavailable then the Reddit item should remain a keyboard-accessible new-tab link", async () => {
+  const user = userEvent.setup();
+  const href = "https://www.reddit.com/r/rust/hot/";
+  render(<PaneMenu jsonHref={undefined} redditHref={href} label="Listing actions" />);
+  const trigger = screen.getByRole("button", { name: "Listing actions" });
+
+  await user.tab();
+  await user.keyboard("{ArrowDown}");
+
+  const link = await screen.findByRole("menuitem", { name: "Open on Reddit" });
+  expect(screen.getAllByRole("menuitem")).toEqual([
+    link,
+    screen.getByRole("menuitem", { name: "JSON" }),
+  ]);
+  expect(link.closest('[data-slot="dropdown-menu-content"]')).toHaveClass("w-max");
+  expect(screen.getByText("Open on Reddit")).toHaveClass("whitespace-nowrap");
+  expect(link.tagName).toBe("A");
+  expect(link).toHaveAttribute("href", href);
+  expect(link).toHaveAttribute("target", "_blank");
+  expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  expect(link).toHaveAccessibleDescription("Opens in a new tab");
+  expect(link).not.toHaveAttribute("aria-disabled");
+  expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  expect(screen.getByRole("menuitem", { name: "JSON" })).toHaveAttribute("aria-disabled", "true");
+
+  await user.tab();
+
+  await waitFor(() => expect(link).toHaveFocus());
+
+  await user.keyboard("{Escape}");
+
+  await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   await waitFor(() => expect(trigger).toHaveFocus());
 });
 

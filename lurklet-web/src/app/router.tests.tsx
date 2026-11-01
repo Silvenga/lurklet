@@ -6,6 +6,7 @@ import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { expect, onTestFinished, test } from "vitest";
 import { expectJsonMenu } from "@/_tests/expect-json-menu";
+import { expectRedditMenu } from "@/_tests/expect-reddit-menu";
 import {
   COMMENTS_RESPONSE,
   POST_RESPONSE,
@@ -361,6 +362,11 @@ test.each([
   expect(requests[0]?.searchParams.get("timeRange")).toBe(sort === "top" ? "week" : null);
   await expectJsonMenu("Listing actions", requests[0]!.href);
   await expectJsonMenu("Subreddit actions", new URL("/api/subreddits/rust", location.origin).href);
+  await expectRedditMenu(
+    "Listing actions",
+    `https://www.reddit.com/r/rust/${sort}/${sort === "top" ? "?t=week" : ""}`,
+  );
+  await expectRedditMenu("Subreddit actions", undefined);
   expect(
     within(screen.getByRole("complementary")).getByRole("link", { name: "r/rust" }),
   ).toHaveAttribute("href", "/r/rust");
@@ -397,6 +403,7 @@ test.each([
   `${POST_PATH}/`,
   `${POST_PATH}/an_outdated_title`,
   `${POST_PATH}/an_outdated_title/`,
+  `${POST_PATH}/title/comment456?sort=new&utm_source=example`,
 ])(
   "When %s is opened then it should request the post by ID and render its Markdown",
   async (path) => {
@@ -417,6 +424,11 @@ test.each([
       await screen.findByRole("heading", { level: 1, name: POST_RESPONSE.title }),
     ).toBeVisible();
     expect(requests).toEqual([`/api/posts/${POST_RESPONSE.id}`]);
+    await expectRedditMenu("Post actions", `https://www.reddit.com${POST_PATH}/`);
+    await expectRedditMenu(
+      path.includes("comment456") ? "Comment thread actions" : "Comments actions",
+      undefined,
+    );
     await expectJsonMenu(
       "Post actions",
       new URL(`/api/posts/${POST_RESPONSE.id}`, location.origin).href,
@@ -459,6 +471,7 @@ test("When a post is loading then only the post region should show a loading sta
   expect(within(header).getByRole("link", { name: "Lurklet" })).toBeVisible();
   expect(within(sidebar).getByRole("heading", { name: "r/rust" })).toBeVisible();
   await waitFor(() => expect(document.title).toBe("Loading post - Lurklet"));
+  await expectRedditMenu("Post actions", `https://www.reddit.com${POST_PATH}/`);
   await expectJsonMenu(
     "Post actions",
     new URL(`/api/posts/${POST_RESPONSE.id}`, location.origin).href,
@@ -598,6 +611,7 @@ test("When navigating to another subreddit then the sidebar should reflect the n
   });
 
   expect(await screen.findByRole("heading", { name: "A TypeScript post" })).toBeVisible();
+  await expectRedditMenu("Post actions", "https://www.reddit.com/r/typescript/comments/def456/");
   expect(
     within(screen.getByRole("complementary")).getByRole("link", { name: "r/typescript" }),
   ).toHaveAttribute("href", "/r/typescript");
@@ -649,6 +663,7 @@ test("When the post request fails then its error should stay inside the post reg
   renderPath(POST_PATH);
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load post");
+  await expectRedditMenu("Post actions", `https://www.reddit.com${POST_PATH}/`);
   await expectJsonMenu(
     "Post actions",
     new URL(`/api/posts/${POST_RESPONSE.id}`, location.origin).href,
@@ -686,6 +701,8 @@ test("When posts are loading then the header and subreddit sidebar should remain
   const sidebar = screen.getByRole("complementary");
   expect(within(sidebar).getByRole("heading", { name: "r/rust" })).toBeVisible();
 
+  await expectRedditMenu("Listing actions", "https://www.reddit.com/r/rust/hot/");
+
   await act(async () => pending.resolve(HttpResponse.json(SUBREDDIT_PAGE_RESPONSE)));
 
   expect(await screen.findByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
@@ -718,6 +735,7 @@ test("When listing options change then only relevant parameters should trigger a
 
   expect(requests).toHaveLength(1);
   expect(screen.getByRole("link", { name: "Listing 1" })).toBeVisible();
+  await expectRedditMenu("Listing actions", "https://www.reddit.com/r/rust/hot/");
 
   await act(async () => {
     await router.navigate("/r/rust?sort=top&t=week&utm_source=example");
@@ -729,6 +747,7 @@ test("When listing options change then only relevant parameters should trigger a
   expect(requests[1]?.searchParams.has("t")).toBe(false);
   expect(requests[1]?.searchParams.has("utm_source")).toBe(false);
   await expectJsonMenu("Listing actions", requests[1]!.href);
+  await expectRedditMenu("Listing actions", "https://www.reddit.com/r/rust/top/?t=week");
   expect(screen.getByRole("complementary")).toBe(sidebar);
 
   await act(async () => {
@@ -737,6 +756,7 @@ test("When listing options change then only relevant parameters should trigger a
 
   expect(await screen.findByRole("link", { name: "Listing 3" })).toBeVisible();
   expect(requests[2]?.searchParams.get("timeRange")).toBe("month");
+  await expectRedditMenu("Listing actions", "https://www.reddit.com/r/rust/top/?t=month");
 
   await act(async () => {
     await queryClient.invalidateQueries({
@@ -767,6 +787,7 @@ test("When a continuation cursor is supplied then it should reach the API unchan
   expect(requests[0]?.searchParams.get("after")).toBe(cursor);
   expect(requests[0]?.searchParams.get("sort")).toBe("hot");
   await expectJsonMenu("Listing actions", requests[0]!.href);
+  await expectRedditMenu("Listing actions", "https://www.reddit.com/r/rust/hot/");
 });
 
 test.each([
@@ -787,6 +808,7 @@ test.each([
     renderPath("/r/rust");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(title);
+    await expectRedditMenu("Listing actions", "https://www.reddit.com/r/rust/hot/");
     expect(screen.getByRole("banner")).toBeVisible();
     expect(screen.getByRole("complementary")).toBeVisible();
   },

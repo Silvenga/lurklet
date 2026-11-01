@@ -81,6 +81,7 @@ test("When metadata is available then it should show the summary and accurately 
   expect(iconUrl.searchParams.get("url")).toBe(SUBREDDIT_RESPONSE.styles.iconUrl);
   expect(icon).toHaveClass("size-10", "rounded-full");
   expect(screen.getByRole("link", { name: "r/rust" })).toHaveAttribute("href", "/r/rust");
+  expect(screen.getByRole("heading", { name: "r/rust" })).toHaveClass("min-w-0", "truncate");
   await expectJsonMenu("Subreddit actions", new URL("/api/subreddits/rust", location.origin).href);
 });
 
