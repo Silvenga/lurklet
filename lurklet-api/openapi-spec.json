@@ -940,7 +940,7 @@
           "state",
           "author",
           "createdAt",
-          "bodyMarkdown",
+          "markdown",
           "score",
           "isOp",
           "isPinned",
@@ -956,13 +956,6 @@
                 "type": "null"
               }
             ]
-          },
-          "bodyMarkdown": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Untrusted Markdown; embedded media URLs are not proxied."
           },
           "createdAt": {
             "type": [
@@ -993,6 +986,17 @@
             "type": [
               "boolean",
               "null"
+            ]
+          },
+          "markdown": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown",
+                "description": "Untrusted Markdown; embedded media URLs are not proxied."
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "score": {
@@ -1262,6 +1266,65 @@
           }
         }
       },
+      "Markdown": {
+        "type": "object",
+        "description": "Untrusted Markdown with resolved, unproxied media references.",
+        "required": [
+          "content",
+          "media"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkdownMedia"
+            }
+          }
+        }
+      },
+      "MarkdownMedia": {
+        "type": "object",
+        "required": [
+          "id",
+          "mimeType",
+          "url",
+          "width",
+          "height"
+        ],
+        "properties": {
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": "string"
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "NamedReference": {
         "type": "object",
         "required": [
@@ -1295,7 +1358,7 @@
           "commentCount",
           "isNsfw",
           "isSpoiler",
-          "bodyMarkdown",
+          "markdown",
           "attachments",
           "crosspostId"
         ],
@@ -1315,13 +1378,6 @@
                 "type": "null"
               }
             ]
-          },
-          "bodyMarkdown": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Untrusted Markdown; embedded media URLs are not proxied."
           },
           "commentCount": {
             "type": [
@@ -1359,6 +1415,17 @@
           },
           "isSpoiler": {
             "type": "boolean"
+          },
+          "markdown": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown",
+                "description": "Untrusted Markdown; embedded media URLs are not proxied."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "score": {
             "type": [
@@ -1557,19 +1624,27 @@
             "format": "date-time"
           },
           "descriptionMarkdown": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Untrusted long-form Markdown, not structured sidebar widgets or rules."
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown",
+                "description": "Untrusted long-form Markdown, not structured sidebar widgets or rules."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "id": {
             "type": "string"
           },
           "interstitialWarningMarkdown": {
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "isNsfw": {
@@ -1594,9 +1669,13 @@
             "type": "string"
           },
           "quarantineMessageMarkdown": {
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "shortDescription": {
@@ -1780,9 +1859,13 @@
         ],
         "properties": {
           "banMessageMarkdown": {
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "banTitle": {
@@ -1804,15 +1887,23 @@
             ]
           },
           "interstitialWarningMarkdown": {
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "quarantineMessageMarkdown": {
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         }

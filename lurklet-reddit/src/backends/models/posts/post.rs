@@ -1,4 +1,4 @@
-use crate::{NamedReference, RedditId};
+use crate::{Markdown, NamedReference, RedditId};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
@@ -15,7 +15,7 @@ pub struct Post {
     pub is_nsfw: bool,
     pub is_spoiler: bool,
     /// Unrendered, untrusted Markdown. Renderers must restrict embedded HTML and URL schemes.
-    pub body_markdown: Option<String>,
+    pub markdown: Option<Markdown>,
     pub attachments: Vec<PostAttachment>,
     pub crosspost_id: Option<RedditId>,
 }

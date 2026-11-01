@@ -17,13 +17,6 @@ expression: document
               }
             ]
           },
-          "bodyMarkdown": {
-            "description": "Untrusted Markdown; embedded media URLs are not proxied.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "createdAt": {
             "format": "date-time",
             "type": [
@@ -55,6 +48,17 @@ expression: document
               "null"
             ]
           },
+          "markdown": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown",
+                "description": "Untrusted Markdown; embedded media URLs are not proxied."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "score": {
             "format": "int64",
             "type": [
@@ -71,7 +75,7 @@ expression: document
           "state",
           "author",
           "createdAt",
-          "bodyMarkdown",
+          "markdown",
           "score",
           "isOp",
           "isPinned",
@@ -334,6 +338,65 @@ expression: document
         ],
         "type": "object"
       },
+      "Markdown": {
+        "description": "Untrusted Markdown with resolved, unproxied media references.",
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "media": {
+            "items": {
+              "$ref": "#/components/schemas/MarkdownMedia"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "content",
+          "media"
+        ],
+        "type": "object"
+      },
+      "MarkdownMedia": {
+        "properties": {
+          "height": {
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": "string"
+          },
+          "width": {
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "mimeType",
+          "url",
+          "width",
+          "height"
+        ],
+        "type": "object"
+      },
       "NamedReference": {
         "properties": {
           "id": {
@@ -373,13 +436,6 @@ expression: document
               }
             ]
           },
-          "bodyMarkdown": {
-            "description": "Untrusted Markdown; embedded media URLs are not proxied.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "commentCount": {
             "format": "int64",
             "minimum": 0,
@@ -417,6 +473,17 @@ expression: document
           "isSpoiler": {
             "type": "boolean"
           },
+          "markdown": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown",
+                "description": "Untrusted Markdown; embedded media URLs are not proxied."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "score": {
             "format": "int64",
             "type": [
@@ -438,7 +505,7 @@ expression: document
           "commentCount",
           "isNsfw",
           "isSpoiler",
-          "bodyMarkdown",
+          "markdown",
           "attachments",
           "crosspostId"
         ],
@@ -610,19 +677,27 @@ expression: document
             ]
           },
           "descriptionMarkdown": {
-            "description": "Untrusted long-form Markdown, not structured sidebar widgets or rules.",
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown",
+                "description": "Untrusted long-form Markdown, not structured sidebar widgets or rules."
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "id": {
             "type": "string"
           },
           "interstitialWarningMarkdown": {
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "isNsfw": {
@@ -647,9 +722,13 @@ expression: document
             "type": "string"
           },
           "quarantineMessageMarkdown": {
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "shortDescription": {
@@ -843,9 +922,13 @@ expression: document
       "UnavailableSubreddit": {
         "properties": {
           "banMessageMarkdown": {
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "banTitle": {
@@ -867,15 +950,23 @@ expression: document
             ]
           },
           "interstitialWarningMarkdown": {
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "quarantineMessageMarkdown": {
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Markdown"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },

@@ -41,9 +41,9 @@ export function PostContent({ postId }: { postId: string }) {
         />
       </div>
       <Separator />
-      {value.bodyMarkdown && (
+      {value.markdown && (
         <section aria-label="Post content">
-          <Markdown>{value.bodyMarkdown}</Markdown>
+          <Markdown value={value.markdown} />
         </section>
       )}
       <PostAttachments attachments={value.attachments} />

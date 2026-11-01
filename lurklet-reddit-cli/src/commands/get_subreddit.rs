@@ -65,7 +65,7 @@ mod tests {
                 "title": "Example community",
                 "created_at": "2010-12-02T21:27:18.336Z",
                 "short_description": "Short description",
-                "description_markdown": "## About",
+                "description_markdown": {"content": "## About", "media": []},
                 "subscriber_count": 123,
                 "weekly_active_user_count": 20,
                 "weekly_contribution_count": 7,
@@ -87,14 +87,14 @@ mod tests {
         let client = RedditClient::from_backend(FakeBackend {
             subreddit: Some((
                 "example".into(),
-                Ok(Subreddit::Unavailable(UnavailableSubreddit {
+                Ok(Subreddit::Unavailable(Box::new(UnavailableSubreddit {
                     id: None,
                     forbidden_reason: Some("PRIVATE".into()),
                     ban_title: None,
                     ban_message_markdown: None,
                     quarantine_message_markdown: None,
                     interstitial_warning_markdown: Some("This community is private.".into()),
-                })),
+                }))),
             )),
             ..FakeBackend::default()
         });
@@ -110,7 +110,7 @@ mod tests {
                 "ban_title": null,
                 "ban_message_markdown": null,
                 "quarantine_message_markdown": null,
-                "interstitial_warning_markdown": "This community is private."
+                "interstitial_warning_markdown": {"content": "This community is private.", "media": []}
             })
         );
         assert_eq!(output.error, None);

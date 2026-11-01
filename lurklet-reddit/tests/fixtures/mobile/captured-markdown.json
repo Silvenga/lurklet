@@ -1,0 +1,68 @@
+{
+  "source": {
+    "operation": "PostComments",
+    "post_id": "1xkpfwr",
+    "captured_at": "2026-11-01",
+    "redactions": ["surrounding comment text", "HTML and rich text", "unused asset fields"]
+  },
+  "contents": [
+    {
+      "markdown": "![img](v15d43aihzyh1)",
+      "richtextMedia": [
+        {
+          "__typename": "ImageAsset",
+          "id": "v15d43aihzyh1",
+          "status": "VALID",
+          "mimetype": "image/png",
+          "url": "https://i.redd.it/v15d43aihzyh1.png",
+          "width": 889,
+          "height": 500,
+          "small": {
+            "url": "https://preview.redd.it/v15d43aihzyh1.png?width=108&auto=webp&s=f4e82007d1c21e6f86d8458750083b75d873fadc",
+            "dimensions": { "width": 108, "height": 60 }
+          },
+          "medium": {
+            "url": "https://preview.redd.it/v15d43aihzyh1.png?width=216&auto=webp&s=eb5d5e4a2f4ffdf6a3709f7f5b8ce2ae0f5d8fee",
+            "dimensions": { "width": 216, "height": 121 }
+          },
+          "large": {
+            "url": "https://preview.redd.it/v15d43aihzyh1.png?width=320&auto=webp&s=3912f6a9c951c9a9d19e5a7d84d48b7d15728921",
+            "dimensions": { "width": 320, "height": 179 }
+          },
+          "xlarge": {
+            "url": "https://preview.redd.it/v15d43aihzyh1.png?width=640&auto=webp&s=9e8eed8e44e5fd12955d080b444124878ea624b1",
+            "dimensions": { "width": 640, "height": 359 }
+          },
+          "xxlarge": null,
+          "xxxlarge": null
+        }
+      ]
+    },
+    {
+      "markdown": "![gif](giphy|5L2okTiupVRxC)",
+      "richtextMedia": [
+        {
+          "__typename": "ImageAsset",
+          "id": "giphy|5L2okTiupVRxC",
+          "status": "VALID",
+          "mimetype": "image/gif",
+          "url": "https://external-preview.redd.it/XkAlaLReQVP1Lb-sAwxemrJG39aR2bSKwz9r0gEkCXA.gif?auto=webp&s=3bd64f01b9ae9d560ab11b320ba15487c0a7b8b7",
+          "width": 300,
+          "height": 200,
+          "small": {
+            "url": "https://external-preview.redd.it/XkAlaLReQVP1Lb-sAwxemrJG39aR2bSKwz9r0gEkCXA.gif?width=108&auto=webp&s=dfb7d09177bb413a9e3cea321b8e56fa70a46a24",
+            "dimensions": { "width": 108, "height": 72 }
+          },
+          "medium": {
+            "url": "https://external-preview.redd.it/XkAlaLReQVP1Lb-sAwxemrJG39aR2bSKwz9r0gEkCXA.gif?width=216&auto=webp&s=1073334193203d039838dfd23cc740c34dc3b984",
+            "dimensions": { "width": 216, "height": 144 }
+          },
+          "large": null,
+          "xlarge": null,
+          "xxlarge": null,
+          "xxxlarge": null
+        }
+      ]
+    }
+  ]
+}

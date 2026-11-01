@@ -67,10 +67,11 @@ export function CommentRow({
               <p className="text-muted-foreground text-sm">
                 {comment.state === "deleted" ? "Comment deleted." : "Comment removed."}
               </p>
-            ) : comment.bodyMarkdown ? (
-              <Markdown className="prose-sm max-w-none overflow-x-auto wrap-anywhere">
-                {comment.bodyMarkdown}
-              </Markdown>
+            ) : comment.markdown ? (
+              <Markdown
+                className="prose-sm max-w-none overflow-x-auto wrap-anywhere"
+                value={comment.markdown}
+              />
             ) : null}
           </div>
           {replies.length > 0 && (

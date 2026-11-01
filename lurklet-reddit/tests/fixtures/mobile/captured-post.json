@@ -135,7 +135,7 @@
     "comment_count": 62,
     "is_nsfw": false,
     "is_spoiler": false,
-    "body_markdown": "Sanitized **Markdown**.",
+    "markdown": {"content": "Sanitized **Markdown**.", "media": []},
     "attachments": [],
     "crosspost_id": null
   }

@@ -1,4 +1,4 @@
-use crate::{NamedReference, RedditId};
+use crate::{Markdown, NamedReference, RedditId};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
@@ -11,7 +11,7 @@ pub struct Comment {
     pub author: Option<NamedReference>,
     pub created_at: Option<DateTime<Utc>>,
     /// Unrendered, untrusted Markdown; consumers must restrict HTML and URL schemes.
-    pub body_markdown: Option<String>,
+    pub markdown: Option<Markdown>,
     pub score: Option<i64>,
     pub is_op: Option<bool>,
     pub is_pinned: Option<bool>,

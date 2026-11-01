@@ -158,7 +158,7 @@ mod tests {
             state: CommentState::Deleted,
             author: None,
             created_at: None,
-            body_markdown: None,
+            markdown: None,
             score: None,
             is_op: None,
             is_pinned: None,
@@ -167,7 +167,7 @@ mod tests {
         let child = Comment {
             id: Some("anchor".into()),
             state: CommentState::Present,
-            body_markdown: Some("A reply".into()),
+            markdown: Some("A reply".into()),
             ..ancestor.clone()
         };
         RedditCommentThread {
@@ -261,14 +261,14 @@ mod tests {
                         "kind": "comment",
                         "comment": {
                             "id": null, "state": "deleted", "author": null, "createdAt": null,
-                            "bodyMarkdown": null, "score": null, "isOp": null,
+                            "markdown": null, "score": null, "isOp": null,
                             "isPinned": null, "initiallyCollapsed": null
                         },
                         "replies": [{
                             "kind": "comment",
                             "comment": {
                                 "id": "anchor", "state": "present", "author": null, "createdAt": null,
-                                "bodyMarkdown": "A reply", "score": null, "isOp": null,
+                                "markdown": {"content": "A reply", "media": []}, "score": null, "isOp": null,
                                 "isPinned": null, "initiallyCollapsed": null
                             },
                             "replies": [

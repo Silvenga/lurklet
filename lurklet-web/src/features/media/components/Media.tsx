@@ -8,9 +8,11 @@ export function Media({
   src,
   alt,
   title,
+  width,
+  height,
   kind,
   variant = "content",
-}: Pick<ComponentProps<"img">, "src" | "alt" | "title"> & {
+}: Pick<ComponentProps<"img">, "src" | "alt" | "title" | "width" | "height"> & {
   kind?: "image" | "video";
   variant?: "content" | "thumbnail" | "icon";
 }) {
@@ -31,6 +33,8 @@ export function Media({
         src={client.buildUrl({ url: "/api/media", query: { url: src } } satisfies GetMediaData)}
         alt={alt ?? (kind === "image" ? "Image" : "")}
         title={title}
+        width={width}
+        height={height}
         loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"

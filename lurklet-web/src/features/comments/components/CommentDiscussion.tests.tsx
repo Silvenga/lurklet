@@ -15,12 +15,17 @@ const POST_PATH = `/r/rust/comments/${POST_RESPONSE.id}`;
 
 function commentItem(
   id: string,
-  bodyMarkdown: string,
+  content: string,
   replies: CommentItem[] = [],
 ): Extract<CommentItem, { kind: "comment" }> {
   return {
     kind: "comment",
-    comment: { ...COMMENTS_RESPONSE.items[0]!.comment, id, author: { id, name: id }, bodyMarkdown },
+    comment: {
+      ...COMMENTS_RESPONSE.items[0]!.comment,
+      id,
+      author: { id, name: id },
+      markdown: { content, media: [] },
+    },
     replies,
   };
 }
@@ -40,6 +45,50 @@ function renderPath(path = POST_PATH) {
   });
   return router;
 }
+
+test("When a comment contains inline media references then the discussion should render only proxied images", async () => {
+  const item = commentItem(
+    "19rz5uw8v7dj6",
+    "Before ![img](v15d43aihzyh1) and ![gif](giphy|5L2okTiupVRxC) after.",
+  );
+  item.comment.markdown!.media = [
+    {
+      id: "v15d43aihzyh1",
+      mimeType: "image/png",
+      url: "https://preview.redd.it/v15d43aihzyh1.png?width=640&auto=webp&s=signature",
+      width: 640,
+      height: 359,
+    },
+    {
+      id: "giphy|5L2okTiupVRxC",
+      mimeType: "image/gif",
+      url: "https://external-preview.redd.it/asset.gif?auto=webp&s=signature",
+      width: 300,
+      height: 200,
+    },
+  ];
+  server.use(
+    http.get("*/api/posts/:id/comments", () =>
+      HttpResponse.json({ ...COMMENTS_RESPONSE, items: [item] }),
+    ),
+  );
+
+  renderPath();
+
+  const discussion = await screen.findByRole("region", { name: "Comments" });
+  for (const [alt, media] of [
+    ["img", item.comment.markdown!.media[0]!],
+    ["gif", item.comment.markdown!.media[1]!],
+  ] as const) {
+    const image = await within(discussion).findByRole("img", { name: alt });
+    const url = new URL(image.getAttribute("src")!);
+    expect(url.origin).toBe(location.origin);
+    expect(url.pathname).toBe("/api/media");
+    expect(url.searchParams.get("url")).toBe(media.url);
+    expect(image).toHaveAttribute("width", String(media.width));
+    expect(image).toHaveAttribute("height", String(media.height));
+  }
+});
 
 test("When comment filters render then they should form a connected outline group with the URL selection active", async () => {
   renderPath(`${POST_PATH}?sort=top`);
@@ -89,7 +138,7 @@ test("When comments resolve first then they should render independently of the p
 
   const discussion = screen.getByRole("region", { name: "Comments" });
   expect(
-    await within(discussion).findByText(COMMENTS_RESPONSE.items[0]!.comment.bodyMarkdown),
+    await within(discussion).findByText(COMMENTS_RESPONSE.items[0]!.comment.markdown.content),
   ).toBeVisible();
   expect(
     within(screen.getByRole("region", { name: "Post" })).getByRole("status"),
@@ -122,7 +171,9 @@ test("When comments are pending then a ready post should remain readable", async
     pending.resolve(HttpResponse.json(COMMENTS_RESPONSE));
   });
 
-  expect(await screen.findByText(COMMENTS_RESPONSE.items[0]!.comment.bodyMarkdown)).toBeVisible();
+  expect(
+    await screen.findByText(COMMENTS_RESPONSE.items[0]!.comment.markdown.content),
+  ).toBeVisible();
 });
 
 test("When comments fail then their retry should not refetch the post or metadata", async () => {
@@ -152,7 +203,7 @@ test("When comments fail then their retry should not refetch the post or metadat
 
   await user.click(within(discussion).getByRole("button", { name: "Retry" }));
 
-  await within(discussion).findByText(COMMENTS_RESPONSE.items[0]!.comment.bodyMarkdown);
+  await within(discussion).findByText(COMMENTS_RESPONSE.items[0]!.comment.markdown.content);
   expect(commentsRequests).toBe(2);
   expect(postRequests).toBe(1);
   expect(metadataRequests).toBe(1);
@@ -170,7 +221,7 @@ test("When the post fails then available comments should still render", async ()
   ).toHaveTextContent("Unable to load post");
   expect(
     await within(screen.getByRole("region", { name: "Comments" })).findByText(
-      COMMENTS_RESPONSE.items[0]!.comment.bodyMarkdown,
+      COMMENTS_RESPONSE.items[0]!.comment.markdown.content,
     ),
   ).toBeVisible();
 });
@@ -511,7 +562,7 @@ test("When comment data is sparse deleted or removed then readable replies shoul
     author: null,
     createdAt: null,
     score: null,
-    bodyMarkdown: null,
+    markdown: null,
     isOp: null,
     isPinned: null,
     initiallyCollapsed: null,

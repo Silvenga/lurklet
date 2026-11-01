@@ -185,7 +185,7 @@ test("When a post contains media attachments then proxied images and video place
     http.get("*/api/posts/:id", () =>
       HttpResponse.json({
         ...POST_RESPONSE,
-        bodyMarkdown: "Readable post text.",
+        markdown: { content: "Readable post text.", media: [] },
         attachments: [
           {
             kind: "image",
@@ -246,7 +246,10 @@ test("When a Markdown Reddit link is followed then it should navigate locally an
     http.get("*/api/posts/:id", () =>
       HttpResponse.json({
         ...POST_RESPONSE,
-        bodyMarkdown: "[Rust listing](https://old.reddit.com/r/rust/top?t=week#results)",
+        markdown: {
+          content: "[Rust listing](https://old.reddit.com/r/rust/top?t=week#results)",
+          media: [],
+        },
       }),
     ),
   );
@@ -272,7 +275,7 @@ test("When Markdown links to an unsupported Reddit path then it should show the 
     http.get("*/api/posts/:id", () =>
       HttpResponse.json({
         ...POST_RESPONSE,
-        bodyMarkdown: "[Rules](https://www.reddit.com/r/rust/wiki/rules)",
+        markdown: { content: "[Rules](https://www.reddit.com/r/rust/wiki/rules)", media: [] },
       }),
     ),
   );
@@ -354,7 +357,10 @@ test.each([
     server.use(
       http.get("*/api/posts/:id", ({ request }) => {
         requests.push(new URL(request.url).pathname);
-        return HttpResponse.json({ ...POST_RESPONSE, bodyMarkdown: "A **Markdown** post." });
+        return HttpResponse.json({
+          ...POST_RESPONSE,
+          markdown: { content: "A **Markdown** post.", media: [] },
+        });
       }),
     );
 
@@ -592,7 +598,7 @@ test("When the post request fails then its error should stay inside the post reg
 
 test("When a post has no Markdown body then its title should still render", async () => {
   server.use(
-    http.get("*/api/posts/:id", () => HttpResponse.json({ ...POST_RESPONSE, bodyMarkdown: null })),
+    http.get("*/api/posts/:id", () => HttpResponse.json({ ...POST_RESPONSE, markdown: null })),
   );
 
   renderPath(POST_PATH);
@@ -1381,7 +1387,7 @@ test("When metadata reports an unavailable community with HTTP 200 then its expl
         kind: "unavailable",
         id: null,
         banTitle: "Community unavailable",
-        banMessageMarkdown: "The community is **restricted**.",
+        banMessageMarkdown: { content: "The community is **restricted**.", media: [] },
         forbiddenReason: null,
         interstitialWarningMarkdown: null,
         quarantineMessageMarkdown: null,

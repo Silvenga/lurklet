@@ -1,3 +1,4 @@
+use crate::backends::mobile::Content;
 use crate::backends::mobile::posts::attachments::Attachments;
 use crate::{GraphQlDecodeError, NamedReference, Post, RedditId};
 use chrono::{DateTime, Utc};
@@ -46,11 +47,6 @@ struct PostFields {
 }
 
 #[derive(Deserialize)]
-struct Content {
-    markdown: Option<String>,
-}
-
-#[derive(Deserialize)]
 struct Crosspost {
     post: Option<OriginalPost>,
 }
@@ -91,7 +87,7 @@ impl From<PostFields> for Post {
             comment_count: fields.comment_count,
             is_nsfw: fields.is_nsfw,
             is_spoiler: fields.is_spoiler,
-            body_markdown: fields.content.and_then(|content| content.markdown),
+            markdown: fields.content.and_then(Content::into_markdown),
             attachments,
             crosspost_id: fields
                 .crosspost_root
@@ -137,7 +133,7 @@ mod tests {
             comment_count: Some(3),
             is_nsfw: false,
             is_spoiler: false,
-            body_markdown: Some("Hello **world**.".into()),
+            markdown: Some("Hello **world**.".into()),
             attachments: Vec::new(),
             crosspost_id: None,
         }
@@ -167,7 +163,10 @@ mod tests {
           "comment_count": 3,
           "is_nsfw": false,
           "is_spoiler": false,
-          "body_markdown": "Hello **world**.",
+          "markdown": {
+            "content": "Hello **world**.",
+            "media": []
+          },
           "attachments": [],
           "crosspost_id": null
         }
@@ -258,7 +257,7 @@ mod tests {
         expected.community = None;
         expected.score = None;
         expected.comment_count = None;
-        expected.body_markdown = None;
+        expected.markdown = None;
 
         let post = decode_post(&data).unwrap().unwrap();
 
@@ -357,7 +356,7 @@ mod tests {
         let markdown = "**Text**\n\n<script>untrusted</script>";
         data["postsInfoByIds"][0]["content"]["markdown"] = markdown.into();
         let mut expected = expected();
-        expected.body_markdown = Some(markdown.into());
+        expected.markdown = Some(markdown.into());
 
         let post = decode_post(&data).unwrap().unwrap();
 

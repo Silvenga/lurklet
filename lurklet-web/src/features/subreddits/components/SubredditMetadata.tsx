@@ -118,7 +118,7 @@ export function SubredditMetadata({ subreddit }: { subreddit: string }) {
           <AlertDescription>
             {value.forbiddenReason && <p>{value.forbiddenReason}</p>}
             {value.banMessageMarkdown && (
-              <Markdown className={MARKDOWN_CLASS}>{value.banMessageMarkdown}</Markdown>
+              <Markdown className={MARKDOWN_CLASS} value={value.banMessageMarkdown} />
             )}
             {!value.forbiddenReason && !value.banMessageMarkdown && (
               <p>This subreddit is unavailable.</p>
@@ -126,16 +126,18 @@ export function SubredditMetadata({ subreddit }: { subreddit: string }) {
           </AlertDescription>
         </Alert>
       )}
-      {[
-        ["Community notice", value.interstitialWarningMarkdown],
-        ["Quarantine notice", value.quarantineMessageMarkdown],
-      ].map(
+      {(
+        [
+          ["Community notice", value.interstitialWarningMarkdown],
+          ["Quarantine notice", value.quarantineMessageMarkdown],
+        ] as const
+      ).map(
         ([title, body]) =>
           body && (
             <Alert key={title}>
               <AlertTitle>{title}</AlertTitle>
               <AlertDescription>
-                <Markdown className={MARKDOWN_CLASS}>{body}</Markdown>
+                <Markdown className={MARKDOWN_CLASS} value={body} />
               </AlertDescription>
             </Alert>
           ),

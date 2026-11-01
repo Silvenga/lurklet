@@ -1,4 +1,4 @@
-use crate::RedditId;
+use crate::{Markdown, RedditId};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
@@ -7,7 +7,7 @@ use serde::Serialize;
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Subreddit {
     Available(Box<SubredditDetails>),
-    Unavailable(UnavailableSubreddit),
+    Unavailable(Box<UnavailableSubreddit>),
 }
 
 /// Displayable community metadata, independent of the upstream API.
@@ -20,7 +20,7 @@ pub struct SubredditDetails {
     pub created_at: Option<DateTime<Utc>>,
     pub short_description: Option<String>,
     /// Long-form prose, not structured sidebar widgets or rules.
-    pub description_markdown: Option<String>,
+    pub description_markdown: Option<Markdown>,
     pub subscriber_count: Option<u64>,
     /// Weekly activity, not a count of currently online users.
     pub weekly_active_user_count: Option<u64>,
@@ -31,8 +31,8 @@ pub struct SubredditDetails {
     pub is_nsfw: Option<bool>,
     pub is_posting_restricted: Option<bool>,
     pub is_quarantined: Option<bool>,
-    pub quarantine_message_markdown: Option<String>,
-    pub interstitial_warning_markdown: Option<String>,
+    pub quarantine_message_markdown: Option<Markdown>,
+    pub interstitial_warning_markdown: Option<Markdown>,
 }
 
 /// Returned appearance values; asset URLs are opaque and no variant is preferred.
@@ -55,7 +55,7 @@ pub struct UnavailableSubreddit {
     /// The reported reason, including values unknown to this client.
     pub forbidden_reason: Option<String>,
     pub ban_title: Option<String>,
-    pub ban_message_markdown: Option<String>,
-    pub quarantine_message_markdown: Option<String>,
-    pub interstitial_warning_markdown: Option<String>,
+    pub ban_message_markdown: Option<Markdown>,
+    pub quarantine_message_markdown: Option<Markdown>,
+    pub interstitial_warning_markdown: Option<Markdown>,
 }

@@ -1,10 +1,12 @@
 mod comments;
+mod markdown;
 mod media;
 mod posts;
 mod subreddit_feeds;
 mod subreddits;
 
 pub use comments::{Comment, CommentForest, CommentItem, CommentSort, CommentState, CommentThread};
+pub use markdown::{Markdown, MarkdownMedia};
 pub use media::{MediaBody, MediaFile, MediaKind};
 pub use posts::{ListedPost, Post, PostAttachment, Thumbnail, VideoFormat, VideoSource};
 pub use subreddit_feeds::{SubredditPage, SubredditSort, TimeRange};

@@ -1,12 +1,13 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
+import type { MarkdownMedia } from "@/clients/lurklet-api/generated/types.gen";
 import { Markdown } from "./Markdown";
 
-function renderMarkdown(content: string, path = "/") {
+function renderMarkdown(content: string, path = "/", media: MarkdownMedia[] = []) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <Markdown>{content}</Markdown>
+      <Markdown value={{ content, media }} />
     </MemoryRouter>,
   );
 }
@@ -327,3 +328,75 @@ test("When a media URL is only linked or autolinked then it should not become em
   expect(screen.queryByRole("img")).toBeNull();
   expect(container.querySelector("img, video, iframe")).toBeNull();
 });
+
+test.each([
+  ["asset", 'Before ![An image](asset "Caption") after.'],
+  ["giphy|5L2okTiupVRxC", 'Before ![An image](giphy|5L2okTiupVRxC "Caption") after.'],
+  ["asset", 'Before ![An image][media] after.\n\n[media]: asset "Caption"'],
+])(
+  "When Markdown references %s then its image should resolve before URL encoding and retain layout metadata",
+  (id, content) => {
+    const media = [
+      {
+        id,
+        mimeType: "image/gif",
+        url: "https://external-preview.redd.it/asset.gif?width=300&auto=webp&s=a%2Bb",
+        width: 300,
+        height: 200,
+      },
+    ];
+
+    const { container } = renderMarkdown(content, "/", media);
+
+    const image = screen.getByRole("img", { name: "An image" });
+    const url = new URL(image.getAttribute("src")!);
+    expect(url.origin).toBe(location.origin);
+    expect(url.pathname).toBe("/api/media");
+    expect(url.searchParams.get("url")).toBe(media[0]!.url);
+    expect(image).toHaveAttribute("width", "300");
+    expect(image).toHaveAttribute("height", "200");
+    expect(image).toHaveAttribute("title", "Caption");
+    expect(image.closest("p")).toHaveTextContent("Before after.");
+    expect(container.querySelector("p div, p figure, video, iframe, [srcset]")).toBeNull();
+  },
+);
+
+test.each([
+  { media: [] },
+  {
+    media: [
+      {
+        id: "asset",
+        mimeType: "video/mp4",
+        url: "https://v.redd.it/file.mp4",
+        width: null,
+        height: null,
+      },
+    ],
+  },
+  {
+    media: [
+      { id: "asset", mimeType: "image/png", url: "javascript:alert(1)", width: null, height: null },
+    ],
+  },
+  {
+    media: [
+      {
+        id: "asset",
+        mimeType: null,
+        url: "data:image/png;base64,example",
+        width: null,
+        height: null,
+      },
+    ],
+  },
+])(
+  "When an inline reference is unresolved unsupported or unsafe then it should remain a non-fetching placeholder (%j)",
+  ({ media }) => {
+    const { container } = renderMarkdown("Before ![An image](asset) after.", "/", media);
+
+    expect(screen.getByRole("img", { name: "Media unavailable: An image" })).toBeVisible();
+    expect(container).toHaveTextContent("Before [Media unavailable: An image] after.");
+    expect(container.querySelector("[src], [srcset], video, iframe")).toBeNull();
+  },
+);

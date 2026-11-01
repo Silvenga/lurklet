@@ -1,4 +1,5 @@
 use crate::error::ApiError;
+use crate::routes::Markdown;
 use axum::Json;
 use axum::extract::rejection::PathRejection;
 use axum::extract::{Path, State};
@@ -26,7 +27,7 @@ struct GetSubredditInput {
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum Subreddit {
     Available(Box<SubredditDetails>),
-    Unavailable(UnavailableSubreddit),
+    Unavailable(Box<UnavailableSubreddit>),
 }
 
 #[derive(Serialize, ToSchema)]
@@ -42,7 +43,7 @@ struct SubredditDetails {
     short_description: Option<String>,
     /// Untrusted long-form Markdown, not structured sidebar widgets or rules.
     #[schema(required)]
-    description_markdown: Option<String>,
+    description_markdown: Option<Markdown>,
     #[schema(required)]
     subscriber_count: Option<u64>,
     /// Weekly activity, not a count of currently online users.
@@ -61,9 +62,9 @@ struct SubredditDetails {
     #[schema(required)]
     is_quarantined: Option<bool>,
     #[schema(required)]
-    quarantine_message_markdown: Option<String>,
+    quarantine_message_markdown: Option<Markdown>,
     #[schema(required)]
-    interstitial_warning_markdown: Option<String>,
+    interstitial_warning_markdown: Option<Markdown>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -95,18 +96,18 @@ struct UnavailableSubreddit {
     #[schema(required)]
     ban_title: Option<String>,
     #[schema(required)]
-    ban_message_markdown: Option<String>,
+    ban_message_markdown: Option<Markdown>,
     #[schema(required)]
-    quarantine_message_markdown: Option<String>,
+    quarantine_message_markdown: Option<Markdown>,
     #[schema(required)]
-    interstitial_warning_markdown: Option<String>,
+    interstitial_warning_markdown: Option<Markdown>,
 }
 
 impl From<RedditSubreddit> for Subreddit {
     fn from(subreddit: RedditSubreddit) -> Self {
         match subreddit {
             RedditSubreddit::Available(details) => Self::Available(Box::new((*details).into())),
-            RedditSubreddit::Unavailable(details) => Self::Unavailable(details.into()),
+            RedditSubreddit::Unavailable(details) => Self::Unavailable(Box::new((*details).into())),
         }
     }
 }
@@ -137,7 +138,7 @@ impl From<RedditSubredditDetails> for SubredditDetails {
             title,
             created_at,
             short_description,
-            description_markdown,
+            description_markdown: description_markdown.map(Into::into),
             subscriber_count,
             weekly_active_user_count,
             weekly_contribution_count,
@@ -146,8 +147,8 @@ impl From<RedditSubredditDetails> for SubredditDetails {
             is_nsfw,
             is_posting_restricted,
             is_quarantined,
-            quarantine_message_markdown,
-            interstitial_warning_markdown,
+            quarantine_message_markdown: quarantine_message_markdown.map(Into::into),
+            interstitial_warning_markdown: interstitial_warning_markdown.map(Into::into),
         }
     }
 }
@@ -189,9 +190,9 @@ impl From<RedditUnavailableSubreddit> for UnavailableSubreddit {
             id: id.map(|id| id.as_str().to_owned()),
             forbidden_reason,
             ban_title,
-            ban_message_markdown,
-            quarantine_message_markdown,
-            interstitial_warning_markdown,
+            ban_message_markdown: ban_message_markdown.map(Into::into),
+            quarantine_message_markdown: quarantine_message_markdown.map(Into::into),
+            interstitial_warning_markdown: interstitial_warning_markdown.map(Into::into),
         }
     }
 }
@@ -317,14 +318,14 @@ mod tests {
     }
 
     fn unavailable() -> RedditSubreddit {
-        RedditSubreddit::Unavailable(RedditUnavailableSubreddit {
+        RedditSubreddit::Unavailable(Box::new(RedditUnavailableSubreddit {
             id: None,
             forbidden_reason: Some("FUTURE_REASON".into()),
             ban_title: Some("Community unavailable".into()),
             ban_message_markdown: Some("A **reported** explanation".into()),
             quarantine_message_markdown: None,
             interstitial_warning_markdown: Some("Untrusted <em>warning</em>".into()),
-        })
+        }))
     }
 
     fn app(result: Result<RedditSubreddit, Error>, calls: Arc<Mutex<Vec<String>>>) -> Router {
@@ -362,7 +363,7 @@ mod tests {
             json!({
                 "kind": "available", "id": "community", "name": "Rust", "title": "Rust programming",
                 "createdAt": "1970-01-01T00:00:00Z", "shortDescription": "Systems programming",
-                "descriptionMarkdown": "**Untrusted** <em>Markdown</em>",
+                "descriptionMarkdown": {"content": "**Untrusted** <em>Markdown</em>", "media": []},
                 "subscriberCount": 12345, "weeklyActiveUserCount": 678, "weeklyContributionCount": 90,
                 "styles": {
                     "iconUrl": "https://example.test/icon.png", "legacyIconUrl": null,
@@ -372,7 +373,7 @@ mod tests {
                 },
                 "communityType": "FUTURE_COMMUNITY_TYPE", "isNsfw": false,
                 "isPostingRestricted": true, "isQuarantined": null,
-                "quarantineMessageMarkdown": "Quarantine **notice**", "interstitialWarningMarkdown": null
+                "quarantineMessageMarkdown": {"content": "Quarantine **notice**", "media": []}, "interstitialWarningMarkdown": null
             })
         );
     }
@@ -395,8 +396,8 @@ mod tests {
                 .unwrap(),
             json!({
                 "kind": "unavailable", "id": null, "forbiddenReason": "FUTURE_REASON",
-                "banTitle": "Community unavailable", "banMessageMarkdown": "A **reported** explanation",
-                "quarantineMessageMarkdown": null, "interstitialWarningMarkdown": "Untrusted <em>warning</em>"
+                "banTitle": "Community unavailable", "banMessageMarkdown": {"content": "A **reported** explanation", "media": []},
+                "quarantineMessageMarkdown": null, "interstitialWarningMarkdown": {"content": "Untrusted <em>warning</em>", "media": []}
             })
         );
         assert_eq!(*calls.lock().unwrap(), ["example"]);
@@ -422,14 +423,14 @@ mod tests {
             quarantine_message_markdown: None,
             interstitial_warning_markdown: None,
         }));
-        let unavailable = RedditSubreddit::Unavailable(RedditUnavailableSubreddit {
+        let unavailable = RedditSubreddit::Unavailable(Box::new(RedditUnavailableSubreddit {
             id: Some("community".into()),
             forbidden_reason: None,
             ban_title: None,
             ban_message_markdown: None,
             quarantine_message_markdown: None,
             interstitial_warning_markdown: None,
-        });
+        }));
 
         let available = serde_json::to_value(Subreddit::from(available)).unwrap();
         let unavailable = serde_json::to_value(Subreddit::from(unavailable)).unwrap();

@@ -22,8 +22,11 @@ export const COMMENTS_RESPONSE = {
         state: "present",
         author: { id: "htuog", name: "coolreader18" },
         createdAt: "2026-10-23T06:52:22.417Z",
-        bodyMarkdown:
-          "The Future and AsyncIterator proposals are very exciting. It'll be nice to eventually be able to put that class of bugs behind us; I've had to deal with them before and it's not nice.",
+        markdown: {
+          content:
+            "The Future and AsyncIterator proposals are very exciting. It'll be nice to eventually be able to put that class of bugs behind us; I've had to deal with them before and it's not nice.",
+          media: [],
+        },
         score: 2,
         isOp: false,
         isPinned: false,
@@ -50,7 +53,8 @@ export const SUBREDDIT_RESPONSE = {
   createdAt: "2010-12-02T21:27:18.336Z",
   shortDescription:
     "A place for all things related to the Rust programming language—an open-source systems language that emphasizes performance, reliability, and productivity.",
-  descriptionMarkdown: `### **Please read [The Rust Community Code of Conduct](https://www.rust-lang.org/policies/code-of-conduct)**
+  descriptionMarkdown: {
+    content: `### **Please read [The Rust Community Code of Conduct](https://www.rust-lang.org/policies/code-of-conduct)**
 
 ***
 
@@ -171,6 +175,8 @@ Most links here will now take you to a search page listing posts with the releva
 * [Community Discord](https://discord.gg/rust-lang-community)
 * [Mozilla Matrix Chat](https://chat.mozilla.org/#/room/#rust:mozilla.org)
 * [Stack Overflow Chat](https://stackoverflow.com/questions/tagged/rust)`,
+    media: [],
+  },
   subscriberCount: 427940,
   weeklyActiveUserCount: 154424,
   weeklyContributionCount: 2925,
@@ -203,7 +209,7 @@ export const POST_RESPONSE = {
   commentCount: 2,
   isNsfw: false,
   isSpoiler: false,
-  bodyMarkdown: null,
+  markdown: null,
   attachments: [
     { kind: "link", url: "https://this-week-in-rust.org/blog/2026/10/21/this-week-in-rust-674/" },
   ],

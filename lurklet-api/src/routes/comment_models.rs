@@ -1,3 +1,4 @@
+use crate::routes::Markdown;
 use chrono::{DateTime, Utc};
 use lurklet_reddit::{
     Comment as RedditComment, CommentForest as RedditCommentForest,
@@ -83,7 +84,7 @@ struct Comment {
     created_at: Option<DateTime<Utc>>,
     /// Untrusted Markdown; embedded media URLs are not proxied.
     #[schema(required)]
-    body_markdown: Option<String>,
+    markdown: Option<Markdown>,
     #[schema(required)]
     score: Option<i64>,
     #[schema(required)]
@@ -146,7 +147,7 @@ impl From<RedditComment> for Comment {
             state,
             author,
             created_at,
-            body_markdown,
+            markdown,
             score,
             is_op,
             is_pinned,
@@ -161,7 +162,7 @@ impl From<RedditComment> for Comment {
             },
             author: author.map(Into::into),
             created_at,
-            body_markdown,
+            markdown: markdown.map(Into::into),
             score,
             is_op,
             is_pinned,
@@ -196,7 +197,7 @@ mod tests {
                 name: Some("example-user".into()),
             }),
             created_at: Some(DateTime::from_timestamp(0, 0).unwrap()),
-            body_markdown: Some("**Untrusted** Markdown".into()),
+            markdown: Some("**Untrusted** Markdown".into()),
             score: Some(-1),
             is_op: Some(true),
             is_pinned: Some(false),
@@ -207,7 +208,7 @@ mod tests {
             state: RedditCommentState::Deleted,
             author: None,
             created_at: None,
-            body_markdown: None,
+            markdown: None,
             score: None,
             is_op: None,
             is_pinned: None,
@@ -260,7 +261,7 @@ mod tests {
                         "kind": "comment",
                         "comment": {
                             "id": null, "state": "deleted", "author": null, "createdAt": null,
-                            "bodyMarkdown": null, "score": null, "isOp": null, "isPinned": null,
+                            "markdown": null, "score": null, "isOp": null, "isPinned": null,
                             "initiallyCollapsed": true
                         },
                         "replies": [
@@ -270,7 +271,7 @@ mod tests {
                                     "id": "reply", "state": "present",
                                     "author": {"id": "author", "name": "example-user"},
                                     "createdAt": "1970-01-01T00:00:00Z",
-                                    "bodyMarkdown": "**Untrusted** Markdown", "score": -1,
+                                    "markdown": {"content": "**Untrusted** Markdown", "media": []}, "score": -1,
                                     "isOp": true, "isPinned": false, "initiallyCollapsed": false
                                 },
                                 "replies": [{"kind": "more", "cursor": "nested+/=% token", "countHint": 5}]
@@ -284,7 +285,7 @@ mod tests {
                         "kind": "comment",
                         "comment": {
                             "id": "removed", "state": "removed", "author": null, "createdAt": null,
-                            "bodyMarkdown": null, "score": null, "isOp": null, "isPinned": null,
+                            "markdown": null, "score": null, "isOp": null, "isPinned": null,
                             "initiallyCollapsed": null
                         },
                         "replies": []

@@ -1,4 +1,5 @@
 use crate::error::ApiError;
+use crate::routes::Markdown;
 use axum::Json;
 use axum::extract::rejection::PathRejection;
 use axum::extract::{Path, State};
@@ -41,7 +42,7 @@ struct Post {
     is_spoiler: bool,
     /// Untrusted Markdown; embedded media URLs are not proxied.
     #[schema(required)]
-    body_markdown: Option<String>,
+    markdown: Option<Markdown>,
     attachments: Vec<PostAttachment>,
     #[schema(required)]
     crosspost_id: Option<String>,
@@ -105,7 +106,7 @@ impl From<RedditPost> for Post {
             comment_count,
             is_nsfw,
             is_spoiler,
-            body_markdown,
+            markdown,
             attachments,
             crosspost_id,
         } = post;
@@ -119,7 +120,7 @@ impl From<RedditPost> for Post {
             comment_count,
             is_nsfw,
             is_spoiler,
-            body_markdown,
+            markdown: markdown.map(Into::into),
             attachments: attachments.into_iter().map(Into::into).collect(),
             crosspost_id: crosspost_id.map(|id| id.as_str().to_owned()),
         }
@@ -285,7 +286,7 @@ mod tests {
             comment_count: Some(42),
             is_nsfw: false,
             is_spoiler: true,
-            body_markdown: Some("**Untrusted** Markdown".into()),
+            markdown: Some("**Untrusted** Markdown".into()),
             attachments: vec![
                 RedditPostAttachment::Link {
                     url: "https://example.test/link".into(),
@@ -358,7 +359,7 @@ mod tests {
                 "commentCount": 42,
                 "isNsfw": false,
                 "isSpoiler": true,
-                "bodyMarkdown": "**Untrusted** Markdown",
+                "markdown": {"content": "**Untrusted** Markdown", "media": []},
                 "attachments": [
                     {"kind": "link", "url": "https://example.test/link"},
                     {"kind": "image", "url": "https://example.test/image.png", "altText": "Image description", "caption": null},

@@ -1,3 +1,4 @@
+use crate::backends::mobile::Content;
 use crate::backends::mobile::comments::Continuation;
 use crate::{
     Comment, CommentForest, CommentItem, CommentSort, CommentState, GraphQlDecodeError,
@@ -45,11 +46,6 @@ struct CommentFields {
     is_op: Option<bool>,
     is_stickied: Option<bool>,
     is_initially_collapsed: Option<bool>,
-}
-
-#[derive(Deserialize)]
-struct Content {
-    markdown: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -146,7 +142,7 @@ impl Forest {
                         },
                         author: fields.author_info,
                         created_at: fields.created_at,
-                        body_markdown: fields.content.and_then(|content| content.markdown),
+                        markdown: fields.content.and_then(Content::into_markdown),
                         score: if fields.is_score_hidden == Some(true) {
                             None
                         } else {
@@ -164,7 +160,7 @@ impl Forest {
                         state: CommentState::Deleted,
                         author: None,
                         created_at: fields.created_at,
-                        body_markdown: None,
+                        markdown: None,
                         score: None,
                         is_op: None,
                         is_pinned: None,
@@ -244,7 +240,59 @@ fn attach_last(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Markdown, MarkdownMedia};
     use serde_json::{Value, json};
+
+    #[test]
+    fn when_captured_inline_images_are_returned_then_post_and_thread_views_should_preserve_signed_media_references()
+     {
+        let captured: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/mobile/captured-markdown.json"
+        ))
+        .unwrap();
+        let expected = [
+            MarkdownMedia {
+                id: "v15d43aihzyh1".into(),
+                mime_type: Some("image/png".into()),
+                url: "https://preview.redd.it/v15d43aihzyh1.png?width=640&auto=webp&s=9e8eed8e44e5fd12955d080b444124878ea624b1".into(),
+                width: Some(640),
+                height: Some(359),
+            },
+            MarkdownMedia {
+                id: "giphy|5L2okTiupVRxC".into(),
+                mime_type: Some("image/gif".into()),
+                url: "https://external-preview.redd.it/XkAlaLReQVP1Lb-sAwxemrJG39aR2bSKwz9r0gEkCXA.gif?auto=webp&s=3bd64f01b9ae9d560ab11b320ba15487c0a7b8b7".into(),
+                width: Some(300),
+                height: Some(200),
+            },
+        ];
+        let post_id = "example".into();
+        for (content, media) in captured["contents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .zip(expected)
+        {
+            let wire = json!({"trees": [{"depth": 0, "parentId": null, "node": {
+                "__typename": "Comment", "id": "t1_reply", "content": content
+            }}]});
+
+            for view in [post_view(&post_id), View::Thread] {
+                let forest = decode(wire.clone(), view).unwrap();
+
+                let CommentItem::Comment { comment, .. } = &forest.items[0] else {
+                    panic!("expected comment")
+                };
+                assert_eq!(
+                    comment.markdown,
+                    Some(Markdown {
+                        content: content["markdown"].as_str().unwrap().into(),
+                        media: vec![media.clone()],
+                    })
+                );
+            }
+        }
+    }
 
     fn value() -> Value {
         let response: Value = serde_json::from_str(include_str!(
@@ -357,7 +405,7 @@ mod tests {
                 state: CommentState::Deleted,
                 author: None,
                 created_at: Some("2023-12-28T21:35:27.507Z".parse().unwrap()),
-                body_markdown: None,
+                markdown: None,
                 score: None,
                 is_op: None,
                 is_pinned: None,
@@ -374,7 +422,7 @@ mod tests {
                     name: Some("example_author".into())
                 }),
                 created_at: Some("2023-12-28T21:36:00.123456Z".parse().unwrap()),
-                body_markdown: Some("**Reply**".into()),
+                markdown: Some("**Reply**".into()),
                 score: Some(7),
                 is_op: Some(true),
                 is_pinned: Some(false),

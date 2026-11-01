@@ -142,8 +142,11 @@ test("When an available community has warnings then its flags and Markdown notic
     ...SUBREDDIT_RESPONSE,
     isNsfw: true,
     isQuarantined: true,
-    interstitialWarningMarkdown: "Please **read this notice**.",
-    quarantineMessageMarkdown: "Review the [community warning](https://example.com/warning).",
+    interstitialWarningMarkdown: { content: "Please **read this notice**.", media: [] },
+    quarantineMessageMarkdown: {
+      content: "Review the [community warning](https://example.com/warning).",
+      media: [],
+    },
   });
 
   expect(screen.getByText("NSFW")).toBeVisible();
@@ -162,10 +165,10 @@ test("When a community is unavailable then the provided explanation should rende
     kind: "unavailable",
     id: null,
     banTitle: "Community access is limited",
-    banMessageMarkdown: "Access requires **approval**.",
+    banMessageMarkdown: { content: "Access requires **approval**.", media: [] },
     forbiddenReason: "restricted",
-    interstitialWarningMarkdown: "Contact the moderators.",
-    quarantineMessageMarkdown: "Additional notice.",
+    interstitialWarningMarkdown: { content: "Contact the moderators.", media: [] },
+    quarantineMessageMarkdown: { content: "Additional notice.", media: [] },
   });
 
   expect(screen.getByText("Community access is limited")).toBeVisible();

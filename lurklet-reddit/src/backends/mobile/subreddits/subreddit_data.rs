@@ -1,3 +1,4 @@
+use crate::backends::mobile::Content;
 use crate::{RedditId, Subreddit, SubredditDetails, SubredditStyles, UnavailableSubreddit};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -15,7 +16,7 @@ pub struct SubredditData {
 #[serde(tag = "__typename")]
 enum SubredditRecord {
     Subreddit(Box<SubredditFields>),
-    UnavailableSubreddit(UnavailableFields),
+    UnavailableSubreddit(Box<UnavailableFields>),
 }
 
 #[derive(Deserialize)]
@@ -37,11 +38,6 @@ struct SubredditFields {
     is_quarantined: Option<bool>,
     quarantine_message: Option<Content>,
     interstitial_warning_message: Option<Content>,
-}
-
-#[derive(Deserialize)]
-struct Content {
-    markdown: Option<String>,
 }
 
 // Some responses encode integral subscriber counts in exponent notation.
@@ -122,7 +118,7 @@ impl SubredditData {
                     title: fields.title,
                     created_at: fields.created_at,
                     short_description: fields.public_description_text,
-                    description_markdown: fields.description.and_then(|content| content.markdown),
+                    description_markdown: fields.description.and_then(Content::into_markdown),
                     subscriber_count: fields.subscribers_count.map(|count| count.0),
                     weekly_active_user_count,
                     weekly_contribution_count,
@@ -141,27 +137,27 @@ impl SubredditData {
                     is_quarantined: fields.is_quarantined,
                     quarantine_message_markdown: fields
                         .quarantine_message
-                        .and_then(|content| content.markdown),
+                        .and_then(Content::into_markdown),
                     interstitial_warning_markdown: fields
                         .interstitial_warning_message
-                        .and_then(|content| content.markdown),
+                        .and_then(Content::into_markdown),
                 }))
             }
             SubredditRecord::UnavailableSubreddit(fields) => {
-                Subreddit::Unavailable(UnavailableSubreddit {
+                Subreddit::Unavailable(Box::new(UnavailableSubreddit {
                     id: fields.id,
                     forbidden_reason: fields.forbidden_reason,
                     ban_title: fields.ban_title,
                     ban_message_markdown: fields
                         .ban_message_content
-                        .and_then(|content| content.markdown),
+                        .and_then(Content::into_markdown),
                     quarantine_message_markdown: fields
                         .quarantine_message
-                        .and_then(|content| content.markdown),
+                        .and_then(Content::into_markdown),
                     interstitial_warning_markdown: fields
                         .interstitial_warning_message
-                        .and_then(|content| content.markdown),
-                })
+                        .and_then(Content::into_markdown),
+                }))
             }
         })
     }
@@ -323,7 +319,7 @@ mod tests {
         fields.subscriber_count = Some(0);
         fields.weekly_active_user_count = Some(0);
         fields.weekly_contribution_count = Some(0);
-        fields.description_markdown = Some(String::new());
+        fields.description_markdown = Some("".into());
 
         let actual = decode(wire).unwrap();
 
@@ -424,14 +420,14 @@ mod tests {
 
         assert_eq!(
             actual,
-            Some(Subreddit::Unavailable(UnavailableSubreddit {
+            Some(Subreddit::Unavailable(Box::new(UnavailableSubreddit {
                 id: Some("unavailable".into()),
                 forbidden_reason: Some("BANNED".into()),
                 ban_title: Some("Example ban title".into()),
                 ban_message_markdown: Some("Example **ban** explanation.".into()),
                 quarantine_message_markdown: Some("Example quarantine explanation.".into()),
                 interstitial_warning_markdown: Some("Example warning.".into()),
-            }))
+            })))
         );
     }
 
@@ -453,14 +449,14 @@ mod tests {
 
             assert_eq!(
                 actual,
-                Some(Subreddit::Unavailable(UnavailableSubreddit {
+                Some(Subreddit::Unavailable(Box::new(UnavailableSubreddit {
                     id: None,
                     forbidden_reason: reason.map(Into::into),
                     ban_title: None,
                     ban_message_markdown: None,
                     quarantine_message_markdown: None,
                     interstitial_warning_markdown: None,
-                }))
+                })))
             );
         }
     }

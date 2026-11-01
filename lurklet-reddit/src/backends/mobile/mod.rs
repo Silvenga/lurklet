@@ -1,6 +1,7 @@
 mod allowlists;
 mod comments;
 mod config;
+mod content;
 mod continuations;
 mod graphql;
 mod media;
@@ -15,6 +16,7 @@ mod testing;
 
 pub use allowlists::RequestAllowlist;
 pub(crate) use config::Config;
+pub use content::Content;
 pub(crate) use graphql::PersistedQuery;
 pub use graphql::{GraphQlDecodeError, GraphQlErrorKind, GraphQlOutcome, GraphQlResponse};
 pub use mobile_backend::MobileBackend;

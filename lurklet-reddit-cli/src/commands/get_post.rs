@@ -41,7 +41,7 @@ mod tests {
             comment_count: Some(2),
             is_nsfw: false,
             is_spoiler: true,
-            body_markdown: Some("**Markdown**".into()),
+            markdown: Some("**Markdown**".into()),
             attachments: vec![
                 PostAttachment::Link {
                     url: "https://example.invalid/".into(),

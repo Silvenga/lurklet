@@ -108,7 +108,7 @@ mod tests {
         let post = client.get_post(&"18t5968".into()).await.unwrap();
 
         assert_eq!(post.id.as_str(), "18t5968");
-        assert_eq!(post.body_markdown.as_deref(), Some("Hello **world**."));
+        assert_eq!(post.markdown, Some("Hello **world**.".into()));
         assert_eq!(server.received_requests().await.unwrap().len(), 2);
     }
 
