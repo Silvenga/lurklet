@@ -58,7 +58,7 @@ export function PostContent({ postId }: { postId: string }) {
         <Separator />
         {value.markdown && (
           <section aria-label="Post content">
-            <Markdown value={value.markdown} />
+            <Markdown className="prose-sm max-w-none" value={value.markdown} />
           </section>
         )}
         <PostAttachments attachments={value.attachments} />
