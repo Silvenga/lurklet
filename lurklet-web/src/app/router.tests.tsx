@@ -289,6 +289,39 @@ test("When Markdown links to an unsupported Reddit path then it should show the 
   expect(router.state.location.pathname).toBe("/r/rust/wiki/rules");
 });
 
+test.each(["/u/llamageddon01", "/user/llamageddon01"])(
+  "When %s is opened then it should show the user placeholder without fetching profile data",
+  (path) => {
+    renderPath(path);
+
+    expect(screen.getByRole("heading", { name: "u/llamageddon01" })).toBeVisible();
+    expect(screen.getByText("User profiles aren’t supported yet.")).toBeVisible();
+    expect(document.title).toBe("u/llamageddon01 - Lurklet");
+  },
+);
+
+test("When a Markdown user mention is followed then it should navigate to the local placeholder", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/posts/:id", () =>
+      HttpResponse.json({
+        ...POST_RESPONSE,
+        markdown: { content: "For example r/NewToReddit or u/llamageddon01", media: [] },
+      }),
+    ),
+  );
+  const router = renderPath(POST_PATH);
+  const link = await screen.findByRole("link", { name: "u/llamageddon01" });
+  const header = screen.getByRole("banner");
+
+  await user.click(link);
+
+  expect(screen.getByRole("heading", { name: "u/llamageddon01" })).toBeVisible();
+  expect(screen.getByText("User profiles aren’t supported yet.")).toBeVisible();
+  expect(router.state.location.pathname).toBe("/u/llamageddon01");
+  expect(screen.getByRole("banner")).toBe(header);
+});
+
 test.each([
   ["/r/rust", "hot"],
   ["/r/rust/", "hot"],

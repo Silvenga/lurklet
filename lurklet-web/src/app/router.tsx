@@ -5,6 +5,7 @@ import { NotFoundPage } from "@/app/routes/NotFoundPage";
 import { PostListPage } from "@/app/routes/PostListPage";
 import { PostListRedirect } from "@/app/routes/PostListRedirect";
 import { SubredditLayout } from "@/app/routes/SubredditLayout";
+import { UserPage } from "@/app/routes/UserPage";
 import { postListLoader } from "@/features/posts/api/post-list-loader";
 import { PostListLoading } from "@/features/posts/components/PostListLoading";
 import { PostLoading } from "@/features/posts/components/PostLoading";
@@ -15,6 +16,8 @@ export const APP_ROUTES: RouteObject[] = [
     Component: AppLayout,
     children: [
       { index: true, Component: HomePage },
+      { path: "u/:username", Component: UserPage },
+      { path: "user/:username", Component: UserPage },
       {
         path: "r/:subreddit",
         Component: SubredditLayout,

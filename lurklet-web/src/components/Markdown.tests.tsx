@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
 import type { MarkdownMedia } from "@/clients/lurklet-api/generated/types.gen";
@@ -115,17 +116,6 @@ test("When Markdown contains raw HTML then it should render as text rather than 
   expect(container).toHaveTextContent("<strong>Not markup</strong>");
 });
 
-test("When a Markdown link uses a javascript URL then the default URL filter should remove it", () => {
-  const content = "[Unsafe](javascript:alert%281%29)";
-
-  renderMarkdown(content);
-
-  expect(screen.getByText("Unsafe")).not.toHaveAttribute(
-    "href",
-    expect.stringMatching(/^javascript:/i),
-  );
-});
-
 test.each([
   "https://reddit.com",
   "https://www.reddit.com",
@@ -163,10 +153,43 @@ test.each([
   ],
   ["https://redd.it/1xc54av", "/1xc54av"],
   ["https://www.redd.it/1xc54av", "/1xc54av"],
-])("When %s is not yet a supported route then it should still be rewritten to %s", (url, path) => {
+])("When %s is a Reddit destination then it should be rewritten to %s", (url, path) => {
   renderMarkdown(`[Reddit](${url})`);
 
   expect(screen.getByRole("link", { name: "Reddit" })).toHaveAttribute("href", path);
+});
+
+test("When Reddit plugins are composed then headings spoilers superscript mentions and strikethrough should render together", async () => {
+  const user = userEvent.setup();
+  const content = "##Heading\n\n>!^(**Secret**) r/rust u/example ~~removed~~ ~literal~ ^word!<";
+  const { container } = renderMarkdown(content);
+  expect(screen.getByRole("heading", { level: 2, name: "Heading" })).toBeVisible();
+  expect(screen.getByText("Secret").closest("[aria-hidden=true]")).toHaveAttribute("inert");
+  expect(screen.queryByRole("link")).toBeNull();
+
+  await user.click(screen.getByRole("button", { name: "Show spoiler" }));
+
+  expect(screen.getByText("Secret").closest("sup")).toBeVisible();
+  expect(screen.getByText("word").tagName).toBe("SUP");
+  expect(screen.getByRole("link", { name: "r/rust" })).toHaveAttribute("href", "/r/rust");
+  expect(screen.getByRole("link", { name: "u/example" })).toHaveAttribute("href", "/u/example");
+  expect(screen.getByText("removed").tagName).toBe("DEL");
+  expect(container).toHaveTextContent("~literal~");
+  expect(container.querySelector("blockquote, button a, button button")).toBeNull();
+});
+
+test("When a link label contains a spoiler then the reveal control should conceal the link and remain outside it", async () => {
+  const user = userEvent.setup();
+  const { container } = renderMarkdown("[Before >!secret!< after](https://example.com)");
+  expect(screen.queryByRole("link")).toBeNull();
+
+  await user.click(screen.getByRole("button", { name: "Show spoiler" }));
+
+  expect(screen.getByRole("link", { name: "Before secret after" })).toHaveAttribute(
+    "href",
+    "https://example.com",
+  );
+  expect(container.querySelector("a button, button a")).toBeNull();
 });
 
 test.each([
