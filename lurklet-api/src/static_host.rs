@@ -41,10 +41,12 @@ impl StaticHost {
     /// Builds a fallback router without exposing filesystem paths to clients.
     pub fn router(self) -> Router {
         let index = ServeFile::new(self.root.join("index.html"))
+            .precompressed_zstd()
             .precompressed_br()
             .precompressed_gzip();
         let files = ServeDir::new(self.root)
             .append_index_html_on_directories(false)
+            .precompressed_zstd()
             .precompressed_br()
             .precompressed_gzip()
             .fallback(get(spa_fallback).with_state(index.clone()));
@@ -111,6 +113,7 @@ mod tests {
     use flate2::write::GzEncoder;
     use std::fs;
     use std::io::{Read, Write};
+    use zstd::stream::{decode_all, encode_all};
 
     const ROBOTS: &str = "User-agent: *\nDisallow: /\n";
     const HTML: &str = "<!doctype html><html><body>Static fixture</body></html>";
@@ -140,6 +143,10 @@ mod tests {
             directory
                 .child(format!("{path}.br"))
                 .write_binary(&brotli)
+                .unwrap();
+            directory
+                .child(format!("{path}.zst"))
+                .write_binary(&encode_all(body.as_bytes(), 0).unwrap())
                 .unwrap();
         }
         directory.child("plain.txt").write_str("plain").unwrap();
@@ -210,6 +217,7 @@ mod tests {
         let app = app(&directory).await;
 
         for (path, content_type) in [
+            ("/", "text/html"),
             ("/index.html", "text/html"),
             ("/assets/main-abc12345.css", "text/css"),
             ("/assets/main-abc12345.js", "text/javascript"),
@@ -218,6 +226,7 @@ mod tests {
                 ("identity", None),
                 ("gzip", Some("gzip")),
                 ("br", Some("br")),
+                ("zstd", Some("zstd")),
             ] {
                 for method in [Method::GET, Method::HEAD] {
                     let request = Request::builder()
@@ -260,10 +269,12 @@ mod tests {
             ("", None),
             ("gzip", Some("gzip")),
             ("br", Some("br")),
+            ("zstd", Some("zstd")),
             ("gzip, br", Some("br")),
-            ("br;q=0.1, gzip;q=0.9", Some("gzip")),
-            ("br;q=0, gzip;q=1", Some("gzip")),
-            ("br;q=0.2, identity;q=1", None),
+            ("gzip, deflate, br, zstd", Some("zstd")),
+            ("zstd;q=0.1, br;q=0.1, gzip;q=0.9", Some("gzip")),
+            ("zstd;q=0, br;q=0, gzip;q=1", Some("gzip")),
+            ("zstd;q=0.2, br;q=0.2, identity;q=1", None),
         ] {
             for method in [Method::GET, Method::HEAD] {
                 let request = Request::builder()
@@ -294,6 +305,7 @@ mod tests {
                 let path = match expected {
                     Some("br") => "assets/main-abc12345.css.br",
                     Some("gzip") => "assets/main-abc12345.css.gz",
+                    Some("zstd") => "assets/main-abc12345.css.zst",
                     None => "assets/main-abc12345.css",
                     Some(other) => panic!("unexpected encoding: {other}"),
                 };
@@ -317,6 +329,9 @@ mod tests {
                             GzDecoder::new(&body[..])
                                 .read_to_string(&mut decoded)
                                 .unwrap();
+                        }
+                        Some("zstd") => {
+                            decoded = String::from_utf8(decode_all(&body[..]).unwrap()).unwrap();
                         }
                         None => decoded = String::from_utf8(body.to_vec()).unwrap(),
                         Some(other) => panic!("unexpected encoding: {other}"),
@@ -344,11 +359,11 @@ mod tests {
         for (path, accept, status, encoding) in [
             (
                 "/assets/gzip-only-abc12345.css",
-                "br, gzip, identity;q=0",
+                "zstd, br, gzip, identity;q=0",
                 StatusCode::OK,
                 Some("gzip"),
             ),
-            ("/plain.txt", "br, gzip", StatusCode::OK, None),
+            ("/plain.txt", "zstd, br, gzip", StatusCode::OK, None),
         ] {
             let request = Request::builder()
                 .uri(path)
@@ -374,16 +389,17 @@ mod tests {
         let directory = fixtures();
         let app = app(&directory).await;
 
-        for path in [
-            "/r/rust",
-            "/r/rust/",
-            "/posts/version.2",
-            "/missing.html?query=value",
+        for (path, encoding) in [
+            ("/r/rust", "br"),
+            ("/r/rust/", "br"),
+            ("/posts/version.2", "br"),
+            ("/missing.html?query=value", "br"),
+            ("/r/rust", "zstd"),
         ] {
             let request = Request::builder()
                 .uri(path)
                 .header(header::ACCEPT, "application/json, text/html;q=0.8")
-                .header(header::ACCEPT_ENCODING, "br")
+                .header(header::ACCEPT_ENCODING, encoding)
                 .body(Body::empty())
                 .unwrap();
 
@@ -391,10 +407,12 @@ mod tests {
             let status = response.status();
             let headers = response.headers().clone();
             let body = to_bytes(response.into_body(), 4096).await.unwrap();
-            let mut decoded = String::new();
-            Decompressor::new(&body[..], 4096)
-                .read_to_string(&mut decoded)
-                .unwrap();
+            let variant = if encoding == "zstd" {
+                "index.html.zst"
+            } else {
+                "index.html.br"
+            };
+            let expected = fs::read(directory.child(variant).path()).unwrap();
 
             assert_eq!(status, StatusCode::OK, "{path}");
             assert_eq!(headers[header::CONTENT_TYPE], "text/html");
@@ -403,8 +421,9 @@ mod tests {
                 "public, max-age=0, stale-while-revalidate=86400"
             );
             assert_eq!(headers[header::VARY], "Accept, Accept-Encoding");
+            assert_eq!(headers[header::CONTENT_ENCODING], encoding);
             assert!(!headers.contains_key(header::LOCATION));
-            assert_eq!(decoded, HTML);
+            assert_eq!(body.as_ref(), expected);
         }
     }
 
@@ -474,7 +493,12 @@ mod tests {
 
         for path in ["/index.html", "/r/rust", "/assets/main-abc12345.css"] {
             let mut tags = Vec::new();
-            for encoding in ["identity", "gzip, identity;q=0", "br, identity;q=0"] {
+            for encoding in [
+                "identity",
+                "gzip, identity;q=0",
+                "br, identity;q=0",
+                "zstd, identity;q=0",
+            ] {
                 let request = Request::builder()
                     .uri(path)
                     .header(header::ACCEPT, "text/html")
@@ -603,6 +627,8 @@ mod tests {
             "/%2eenv",
             "/.vite/manifest.json",
             "/index.html.gz",
+            "/index.html.zst",
+            "/assets/main-abc12345.js.zst",
         ] {
             let request = Request::builder()
                 .uri(path)

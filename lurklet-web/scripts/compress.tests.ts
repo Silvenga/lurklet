@@ -3,7 +3,7 @@
 import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { brotliDecompressSync, gunzipSync } from "node:zlib";
+import { brotliDecompressSync, constants, gunzipSync, zstdDecompressSync } from "node:zlib";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { compressAssets } from "./compress.ts";
 
@@ -18,28 +18,38 @@ afterEach(async () => {
 });
 
 test.each(["html", "js", "css", "json", "svg", "map"])(
-  "When a nested %s asset is compressible then both sidecars should round-trip to the original",
+  "When a nested %s asset is compressible then all sidecars should round-trip to the original",
   async (extension) => {
     const assets = join(directory, "assets");
     await mkdir(assets);
     const path = join(assets, `asset.${extension}`);
-    const source = Buffer.from("Compressible source content.\n".repeat(100));
+    const source =
+      extension === "map"
+        ? Buffer.alloc(9 * 1024 * 1024, "Compressible source content.\n")
+        : Buffer.from("Compressible source content.\n".repeat(100));
     await writeFile(path, source);
 
     await compressAssets(directory);
 
     const gz = await readFile(`${path}.gz`);
     const br = await readFile(`${path}.br`);
-    expect(gunzipSync(gz)).toEqual(source);
-    expect(brotliDecompressSync(br)).toEqual(source);
+    const zst = await readFile(`${path}.zst`);
+    expect(gunzipSync(gz).equals(source)).toBe(true);
+    expect(brotliDecompressSync(br).equals(source)).toBe(true);
+    expect(
+      zstdDecompressSync(zst, {
+        params: { [constants.ZSTD_d_windowLogMax]: 23 },
+      }).equals(source),
+    ).toBe(true);
     expect(gz.byteLength).toBeLessThan(source.byteLength);
     expect(br.byteLength).toBeLessThan(source.byteLength);
-    expect(await readFile(path)).toEqual(source);
+    expect(zst.byteLength).toBeLessThan(source.byteLength);
+    expect((await readFile(path)).equals(source)).toBe(true);
   },
 );
 
 test("When assets are already compressed or unsupported then they should remain unchanged", async () => {
-  const names = ["font.woff2", "image.png", "asset.js.gz", "asset.js.br"];
+  const names = ["font.woff2", "image.png", "asset.js.gz", "asset.js.br", "asset.js.zst"];
   const source = Buffer.from("Compressible but excluded content.\n".repeat(100));
   for (const name of names) {
     await writeFile(join(directory, name), source);
@@ -58,6 +68,7 @@ test("When compression is not smaller then sidecars should not be retained", asy
   await writeFile(path, "x");
   await writeFile(`${path}.gz`, "stale gzip");
   await writeFile(`${path}.br`, "stale brotli");
+  await writeFile(`${path}.zst`, "stale zstd");
 
   await compressAssets(directory);
 
@@ -76,7 +87,13 @@ test("When compression runs again then sidecars should reflect the current sourc
 
   expect(gunzipSync(await readFile(`${path}.gz`))).toEqual(source);
   expect(brotliDecompressSync(await readFile(`${path}.br`))).toEqual(source);
-  expect((await readdir(directory)).sort()).toEqual(["asset.js", "asset.js.br", "asset.js.gz"]);
+  expect(zstdDecompressSync(await readFile(`${path}.zst`))).toEqual(source);
+  expect((await readdir(directory)).sort()).toEqual([
+    "asset.js",
+    "asset.js.br",
+    "asset.js.gz",
+    "asset.js.zst",
+  ]);
 });
 
 test("When the build output is missing then compression should fail", async () => {

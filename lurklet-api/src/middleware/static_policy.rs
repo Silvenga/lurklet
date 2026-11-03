@@ -17,6 +17,7 @@ pub async fn static_policy(request: Request, next: Next) -> Response {
             || path.trim_start_matches('/').starts_with("api/")
             || path.ends_with(".br")
             || path.ends_with(".gz")
+            || path.ends_with(".zst")
     });
     let immutable = path.as_ref().is_ok_and(|path| {
         path.starts_with("/assets/")
