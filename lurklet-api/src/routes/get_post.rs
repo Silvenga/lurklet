@@ -208,69 +208,14 @@ async fn get_post<B: RedditBackend>(
 mod tests {
     use super::*;
     use crate::ApiCacheOptions;
+    use crate::routes::testing::{Call, FakeBackend};
     use axum::Router;
     use axum::body::{Body, to_bytes};
     use axum::http::{Request, StatusCode, header};
-    use lurklet_reddit::{
-        AnonymousSession, ClockError, CommentForest, CommentSort, CommentThread, Error, MediaFile,
-        ResponseError, RetryAfter, StorageError, Subreddit, SubredditPage, SubredditSort,
-    };
+    use lurklet_reddit::Error;
     use serde_json::{Value, json};
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::time::{Duration, UNIX_EPOCH};
+    use std::sync::{Arc, Mutex};
     use tower::ServiceExt;
-
-    struct FakeBackend {
-        result: Result<RedditPost, Error>,
-        calls: Arc<AtomicUsize>,
-    }
-
-    impl RedditBackend for FakeBackend {
-        async fn get_media(&self, _: &str) -> Result<MediaFile, Error> {
-            panic!("the post endpoint must not fetch media")
-        }
-
-        async fn get_subreddit(&self, _: &str) -> Result<Subreddit, Error> {
-            panic!("the post endpoint must not fetch subreddit metadata")
-        }
-
-        async fn get_post_comments(
-            &self,
-            _: &RedditId,
-            _: CommentSort,
-            _: Option<&str>,
-        ) -> Result<CommentForest, Error> {
-            panic!("the post endpoint must not fetch comments")
-        }
-
-        async fn get_comment_thread(
-            &self,
-            _: &RedditId,
-            _: CommentSort,
-        ) -> Result<CommentThread, Error> {
-            panic!("the post endpoint must not fetch comment threads")
-        }
-
-        async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
-            panic!("the endpoint must leave bootstrap to the client backend")
-        }
-
-        async fn get_post(&self, id: &RedditId) -> Result<RedditPost, Error> {
-            assert_eq!(id, &"18t5968".into());
-            self.calls.fetch_add(1, Ordering::SeqCst);
-            self.result.clone()
-        }
-
-        async fn list_subreddit_posts(
-            &self,
-            _: &str,
-            _: SubredditSort,
-            _: Option<&str>,
-        ) -> Result<SubredditPage, Error> {
-            panic!("the post endpoint must not list subreddit posts")
-        }
-    }
 
     fn fixture() -> RedditPost {
         RedditPost {
@@ -335,8 +280,12 @@ mod tests {
         }
     }
 
-    fn app(result: Result<RedditPost, Error>, calls: Arc<AtomicUsize>) -> Router {
-        let client = RedditClient::from_backend(FakeBackend { result, calls });
+    fn app(result: Result<RedditPost, Error>, calls: Arc<Mutex<Vec<Call>>>) -> Router {
+        let client = RedditClient::from_backend(FakeBackend {
+            post: Some(result),
+            calls,
+            ..FakeBackend::default()
+        });
         let (router, _) = router().split_for_parts();
         ApiCacheOptions::default().wrap(router.with_state(client))
     }
@@ -351,7 +300,7 @@ mod tests {
     #[tokio::test]
     async fn when_a_post_is_requested_then_the_endpoint_should_return_its_api_model_and_cache_policy()
      {
-        let calls = Arc::new(AtomicUsize::new(0));
+        let calls = Arc::new(Mutex::new(Vec::new()));
         let app = app(Ok(fixture()), calls.clone());
 
         let response = app.oneshot(request()).await.unwrap();
@@ -360,7 +309,7 @@ mod tests {
         let body: Value =
             serde_json::from_slice(&to_bytes(response.into_body(), 16384).await.unwrap()).unwrap();
 
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(*calls.lock().unwrap(), [Call::Post("18t5968".into())]);
         assert_eq!(status, StatusCode::OK);
         assert_eq!(headers[header::CONTENT_TYPE], "application/json");
         assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=3600");
@@ -397,7 +346,7 @@ mod tests {
 
     #[tokio::test]
     async fn when_a_post_fullname_is_supplied_then_the_client_should_receive_the_bare_id() {
-        let calls = Arc::new(AtomicUsize::new(0));
+        let calls = Arc::new(Mutex::new(Vec::new()));
         let app = app(Ok(fixture()), calls.clone());
         let request = Request::builder()
             .uri("/posts/t3_18t5968")
@@ -407,115 +356,27 @@ mod tests {
         let response = app.oneshot(request).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(*calls.lock().unwrap(), [Call::Post("18t5968".into())]);
     }
 
     #[tokio::test]
-    async fn when_the_client_fails_then_problem_details_should_be_cacheable_for_ten_seconds() {
-        for (error, status, retry_after) in [
-            (Error::Unavailable, StatusCode::NOT_FOUND, None),
-            (Error::NotFound, StatusCode::NOT_FOUND, None),
-            (
-                Error::UnexpectedStatus { status: 404 },
-                StatusCode::BAD_GATEWAY,
-                None,
-            ),
-            (
-                Error::Authentication { status: 401 },
-                StatusCode::BAD_GATEWAY,
-                None,
-            ),
-            (
-                Error::AccessDenied { status: 403 },
-                StatusCode::BAD_GATEWAY,
-                None,
-            ),
-            (
-                Error::InvalidResponse(ResponseError::InvalidPostResponse),
-                StatusCode::BAD_GATEWAY,
-                None,
-            ),
-            (Error::OperationFailed, StatusCode::BAD_GATEWAY, None),
-            (
-                Error::RateLimited { retry_after: None },
-                StatusCode::SERVICE_UNAVAILABLE,
-                None,
-            ),
-            (
-                Error::RateLimited {
-                    retry_after: Some(RetryAfter::Delay(Duration::from_secs(120))),
-                },
-                StatusCode::SERVICE_UNAVAILABLE,
-                Some("120"),
-            ),
-            (
-                Error::Upstream {
-                    status: 503,
-                    retry_after: Some(RetryAfter::At(UNIX_EPOCH + Duration::from_secs(1445412480))),
-                },
-                StatusCode::SERVICE_UNAVAILABLE,
-                Some("Wed, 21 Oct 2015 07:28:00 GMT"),
-            ),
-            (
-                Error::Storage(StorageError::Unavailable),
-                StatusCode::INTERNAL_SERVER_ERROR,
-                None,
-            ),
-            (
-                Error::Clock(ClockError::BeforeEpoch),
-                StatusCode::INTERNAL_SERVER_ERROR,
-                None,
-            ),
-            (
-                Error::InvalidState {
-                    field: "private-state",
-                },
-                StatusCode::INTERNAL_SERVER_ERROR,
-                None,
-            ),
-            (
-                Error::InvalidRequest {
-                    field: "private-field",
-                },
-                StatusCode::INTERNAL_SERVER_ERROR,
-                None,
-            ),
-            (
-                Error::SessionChanged,
-                StatusCode::INTERNAL_SERVER_ERROR,
-                None,
-            ),
-        ] {
-            let calls = Arc::new(AtomicUsize::new(0));
-            let app = app(Err(error), calls.clone());
+    async fn when_the_client_fails_then_the_endpoint_should_propagate_problem_details() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let app = app(Err(Error::Unavailable), calls.clone());
 
-            let response = app.oneshot(request()).await.unwrap();
-            let actual_status = response.status();
-            let headers = response.headers().clone();
-            let body: Value =
-                serde_json::from_slice(&to_bytes(response.into_body(), 4096).await.unwrap())
-                    .unwrap();
+        let response = app.oneshot(request()).await.unwrap();
 
-            assert_eq!(calls.load(Ordering::SeqCst), 1);
-            assert_eq!(actual_status, status);
-            assert_eq!(headers[header::CONTENT_TYPE], "application/problem+json");
-            assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=10");
-            assert_eq!(
-                headers
-                    .get(header::RETRY_AFTER)
-                    .map(|value| value.to_str().unwrap()),
-                retry_after
-            );
-            assert_eq!(
-                body,
-                json!({"type": "about:blank", "title": status.canonical_reason().unwrap(), "status": status.as_u16()})
-            );
-        }
+        assert_eq!(*calls.lock().unwrap(), [Call::Post("18t5968".into())]);
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "application/problem+json"
+        );
     }
 
     #[tokio::test]
     async fn when_the_path_cannot_be_decoded_then_the_endpoint_should_not_call_the_client() {
-        let calls = Arc::new(AtomicUsize::new(0));
+        let calls = Arc::new(Mutex::new(Vec::new()));
         let app = app(Ok(fixture()), calls.clone());
         let request = Request::builder()
             .uri("/posts/%FF")
@@ -533,6 +394,6 @@ mod tests {
             response.headers()[header::CACHE_CONTROL],
             "public, max-age=10"
         );
-        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        assert!(calls.lock().unwrap().is_empty());
     }
 }

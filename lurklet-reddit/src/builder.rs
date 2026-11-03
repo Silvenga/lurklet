@@ -378,20 +378,53 @@ mod tests {
     use super::*;
 
     #[test]
-    fn when_no_proxy_is_configured_then_automatic_proxy_selection_should_remain_enabled() {
+    fn when_a_builder_is_created_then_optional_transport_settings_and_timeouts_should_have_defaults()
+     {
         let builder = RedditClient::builder();
 
-        assert!(builder.proxy.is_none());
+        assert_eq!(
+            (
+                builder.proxy,
+                builder.emulation_profile,
+                builder.request_timeout,
+                builder.connect_timeout
+            ),
+            (
+                None,
+                None,
+                Some(Duration::from_secs(30)),
+                Duration::from_secs(10)
+            )
+        );
     }
 
     #[test]
-    fn when_a_proxy_is_configured_then_storage_injection_should_preserve_it() {
+    fn when_storage_is_injected_then_explicit_transport_settings_should_be_preserved() {
         let proxy = "socks5h://user:secret@localhost:1080";
-        let builder = RedditClient::builder().with_proxy(proxy);
+        let builder = RedditClient::builder()
+            .with_proxy(proxy)
+            .with_emulation_profile(Profile::OkHttp4_12)
+            .with_request_timeout(None)
+            .with_connect_timeout(Duration::from_secs(5));
 
         let builder = builder.with_storage(Storage::default());
 
-        assert_eq!(builder.proxy.as_deref(), Some(proxy));
+        assert_eq!(
+            (
+                builder.proxy.as_deref(),
+                builder.emulation_profile,
+                builder.request_timeout,
+                builder.connect_timeout
+            ),
+            (
+                Some(proxy),
+                Some(Profile::OkHttp4_12),
+                None,
+                Duration::from_secs(5)
+            )
+        );
+        let builder = builder.with_emulation_profile(None);
+        assert_eq!(builder.emulation_profile, None);
         assert!(builder.build().is_ok());
     }
 
@@ -432,35 +465,6 @@ mod tests {
             assert_eq!(error.to_string(), "invalid client configuration: proxy");
             assert!(!format!("{error:?}").contains("private-"));
         }
-    }
-
-    #[test]
-    fn when_a_builder_is_created_then_emulation_should_be_disabled() {
-        let builder = RedditClient::builder();
-
-        let profile = builder.emulation_profile;
-
-        assert_eq!(profile, None);
-    }
-
-    #[test]
-    fn when_emulation_is_explicitly_configured_then_storage_injection_should_preserve_it() {
-        let builder = RedditClient::builder().with_emulation_profile(Profile::OkHttp4_12);
-
-        let builder = builder.with_storage(Storage::default());
-
-        assert_eq!(builder.emulation_profile, Some(Profile::OkHttp4_12));
-        assert!(builder.build().is_ok());
-    }
-
-    #[test]
-    fn when_emulation_is_cleared_then_the_builder_should_use_plain_transport() {
-        let builder = RedditClient::builder().with_emulation_profile(Profile::OkHttp4_12);
-
-        let builder = builder.with_emulation_profile(None);
-
-        assert_eq!(builder.emulation_profile, None);
-        assert!(builder.build().is_ok());
     }
 
     #[test]
@@ -505,43 +509,6 @@ mod tests {
         assert_eq!(
             client.backend().config.user_agent.as_deref(),
             Some("Reddit/Version 2026.42.0/Build 42/Android 15")
-        );
-    }
-
-    #[test]
-    fn when_a_builder_is_created_then_timeouts_should_have_defaults() {
-        let builder = RedditClient::builder();
-
-        let timeouts = (builder.request_timeout, builder.connect_timeout);
-
-        assert_eq!(
-            timeouts,
-            (Some(Duration::from_secs(30)), Duration::from_secs(10))
-        );
-    }
-
-    #[test]
-    fn when_timeouts_are_configured_then_the_builder_should_retain_them() {
-        let request_timeout = Duration::from_secs(20);
-        let connect_timeout = Duration::from_secs(5);
-
-        let builder = RedditClient::builder()
-            .with_request_timeout(request_timeout)
-            .with_connect_timeout(connect_timeout);
-
-        assert_eq!(
-            (builder.request_timeout, builder.connect_timeout),
-            (Some(request_timeout), connect_timeout)
-        );
-    }
-
-    #[test]
-    fn when_the_total_timeout_is_disabled_then_the_connection_timeout_should_remain_configured() {
-        let builder = RedditClient::builder().with_request_timeout(None);
-
-        assert_eq!(
-            (builder.request_timeout, builder.connect_timeout),
-            (None, Duration::from_secs(10))
         );
     }
 }

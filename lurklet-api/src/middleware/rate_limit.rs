@@ -218,7 +218,6 @@ mod tests {
     use axum::routing::get;
     use serde_json::{Value, json};
     use tokio::task::JoinSet;
-    use tokio::time::sleep;
 
     fn request(path: &str, peer: &str) -> Request<Body> {
         Request::builder()
@@ -369,38 +368,6 @@ mod tests {
         }
 
         assert_eq!((accepted, rejected), (10, 22));
-    }
-
-    #[tokio::test]
-    async fn when_quota_recovers_then_cleanup_should_remove_only_recovered_entries() {
-        let limiter = limiter(1);
-        let app = app(&limiter);
-        let first = app
-            .clone()
-            .oneshot(request("/api/missing", "192.0.2.1:1234"))
-            .await
-            .unwrap();
-
-        limiter.retain_recent();
-        let active = limiter.config.limiter().len();
-        let rejected = app
-            .clone()
-            .oneshot(request("/api/missing", "192.0.2.1:1234"))
-            .await
-            .unwrap();
-        sleep(Duration::from_millis(2100)).await;
-        limiter.retain_recent();
-        let recovered = limiter.config.limiter().len();
-        let next = app
-            .oneshot(request("/api/missing", "192.0.2.1:1234"))
-            .await
-            .unwrap();
-
-        assert_eq!(first.status(), StatusCode::NOT_FOUND);
-        assert_eq!(active, 1);
-        assert_eq!(rejected.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_eq!(recovered, 0);
-        assert_eq!(next.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]

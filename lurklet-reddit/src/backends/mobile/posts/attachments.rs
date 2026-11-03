@@ -414,14 +414,12 @@ mod tests {
         let result = attachments(&post);
 
         assert_eq!(
-            result,
-            vec![PostAttachment::Video {
-                sources: vec![VideoSource {
-                    url: "https://example.invalid/video.mpd".into(),
-                    format: VideoFormat::Dash
-                }],
-                poster_url: None,
-            }]
+            serde_json::to_value(result).unwrap(),
+            json!([{
+                "kind": "video",
+                "sources": [{"url": "https://example.invalid/video.mpd", "format": "dash"}],
+                "poster_url": null
+            }])
         );
     }
 
@@ -443,10 +441,8 @@ mod tests {
         let result = attachments(&post);
 
         assert_eq!(
-            result,
-            vec![PostAttachment::Link {
-                url: "https://example.invalid/article".into()
-            }]
+            serde_json::to_value(result).unwrap(),
+            json!([{"kind": "link", "url": "https://example.invalid/article"}])
         );
     }
 
@@ -466,12 +462,13 @@ mod tests {
         let result = attachments(&post);
 
         assert_eq!(
-            result,
-            vec![PostAttachment::Image {
-                url: "https://example.invalid/image.jpg?signature=fixture&width=1200".into(),
-                alt_text: Some("A description".into()),
-                caption: None
-            }]
+            serde_json::to_value(result).unwrap(),
+            json!([{
+                "kind": "image",
+                "url": "https://example.invalid/image.jpg?signature=fixture&width=1200",
+                "alt_text": "A description",
+                "caption": null
+            }])
         );
     }
 
@@ -522,28 +519,17 @@ mod tests {
         let result = attachments(&post);
 
         assert_eq!(
-            result,
-            vec![PostAttachment::Video {
-                sources: vec![
-                    VideoSource {
-                        url: "https://example.invalid/video.mp4?token=fixture".into(),
-                        format: VideoFormat::Mp4
-                    },
-                    VideoSource {
-                        url: "https://example.invalid/medium.mp4".into(),
-                        format: VideoFormat::Mp4
-                    },
-                    VideoSource {
-                        url: "https://example.invalid/video.m3u8".into(),
-                        format: VideoFormat::Hls
-                    },
-                    VideoSource {
-                        url: "https://example.invalid/video.mpd".into(),
-                        format: VideoFormat::Dash
-                    },
+            serde_json::to_value(result).unwrap(),
+            json!([{
+                "kind": "video",
+                "sources": [
+                    {"url": "https://example.invalid/video.mp4?token=fixture", "format": "mp4"},
+                    {"url": "https://example.invalid/medium.mp4", "format": "mp4"},
+                    {"url": "https://example.invalid/video.m3u8", "format": "hls"},
+                    {"url": "https://example.invalid/video.mpd", "format": "dash"}
                 ],
-                poster_url: Some("https://example.invalid/poster.jpg".into())
-            }]
+                "poster_url": "https://example.invalid/poster.jpg"
+            }])
         );
     }
 

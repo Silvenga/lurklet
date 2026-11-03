@@ -3,12 +3,13 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use serde_json::{Value, json};
 use std::fs;
 use std::path::Path;
+use std::time::Duration;
 
 pub const TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJsb2lkIn0.c3ludGhldGlj";
 
 pub fn command() -> Command {
     let mut command = cargo_bin_cmd!("lurklet-reddit-cli");
-    command.env_remove("RUST_LOG");
+    command.env_clear().timeout(Duration::from_secs(5));
     command
 }
 

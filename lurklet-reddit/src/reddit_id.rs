@@ -48,50 +48,23 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn when_an_id_is_parsed_then_it_should_use_the_same_normalization_as_deserialization() {
-        for value in ["example", "t1_example", "t3_example", "t5_example"] {
+    fn when_an_id_is_constructed_or_decoded_then_it_should_serialize_as_the_normalized_id() {
+        for (value, expected) in [
+            ("example", "example"),
+            ("t1_example", "example"),
+            ("t2_example", "example"),
+            ("t3_example", "example"),
+            ("t5_example", "example"),
+            ("other_example", "other_example"),
+        ] {
             let parsed: RedditId = value.parse().unwrap();
             let deserialized: RedditId = serde_json::from_value(json!(value)).unwrap();
+            let constructed = RedditId::from(value);
 
             assert_eq!(parsed, deserialized);
-            assert_eq!(parsed.as_str(), "example");
+            assert_eq!(parsed, constructed);
+            assert_eq!(parsed.as_str(), expected);
+            assert_eq!(serde_json::to_value(&parsed).unwrap(), json!(expected));
         }
-    }
-
-    #[test]
-    fn when_fullnames_are_deserialized_then_ids_should_share_one_normalization_rule() {
-        for value in [
-            "example",
-            "t1_example",
-            "t2_example",
-            "t3_example",
-            "t5_example",
-        ] {
-            let id: RedditId = serde_json::from_value(json!(value)).unwrap();
-
-            assert_eq!(id.as_str(), "example");
-            assert_eq!(serde_json::to_value(&id).unwrap(), json!("example"));
-        }
-    }
-
-    #[test]
-    fn when_an_id_is_not_a_fullname_then_normalization_should_leave_it_unchanged() {
-        for value in ["example", "other_example"] {
-            let id = RedditId::from(value);
-
-            assert_eq!(id.as_str(), value);
-        }
-    }
-
-    #[test]
-    fn when_ids_are_nested_in_options_and_lists_then_serde_should_apply_the_same_normalization() {
-        let input = json!(["t2_author", null, "t5_community"]);
-
-        let ids: Vec<Option<RedditId>> = serde_json::from_value(input).unwrap();
-
-        assert_eq!(
-            ids,
-            vec![Some("author".into()), None, Some("community".into())]
-        );
     }
 }

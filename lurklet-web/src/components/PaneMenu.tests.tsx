@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { expect, onTestFinished, test, vi } from "vitest";
 import { PaneMenu } from "./PaneMenu";
 
+const RELATIVE_FORMAT = new Intl.RelativeTimeFormat(undefined, { numeric: "always" });
+
 test("When a pane menu opens with the keyboard then its JSON item should be a new-tab link and Escape should restore focus", async () => {
   const user = userEvent.setup();
   const href = new URL("/api/posts/example", location.origin).href;
@@ -12,14 +14,11 @@ test("When a pane menu opens with the keyboard then its JSON item should be a ne
   await user.tab();
 
   expect(trigger).toHaveFocus();
-  expect(trigger).toHaveAttribute("data-variant", "ghost");
-  expect(trigger).toHaveClass("absolute", "top-0", "right-0");
   expect(screen.queryByRole("menuitem")).toBeNull();
 
   await user.keyboard("{ArrowDown}");
 
   const link = await screen.findByRole("menuitem", { name: "JSON" });
-  expect(link.tagName).toBe("A");
   expect(link).toHaveAttribute("href", href);
   expect(link).toHaveAttribute("target", "_blank");
   expect(link).toHaveAttribute("rel", "noopener noreferrer");
@@ -53,10 +52,10 @@ test("When a menu has response age then its footer should describe the menu with
   await user.keyboard("{ArrowDown}");
 
   const menu = await screen.findByRole("menu");
-  const footer = screen.getByText("Fetched 51 minutes ago");
-  expect(menu).toHaveAccessibleDescription("Fetched 51 minutes ago");
+  const age = `Fetched ${RELATIVE_FORMAT.format(-51, "minute")}`;
+  const footer = screen.getByText(age);
+  expect(menu).toHaveAccessibleDescription(age);
   expect(menu).not.toContainElement(footer);
-  expect(menu.parentElement).toContainElement(footer);
   expect(footer).not.toHaveAttribute("tabindex");
   expect(screen.getByRole("separator")).toBeVisible();
   expect(screen.getAllByRole("menuitem")).toHaveLength(2);
@@ -102,14 +101,14 @@ test("When a response ages while its menu is open or closed then the footer shou
 
   act(() => vi.advanceTimersByTime(60_000));
 
-  expect(screen.getByText("Fetched 1 minute ago")).toBeVisible();
+  expect(screen.getByText(`Fetched ${RELATIVE_FORMAT.format(-1, "minute")}`)).toBeVisible();
 
   await user.keyboard("{Escape}");
   await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   act(() => vi.advanceTimersByTime(60_000));
   await user.click(trigger);
 
-  expect(screen.getByText("Fetched 2 minutes ago")).toBeVisible();
+  expect(screen.getByText(`Fetched ${RELATIVE_FORMAT.format(-2, "minute")}`)).toBeVisible();
 });
 
 test("When JSON is unavailable then the Reddit item should remain a keyboard-accessible new-tab link", async () => {
@@ -126,9 +125,6 @@ test("When JSON is unavailable then the Reddit item should remain a keyboard-acc
     link,
     screen.getByRole("menuitem", { name: "JSON" }),
   ]);
-  expect(link.closest('[data-slot="dropdown-menu-content"]')).toHaveClass("w-max");
-  expect(screen.getByText("Open on Reddit")).toHaveClass("whitespace-nowrap");
-  expect(link.tagName).toBe("A");
   expect(link).toHaveAttribute("href", href);
   expect(link).toHaveAttribute("target", "_blank");
   expect(link).toHaveAttribute("rel", "noopener noreferrer");

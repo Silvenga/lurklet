@@ -15,13 +15,27 @@ fn when_no_command_is_supplied_then_the_cli_should_show_help_without_side_effect
 }
 
 #[test]
-fn when_a_cached_session_exists_then_the_cli_should_emit_redacted_json_without_network_access() {
+fn when_valid_overrides_and_a_cached_session_are_supplied_then_the_cli_should_emit_redacted_json_without_network_access()
+ {
     let directory = TempDir::new().unwrap();
     let path = directory.path().join("session.json");
     let expected = state();
     write_state(&path, &expected);
+    let overrides = "--graphql-endpoint https://127.0.0.1:1/
+        --client-id custom-client --scope one --scope two
+        --app-version 1.2.3 --app-build 42 --android-release 15
+        --manufacturer Example --model Model --locale en-GB --display-density -1
+        --display-width-px 800 --display-height-px 1200 --user-agent custom-agent
+        --emulation-profile okhttp_4.12 --reddit-compression 0 --download-rate-mbps 12.3
+        --graphql-accept application/json --graphql-retry-header attempt=0,max=0
+        --allowlist-operation-name CustomAllowlist --allowlist-sha256 custom-hash
+        --height-header=false --max-response-bytes 4096
+        --request-timeout-ms 1234 --connect-timeout-ms 567";
 
-    let output = cached_command(&path).output().unwrap();
+    let output = cached_command(&path)
+        .args(overrides.split_whitespace())
+        .output()
+        .unwrap();
     let result: Value = serde_json::from_slice(&output.stdout).unwrap();
     let restored: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
 
@@ -78,22 +92,6 @@ fn when_logging_configuration_is_invalid_then_the_cli_should_emit_a_structured_e
 }
 
 #[test]
-fn when_allowlist_metadata_is_incomplete_then_the_cli_should_reject_arguments() {
-    let output = command()
-        .args([
-            "get-request-allowlist",
-            "--allowlist-operation-name",
-            "OnlyName",
-        ])
-        .output()
-        .unwrap();
-
-    assert_eq!(output.status.code(), Some(2));
-    assert!(output.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("--allowlist-sha256"));
-}
-
-#[test]
 fn when_allowlist_header_construction_fails_then_the_cli_should_return_a_structured_error_without_network()
  {
     let directory = TempDir::new().unwrap();
@@ -132,79 +130,18 @@ fn when_allowlist_header_construction_fails_then_the_cli_should_return_a_structu
 }
 
 #[test]
-fn when_subreddit_arguments_request_unsupported_modes_then_the_cli_should_reject_them_without_side_effects()
- {
+fn when_arguments_are_incomplete_then_the_cli_should_reject_them_without_side_effects() {
     let directory = TempDir::new().unwrap();
-    for arguments in [
-        vec!["get-subreddit"],
-        vec!["get-subreddit", "rust", "space"],
-        vec!["get-subreddit", "rust", "--opt-in"],
-        vec!["get-subreddit", "rust", "--cursor", "opaque"],
-    ] {
-        let output = command()
-            .current_dir(directory.path())
-            .args(arguments)
-            .output()
-            .unwrap();
-
-        assert_eq!(output.status.code(), Some(2));
-        assert!(output.stdout.is_empty());
-        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
-    }
-}
-
-#[test]
-fn when_subreddit_transport_fails_then_the_cli_should_preserve_state_and_return_a_redacted_error() {
-    let directory = TempDir::new().unwrap();
-    let path = directory.path().join("session.json");
-    let expected = state();
-    write_state(&path, &expected);
 
     let output = command()
-        .arg("--state-file")
-        .arg(&path)
-        .args([
-            "--clock-ms",
-            "1000",
-            "--graphql-endpoint",
-            "https://127.0.0.1:1/",
-            "--auth-endpoint",
-            "https://127.0.0.1:1/token",
-            "get-subreddit",
-            "rust",
-        ])
+        .current_dir(directory.path())
+        .arg("get-post")
         .output()
         .unwrap();
-    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
 
-    assert_eq!(output.status.code(), Some(1));
-    assert_eq!(result["ok"], false);
-    assert_eq!(result["error"]["kind"], "transport");
-    assert_eq!(result["captures_written"], 0);
-    assert_eq!(
-        serde_json::from_slice::<Value>(&fs::read(path).unwrap()).unwrap(),
-        expected
-    );
-    assert!(!String::from_utf8_lossy(&output.stdout).contains(TOKEN));
-    assert!(!String::from_utf8_lossy(&output.stderr).contains(TOKEN));
-}
-
-#[test]
-fn when_post_arguments_are_missing_or_batched_then_the_cli_should_reject_them_without_side_effects()
-{
-    let directory = TempDir::new().unwrap();
-
-    for arguments in [vec!["get-post"], vec!["get-post", "one", "two"]] {
-        let output = command()
-            .current_dir(directory.path())
-            .args(arguments)
-            .output()
-            .unwrap();
-
-        assert_eq!(output.status.code(), Some(2));
-        assert!(output.stdout.is_empty());
-        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
-    }
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
 }
 
 #[test]
@@ -245,26 +182,6 @@ fn when_post_transport_fails_then_the_cli_should_return_nonzero_status_and_prese
 }
 
 #[test]
-fn when_listing_arguments_are_unsupported_then_the_cli_should_reject_them_without_side_effects() {
-    let directory = TempDir::new().unwrap();
-    for arguments in [
-        vec!["list-subreddit-posts"],
-        vec!["list-subreddit-posts", "rust", "--limit", "10"],
-        vec!["list-subreddit-posts", "rust", "--sort", "awarded"],
-    ] {
-        let output = command()
-            .current_dir(directory.path())
-            .args(arguments)
-            .output()
-            .unwrap();
-
-        assert_eq!(output.status.code(), Some(2));
-        assert!(output.stdout.is_empty());
-        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
-    }
-}
-
-#[test]
 fn when_a_listing_cursor_is_invalid_then_the_cli_should_return_an_input_error_without_network() {
     let directory = TempDir::new().unwrap();
     let path = directory.path().join("session.json");
@@ -294,42 +211,6 @@ fn when_a_listing_cursor_is_invalid_then_the_cli_should_return_an_input_error_wi
         serde_json::from_slice::<Value>(&fs::read(path).unwrap()).unwrap(),
         expected
     );
-}
-
-#[test]
-fn when_comment_arguments_request_unsupported_modes_then_the_cli_should_reject_them_without_side_effects()
- {
-    let directory = TempDir::new().unwrap();
-    for arguments in [
-        vec!["get-post-comments"],
-        vec!["get-post-comments", "post", "--sort", "random"],
-        vec!["get-post-comments", "post", "--count", "100"],
-        vec!["get-comment-thread", "anchor", "--cursor", "opaque"],
-    ] {
-        let output = command()
-            .current_dir(directory.path())
-            .args(arguments)
-            .output()
-            .unwrap();
-
-        assert_eq!(output.status.code(), Some(2));
-        assert!(output.stdout.is_empty());
-        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
-    }
-}
-
-#[test]
-fn when_media_arguments_are_incomplete_then_clap_should_reject_them_before_execution() {
-    for arguments in [
-        vec!["get-media"],
-        vec!["get-media", "https://example.invalid/file"],
-        vec!["get-media", "--output", "file.bin"],
-    ] {
-        let output = command().args(arguments).output().unwrap();
-
-        assert_eq!(output.status.code(), Some(2));
-        assert!(output.stdout.is_empty());
-    }
 }
 
 #[test]

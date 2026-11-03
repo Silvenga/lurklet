@@ -46,7 +46,7 @@ mod tests {
     use axum::routing::get;
     use brotli::Decompressor;
     use flate2::read::{GzDecoder, ZlibDecoder};
-    use futures_util::stream;
+    use futures_util::{StreamExt, stream};
     use serde_json::{Value, json};
     use std::fs;
     use std::io::{self, Read};
@@ -54,6 +54,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::task::Poll;
     use std::time::Duration;
+    use tokio::sync::Notify;
     use tokio::time::timeout;
     use zstd::stream::decode_all;
 
@@ -346,20 +347,32 @@ mod tests {
             let cache = ResponseCache::new(directory.path()).await.unwrap();
             let polled = Arc::new(AtomicUsize::new(0));
             let dropped = Arc::new(AtomicUsize::new(0));
+            let blocked = Arc::new(Notify::new());
             let app = cache
                 .wrap(Router::new().route(
                     "/resource",
                     get({
                         let polled = polled.clone();
                         let dropped = dropped.clone();
+                        let blocked = blocked.clone();
                         move || {
                             let polled = polled.clone();
                             let guard = Dropped(dropped.clone());
+                            let blocked = blocked.clone();
                             async move {
+                                let mut emitted = false;
                                 let source = stream::poll_fn(move |_| {
                                     let _ = &guard;
                                     polled.fetch_add(1, Ordering::SeqCst);
-                                    Poll::Pending::<Option<Result<bytes::Bytes, io::Error>>>
+                                    if !emitted {
+                                        emitted = true;
+                                        Poll::Ready(Some(Ok::<_, io::Error>(
+                                            bytes::Bytes::from_static(JSON.as_bytes()),
+                                        )))
+                                    } else {
+                                        blocked.notify_one();
+                                        Poll::Pending
+                                    }
                                 });
                                 (
                                     [
@@ -385,8 +398,21 @@ mod tests {
 
                 assert_eq!(response.headers()[header::CONTENT_ENCODING], encoding);
                 assert_eq!(response.headers()["x-lurklet-cache"], "miss");
-                assert_eq!(polled.load(Ordering::SeqCst), 0);
-                drop(response);
+                let previous_polls = polled.load(Ordering::SeqCst);
+                let mut body = response.into_body().into_data_stream();
+                timeout(Duration::from_secs(5), async {
+                    loop {
+                        tokio::select! {
+                            biased;
+                            () = blocked.notified() => break,
+                            chunk = body.next() => { chunk.expect("stream must remain pending").unwrap(); }
+                        }
+                    }
+                }).await.unwrap();
+                let consumed_polls = polled.load(Ordering::SeqCst);
+                assert!(consumed_polls >= previous_polls + 2);
+                drop(body);
+                assert_eq!(polled.load(Ordering::SeqCst), consumed_polls);
                 assert_eq!(dropped.load(Ordering::SeqCst), expected_drops);
                 assert_eq!(
                     fs::read_dir(directory.path().join(".tmp")).unwrap().count(),

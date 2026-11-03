@@ -83,11 +83,37 @@ impl<S: StateStore> MobileBackend<S> {
 mod tests {
     use super::*;
     use crate::backends::mobile::testing::{self, NOW, ORIGIN, PATH, TOKEN_FAKE, TestClock};
-    use crate::{InMemoryStore, RedditClient, RetryAfter, Storage};
+    use crate::{ClientState, InMemoryStore, RedditClient, RetryAfter, Storage, StorageError};
     use std::sync::atomic::Ordering;
     use std::time::Duration;
+    use tokio::sync::Notify;
+    use tokio::time::timeout;
     use wiremock::matchers::{body_json, header, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
+
+    struct PausedPublication {
+        inner: InMemoryStore,
+        entered: Notify,
+        release: Notify,
+    }
+
+    impl StateStore for PausedPublication {
+        async fn load(&self) -> Result<StateSnapshot, StorageError> {
+            self.inner.load().await
+        }
+
+        async fn compare_exchange(
+            &self,
+            revision: u64,
+            state: ClientState,
+        ) -> Result<Option<StateSnapshot>, StorageError> {
+            if state.authentication.session.is_some() {
+                self.entered.notify_one();
+                self.release.notified().await;
+            }
+            self.inner.compare_exchange(revision, state).await
+        }
+    }
 
     #[tokio::test]
     async fn when_replaying_a_sanitized_capture_then_bootstrap_should_match_the_session_snapshot() {
@@ -251,14 +277,20 @@ mod tests {
     async fn when_state_changes_during_acquisition_then_the_old_result_should_not_overwrite_it() {
         let server = MockServer::start().await;
         Mock::given(path(PATH))
-            .respond_with(testing::response().set_delay(Duration::from_millis(100)))
+            .respond_with(testing::response())
             .expect(1)
             .mount(&server)
             .await;
-        let storage = testing::storage();
+        let storage = Storage::new(PausedPublication {
+            inner: InMemoryStore::with_state(testing::state()),
+            entered: Notify::new(),
+            release: Notify::new(),
+        });
         let client = testing::client(&server, storage.clone(), TestClock::default());
         let pending = tokio::spawn(async move { client.bootstrap().await });
-        testing::wait_for_request(&server).await;
+        timeout(Duration::from_secs(5), storage.store().entered.notified())
+            .await
+            .unwrap();
         let mut replacement = testing::state();
         replacement.authentication.loid = Some("newer-session".into());
         let saved = storage
@@ -268,7 +300,11 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let result = pending.await.unwrap();
+        storage.store().release.notify_one();
+        let result = timeout(Duration::from_secs(5), pending)
+            .await
+            .unwrap()
+            .unwrap();
 
         assert!(matches!(result, Err(Error::SessionChanged)));
         assert_eq!(storage.store().load().await.unwrap(), saved);

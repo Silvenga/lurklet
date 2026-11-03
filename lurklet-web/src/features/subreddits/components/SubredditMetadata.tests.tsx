@@ -34,11 +34,6 @@ test("When metadata is available then it should show the summary and accurately 
 
   expect(screen.getByText(SUBREDDIT_RESPONSE.title, { selector: "p" })).toBeVisible();
   expect(screen.getByText(SUBREDDIT_RESPONSE.shortDescription)).toBeVisible();
-  expect(screen.getByText(SUBREDDIT_RESPONSE.shortDescription)).toHaveClass(
-    "prose",
-    "prose-sm",
-    "dark:prose-invert",
-  );
   expect(screen.getByText("Subscribers").nextElementSibling).toHaveTextContent(
     new Intl.NumberFormat().format(SUBREDDIT_RESPONSE.subscriberCount),
   );
@@ -60,31 +55,14 @@ test("When metadata is available then it should show the summary and accurately 
   expect(screen.getByText("Created").nextElementSibling).toContainElement(
     container.querySelector("time"),
   );
-  for (const label of ["Subscribers", "Weekly active users", "Weekly contributions", "Created"]) {
-    expect(screen.getByText(label)).toHaveClass("whitespace-nowrap");
-  }
-  expect([...container.querySelectorAll("dt")].map((label) => label.textContent)).toEqual([
-    "Subscribers",
-    "Created",
-    "Weekly active users",
-    "Weekly contributions",
-  ]);
-  expect(screen.getByText("Subscribers").parentElement).not.toHaveClass("col-span-2");
-  expect(screen.getByText("Created").parentElement).not.toHaveClass("col-span-2");
-  expect(screen.getByText("Weekly active users").parentElement).toHaveClass("col-span-2");
-  expect(screen.getByText("Weekly contributions").parentElement).toHaveClass("col-span-2");
   expect(screen.queryByRole("link", { name: "The Rust Community Code of Conduct" })).toBeNull();
   expect(screen.queryByRole("heading", { name: "Observe our code of conduct" })).toBeNull();
-  expect(container.querySelectorAll(".prose")).toHaveLength(1);
-  expect(container.firstElementChild).toHaveClass("select-text");
   const icon = screen.getByRole("img", { name: "r/rust icon" });
   const iconUrl = new URL(icon.getAttribute("src")!);
   expect(iconUrl.origin).toBe(location.origin);
   expect(iconUrl.pathname).toBe("/api/media");
   expect(iconUrl.searchParams.get("url")).toBe(SUBREDDIT_RESPONSE.styles.iconUrl);
-  expect(icon).toHaveClass("size-10", "rounded-full");
   expect(screen.getByRole("link", { name: "r/rust" })).toHaveAttribute("href", "/r/rust");
-  expect(screen.getByRole("heading", { name: "r/rust" })).toHaveClass("min-w-0", "truncate");
   await expectJsonMenu("Subreddit actions", new URL("/api/subreddits/rust", location.origin).href);
 });
 
@@ -234,9 +212,7 @@ test("When the subreddit icon fails then its placeholder should not hide metadat
 
   fireEvent.error(screen.getByRole("img", { name: "r/rust icon" }));
 
-  expect(screen.getByRole("img", { name: "Image unavailable: r/rust icon" })).toHaveClass(
-    "size-10",
-  );
+  expect(screen.getByRole("img", { name: "Image unavailable: r/rust icon" })).toBeVisible();
   expect(screen.getByRole("link", { name: "r/rust" })).toBeVisible();
   expect(screen.getByText(SUBREDDIT_RESPONSE.title)).toBeVisible();
   expect(container.querySelector("img, [src], [srcset]")).toBeNull();

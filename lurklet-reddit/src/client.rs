@@ -101,16 +101,3 @@ impl<B: RedditBackend> Clone for RedditClient<B> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn when_a_client_is_cloned_then_clones_should_share_the_backend() {
-        let client = RedditClient::builder().build().unwrap();
-
-        let cloned = client.clone();
-
-        assert!(Arc::ptr_eq(&client.backend, &cloned.backend));
-    }
-}

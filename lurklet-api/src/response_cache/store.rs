@@ -184,7 +184,6 @@ mod tests {
     use axum::http::{HeaderValue, header};
     use std::sync::Arc;
     use tokio::sync::Mutex;
-    use tokio::task::JoinSet;
 
     async fn write(store: &Store, key: &CacheKey, bytes: &[u8]) -> Metadata {
         let mut writer = store.begin(key).await.unwrap();
@@ -380,76 +379,55 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_an_entry_is_replaced_then_an_open_reader_should_keep_its_original_content() {
-        let directory = TempDir::new().unwrap();
-        let store = Store::new(directory.path()).await.unwrap();
-        let key = CacheKey::new(&"/resource".parse().unwrap());
-        let old_metadata = write(&store, &key, b"old").await;
-        let old = store.read(&key).await.unwrap();
-
-        let new_metadata = write(&store, &key, b"replacement").await;
-        let new = store.read(&key).await.unwrap();
-
-        assert_ne!(old_metadata.content_file, new_metadata.content_file);
-        assert!(
-            !store
-                .path(&key)
-                .parent()
-                .unwrap()
-                .join(old_metadata.content_file)
-                .exists()
-        );
-        assert_eq!(
-            to_bytes(old.into_response().into_body(), 4096)
-                .await
-                .unwrap(),
-            b"old".as_slice()
-        );
-        assert_eq!(
-            to_bytes(new.into_response().into_body(), 4096)
-                .await
-                .unwrap(),
-            b"replacement".as_slice()
-        );
-    }
-
-    #[tokio::test]
-    async fn when_independent_stores_publish_then_readers_should_only_observe_matching_metadata_and_content()
+    async fn when_independent_writers_overlap_then_only_published_content_should_be_visible_to_new_readers()
      {
         let directory = TempDir::new().unwrap();
         let first = Store::new(directory.path()).await.unwrap();
         let second = Store::new(directory.path()).await.unwrap();
         let key = CacheKey::new(&"/resource".parse().unwrap());
-        write(&first, &key, b"initial").await;
-        let mut writers = JoinSet::new();
-        for store in [first.clone(), second] {
-            writers.spawn(async move {
-                let key = CacheKey::new(&"/resource".parse().unwrap());
-                for byte in 0..16 {
-                    write(&store, &key, &vec![byte; 65536 + usize::from(byte)]).await;
-                }
-            });
-        }
+        let old_metadata = write(&first, &key, b"initial").await;
+        let old = first.read(&key).await.unwrap();
+        let mut slow = first.begin(&key).await.unwrap();
+        slow.write(b"slow ").await.unwrap();
+        let mut fast = second.begin(&key).await.unwrap();
+        fast.write(b"fast ").await.unwrap();
 
-        for _ in 0..64 {
-            if let Some(entry) = first.read(&key).await {
-                let length = entry.metadata.content_length;
-                let body = to_bytes(entry.into_response().into_body(), 131072)
-                    .await
-                    .unwrap();
-                assert_eq!(body.len() as u64, length);
-                assert!(
-                    body == b"initial".as_slice()
-                        || (body.len() == 65536 + usize::from(body[0])
-                            && body.iter().all(|byte| *byte == body[0]))
-                );
-            }
-        }
-        while let Some(result) = writers.join_next().await {
-            result.unwrap();
-        }
+        let during_writes = second.read(&key).await.unwrap();
+        fast.write(b"complete").await.unwrap();
+        let fast_metadata = fast
+            .publish(HeaderMap::new(), Duration::from_secs(60), 13)
+            .await
+            .unwrap();
+        let between_publications = first.read(&key).await.unwrap();
+        slow.write(b"complete").await.unwrap();
+        slow.publish(HeaderMap::new(), Duration::from_secs(60), 13)
+            .await
+            .unwrap();
+        let latest = second.read(&key).await.unwrap();
 
-        assert!(first.read(&key).await.is_some());
+        for (entry, expected) in [
+            (old, b"initial".as_slice()),
+            (during_writes, b"initial".as_slice()),
+            (between_publications, b"fast complete".as_slice()),
+            (latest, b"slow complete".as_slice()),
+        ] {
+            let length = entry.metadata.content_length;
+            let body = to_bytes(entry.into_response().into_body(), 4096)
+                .await
+                .unwrap();
+            assert_eq!(body.as_ref(), expected);
+            assert_eq!(length, expected.len() as u64);
+        }
+        for retired in [old_metadata, fast_metadata] {
+            assert!(
+                !first
+                    .path(&key)
+                    .parent()
+                    .unwrap()
+                    .join(retired.content_file)
+                    .exists()
+            );
+        }
         assert_eq!(
             fs::read_dir(directory.path().join(".tmp")).unwrap().count(),
             0

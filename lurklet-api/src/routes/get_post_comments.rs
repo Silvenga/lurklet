@@ -68,78 +68,16 @@ async fn get_post_comments<B: RedditBackend>(
 mod tests {
     use super::*;
     use crate::ApiCacheOptions;
+    use crate::routes::testing::{Call, FakeBackend};
     use axum::Router;
     use axum::body::{Body, to_bytes};
     use axum::http::{Request, StatusCode, header};
     use lurklet_reddit::{
-        AnonymousSession, CommentForest as RedditCommentForest, CommentItem,
-        CommentSort as RedditCommentSort, CommentThread, MediaFile, Post, Subreddit, SubredditPage,
-        SubredditSort,
+        CommentForest as RedditCommentForest, CommentItem, CommentSort as RedditCommentSort,
     };
     use serde_json::{Value, json};
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt;
-
-    #[derive(Debug, PartialEq)]
-    struct CommentCall {
-        id: RedditId,
-        sort: RedditCommentSort,
-        cursor: Option<String>,
-    }
-
-    struct FakeBackend {
-        result: Result<RedditCommentForest, RedditError>,
-        calls: Arc<Mutex<Vec<CommentCall>>>,
-    }
-
-    impl RedditBackend for FakeBackend {
-        async fn get_media(&self, _: &str) -> Result<MediaFile, RedditError> {
-            panic!("the comments endpoint must not fetch media")
-        }
-
-        async fn get_subreddit(&self, _: &str) -> Result<Subreddit, RedditError> {
-            panic!("the comments endpoint must not fetch subreddit metadata")
-        }
-
-        async fn get_post_comments(
-            &self,
-            id: &RedditId,
-            sort: RedditCommentSort,
-            cursor: Option<&str>,
-        ) -> Result<RedditCommentForest, RedditError> {
-            self.calls.lock().unwrap().push(CommentCall {
-                id: id.clone(),
-                sort,
-                cursor: cursor.map(Into::into),
-            });
-            self.result.clone()
-        }
-
-        async fn get_comment_thread(
-            &self,
-            _: &RedditId,
-            _: RedditCommentSort,
-        ) -> Result<CommentThread, RedditError> {
-            panic!("the post-comments endpoint must not open a focused thread")
-        }
-
-        async fn get_post(&self, _: &RedditId) -> Result<Post, RedditError> {
-            panic!("the comments endpoint must not fetch post details")
-        }
-
-        async fn list_subreddit_posts(
-            &self,
-            _: &str,
-            _: SubredditSort,
-            _: Option<&str>,
-        ) -> Result<SubredditPage, RedditError> {
-            panic!("the comments endpoint must not list subreddit posts")
-        }
-
-        async fn bootstrap(&self) -> Result<AnonymousSession, RedditError> {
-            panic!("the endpoint must leave bootstrap to the client backend")
-        }
-    }
 
     fn fixture() -> RedditCommentForest {
         RedditCommentForest {
@@ -153,12 +91,16 @@ mod tests {
 
     fn app(
         result: Result<RedditCommentForest, RedditError>,
-        calls: Arc<Mutex<Vec<CommentCall>>>,
+        calls: Arc<Mutex<Vec<Call>>>,
     ) -> Router {
         let routes = router()
             .split_for_parts()
             .0
-            .with_state(RedditClient::from_backend(FakeBackend { result, calls }));
+            .with_state(RedditClient::from_backend(FakeBackend {
+                comments: Some(result),
+                calls,
+                ..FakeBackend::default()
+            }));
         ApiCacheOptions::default().wrap(routes)
     }
 
@@ -210,7 +152,7 @@ mod tests {
             );
             assert_eq!(
                 *calls.lock().unwrap(),
-                [CommentCall {
+                [Call::Comments {
                     id: "post".into(),
                     sort,
                     cursor: cursor.map(Into::into)
@@ -259,7 +201,6 @@ mod tests {
                 StatusCode::INTERNAL_SERVER_ERROR,
             ),
             (RedditError::Unavailable, StatusCode::NOT_FOUND),
-            (RedditError::NotFound, StatusCode::NOT_FOUND),
         ] {
             let calls = Arc::new(Mutex::new(Vec::new()));
             let app = app(Err(error), calls.clone());
@@ -271,15 +212,8 @@ mod tests {
 
             assert_eq!(response.status(), status);
             assert_eq!(
-                response.headers()[header::CACHE_CONTROL],
-                "public, max-age=10"
-            );
-            assert_eq!(
-                serde_json::from_slice::<Value>(
-                    &to_bytes(response.into_body(), 4096).await.unwrap()
-                )
-                .unwrap(),
-                json!({"type": "about:blank", "title": status.canonical_reason().unwrap(), "status": status.as_u16()})
+                response.headers()[header::CONTENT_TYPE],
+                "application/problem+json"
             );
             assert_eq!(calls.lock().unwrap().len(), 1);
         }

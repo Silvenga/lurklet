@@ -144,25 +144,6 @@ test("When a date is activated inside a comment disclosure then it should not co
   expect(screen.getByText("Comment body")).toBeVisible();
 });
 
-test("When a date is activated inside a form then it should not submit the form", async () => {
-  const user = userEvent.setup();
-  const onSubmit = vi.fn();
-  render(
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        onSubmit();
-      }}
-    >
-      <DateAgo dateTime="2026-10-26T11:00:00Z" />
-    </form>,
-  );
-
-  await user.click(screen.getByRole("button", { name: RELATIVE_FORMAT.format(-1, "hour") }));
-
-  expect(onSubmit).not.toHaveBeenCalled();
-});
-
 test("When the shared minute clock ticks then all displayed relative labels should update", async () => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);

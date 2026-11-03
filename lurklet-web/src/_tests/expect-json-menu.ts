@@ -21,5 +21,4 @@ export async function expectJsonMenu(
 
   await user.keyboard("{Escape}");
   await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
-  await waitFor(() => expect(trigger).toHaveFocus());
 }

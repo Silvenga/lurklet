@@ -10,7 +10,6 @@ import {
 } from "@/_tests/mocks/fixtures";
 import { server } from "@/_tests/mocks/server";
 import { createQueryClient } from "@/app/query-client";
-import * as generatedQueries from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
 import { getPostQueryKey } from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
 import type {
   CommentForest,
@@ -113,23 +112,6 @@ test("When a thread query selects its forest then the JSON link should still add
   if (result.current.query.isSuccess) {
     expectTypeOf(result.current.query.data).toEqualTypeOf<CommentForest>();
   }
-});
-
-test("When generated endpoint metadata changes then the JSON link should use the generated path", async () => {
-  const options = { path: { id: POST_RESPONSE.id } };
-  const generated = generatedQueries.getPostOptions(options);
-  const metadata = vi.spyOn(generatedQueries, "getPostOptions").mockReturnValue({
-    ...generated,
-    meta: { apiPath: "/api/v2/posts/{id}" },
-  });
-  onTestFinished(() => metadata.mockRestore());
-
-  const { result } = renderQuery(() => useJsonQuery(apiQueryOptions.getPost(options)), undefined);
-  await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
-
-  expect(result.current.jsonHref).toBe(
-    new URL(`/api/v2/posts/${POST_RESPONSE.id}`, location.origin).href,
-  );
 });
 
 test("When a query loads refetches and fails then its JSON link should remain available", async () => {

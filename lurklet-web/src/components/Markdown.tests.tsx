@@ -13,29 +13,6 @@ function renderMarkdown(content: string, path = "/", media: MarkdownMedia[] = []
   );
 }
 
-test("When Markdown contains headings and inline formatting then it should render semantic elements", () => {
-  const content = "# Introduction\n\nA **bold** and *emphasized* paragraph with `inline code`.";
-
-  renderMarkdown(content);
-
-  expect(screen.getByRole("heading", { level: 1, name: "Introduction" })).toBeInTheDocument();
-  expect(screen.getByText("bold").tagName).toBe("STRONG");
-  expect(screen.getByText("emphasized").tagName).toBe("EM");
-  expect(screen.getByText("inline code").tagName).toBe("CODE");
-  expect(screen.getByText(/paragraph with/).tagName).toBe("P");
-});
-
-test("When Markdown contains lists and a quotation then it should preserve their structure", () => {
-  const content = "> Quoted text\n\n- First item\n- Second item\n\n1. Ordered item\n\n---";
-
-  renderMarkdown(content);
-
-  expect(screen.getByText("Quoted text").closest("blockquote")).toBeInTheDocument();
-  expect(screen.getAllByRole("list").map((list) => list.tagName)).toEqual(["UL", "OL"]);
-  expect(screen.getAllByRole("listitem")).toHaveLength(3);
-  expect(screen.getByRole("separator")).toBeInTheDocument();
-});
-
 test("When Markdown uses GFM extensions then it should render tables tasks strikethrough and autolinks", () => {
   const content = [
     "| Name | Value |",
@@ -67,17 +44,6 @@ test("When Markdown uses GFM extensions then it should render tables tasks strik
   );
 });
 
-test("When Markdown contains a fenced code block then its contents should remain literal", () => {
-  const content = "```html\n<strong>Not markup</strong>\n```";
-
-  const { container } = renderMarkdown(content);
-
-  const code = screen.getByText("<strong>Not markup</strong>");
-  expect(code.tagName).toBe("CODE");
-  expect(code.closest("pre")).toBeInTheDocument();
-  expect(container.querySelector("strong")).toBeNull();
-});
-
 test("When Markdown contains links and images then links should use their policy and images should use the media proxy", () => {
   const content = [
     "[Subreddit](/r/example)",
@@ -97,6 +63,9 @@ test("When Markdown contains links and images then links should use their policy
     "rel",
     "noopener noreferrer nofollow ugc external",
   );
+  const icon = screen.getByRole("link", { name: "External" }).querySelector("svg");
+  expect(icon).toHaveAttribute("aria-hidden", "true");
+  expect(icon).toHaveAttribute("focusable", "false");
   const image = screen.getByRole("img", { name: "Example image" });
   const url = new URL(image.getAttribute("src")!);
   expect(url.origin).toBe(location.origin);

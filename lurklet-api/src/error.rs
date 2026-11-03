@@ -154,3 +154,114 @@ impl IntoResponse for ApiError {
         response
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::to_bytes;
+    use lurklet_reddit::{ClockError, ResponseError, StorageError};
+    use serde_json::{Value, json};
+    use std::time::{Duration, UNIX_EPOCH};
+
+    #[tokio::test]
+    async fn when_reddit_fails_then_problem_details_should_map_the_error_without_exposing_details()
+    {
+        for (error, status, retry_after) in [
+            (RedditError::Unavailable, StatusCode::NOT_FOUND, None),
+            (RedditError::NotFound, StatusCode::NOT_FOUND, None),
+            (
+                RedditError::UnexpectedStatus { status: 404 },
+                StatusCode::BAD_GATEWAY,
+                None,
+            ),
+            (
+                RedditError::Authentication { status: 401 },
+                StatusCode::BAD_GATEWAY,
+                None,
+            ),
+            (
+                RedditError::AccessDenied { status: 403 },
+                StatusCode::BAD_GATEWAY,
+                None,
+            ),
+            (
+                RedditError::InvalidResponse(ResponseError::InvalidPostResponse),
+                StatusCode::BAD_GATEWAY,
+                None,
+            ),
+            (RedditError::OperationFailed, StatusCode::BAD_GATEWAY, None),
+            (
+                RedditError::RateLimited { retry_after: None },
+                StatusCode::SERVICE_UNAVAILABLE,
+                None,
+            ),
+            (
+                RedditError::RateLimited {
+                    retry_after: Some(RedditRetryAfter::Delay(Duration::from_secs(120))),
+                },
+                StatusCode::SERVICE_UNAVAILABLE,
+                Some("120"),
+            ),
+            (
+                RedditError::Upstream {
+                    status: 503,
+                    retry_after: Some(RedditRetryAfter::At(
+                        UNIX_EPOCH + Duration::from_secs(1445412480),
+                    )),
+                },
+                StatusCode::SERVICE_UNAVAILABLE,
+                Some("Wed, 21 Oct 2015 07:28:00 GMT"),
+            ),
+            (
+                RedditError::Storage(StorageError::Unavailable),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                None,
+            ),
+            (
+                RedditError::Clock(ClockError::BeforeEpoch),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                None,
+            ),
+            (
+                RedditError::InvalidState {
+                    field: "private-state",
+                },
+                StatusCode::INTERNAL_SERVER_ERROR,
+                None,
+            ),
+            (
+                RedditError::InvalidRequest {
+                    field: "private-field",
+                },
+                StatusCode::INTERNAL_SERVER_ERROR,
+                None,
+            ),
+            (
+                RedditError::SessionChanged,
+                StatusCode::INTERNAL_SERVER_ERROR,
+                None,
+            ),
+        ] {
+            let response = ApiError::from(error).into_response();
+            let actual_status = response.status();
+            let headers = response.headers().clone();
+            let body: Value =
+                serde_json::from_slice(&to_bytes(response.into_body(), 4096).await.unwrap())
+                    .unwrap();
+
+            assert_eq!(actual_status, status);
+            assert_eq!(headers[header::CONTENT_TYPE], "application/problem+json");
+            assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=10");
+            assert_eq!(
+                headers
+                    .get(header::RETRY_AFTER)
+                    .map(|value| value.to_str().unwrap()),
+                retry_after
+            );
+            assert_eq!(
+                body,
+                json!({"type": "about:blank", "title": status.canonical_reason().unwrap(), "status": status.as_u16()})
+            );
+        }
+    }
+}

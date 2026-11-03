@@ -72,7 +72,7 @@ mod tests {
     async fn when_authentication_is_needed_then_post_should_use_a_separate_bearer_request() {
         let server = MockServer::start().await;
         let query = query();
-        let variables = json!({"ids": ["t3_one", "t3_one"], "extra": null});
+        let variables = json!({"ids": ["t3_second", "t3_first", "t3_second"], "extra": null, "flag": false, "count": 0, "text": ""});
         Mock::given(method("POST"))
             .and(path(PATH))
             .and(header("authorization", "Basic b2hYcG9xclpZdWIxa2c6"))

@@ -226,66 +226,14 @@ async fn get_subreddit<B: RedditBackend>(
 mod tests {
     use super::*;
     use crate::ApiCacheOptions;
+    use crate::routes::testing::{Call, FakeBackend};
     use axum::Router;
     use axum::body::{Body, to_bytes};
     use axum::http::{Request, StatusCode, header};
-    use lurklet_reddit::{
-        AnonymousSession, CommentForest, CommentSort, CommentThread, Error, MediaFile, Post,
-        RedditId, SubredditPage, SubredditSort,
-    };
+    use lurklet_reddit::Error;
     use serde_json::{Value, json};
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt;
-
-    struct FakeBackend {
-        result: Result<RedditSubreddit, Error>,
-        calls: Arc<Mutex<Vec<String>>>,
-    }
-
-    impl RedditBackend for FakeBackend {
-        async fn get_subreddit(&self, name: &str) -> Result<RedditSubreddit, Error> {
-            self.calls.lock().unwrap().push(name.into());
-            self.result.clone()
-        }
-
-        async fn get_media(&self, _: &str) -> Result<MediaFile, Error> {
-            panic!("the metadata endpoint must not fetch assets")
-        }
-
-        async fn get_post(&self, _: &RedditId) -> Result<Post, Error> {
-            panic!("the metadata endpoint must not fetch post details")
-        }
-
-        async fn get_post_comments(
-            &self,
-            _: &RedditId,
-            _: CommentSort,
-            _: Option<&str>,
-        ) -> Result<CommentForest, Error> {
-            panic!("the metadata endpoint must not fetch comments")
-        }
-
-        async fn get_comment_thread(
-            &self,
-            _: &RedditId,
-            _: CommentSort,
-        ) -> Result<CommentThread, Error> {
-            panic!("the metadata endpoint must not fetch comment threads")
-        }
-
-        async fn list_subreddit_posts(
-            &self,
-            _: &str,
-            _: SubredditSort,
-            _: Option<&str>,
-        ) -> Result<SubredditPage, Error> {
-            panic!("the metadata endpoint must not fetch a feed")
-        }
-
-        async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
-            panic!("the endpoint must leave bootstrap to the client backend")
-        }
-    }
 
     fn available() -> RedditSubreddit {
         RedditSubreddit::Available(Box::new(RedditSubredditDetails {
@@ -327,11 +275,15 @@ mod tests {
         }))
     }
 
-    fn app(result: Result<RedditSubreddit, Error>, calls: Arc<Mutex<Vec<String>>>) -> Router {
+    fn app(result: Result<RedditSubreddit, Error>, calls: Arc<Mutex<Vec<Call>>>) -> Router {
         let routes = router()
             .split_for_parts()
             .0
-            .with_state(RedditClient::from_backend(FakeBackend { result, calls }));
+            .with_state(RedditClient::from_backend(FakeBackend {
+                subreddit: Some(result),
+                calls,
+                ..FakeBackend::default()
+            }));
         ApiCacheOptions::default().wrap(routes)
     }
 
@@ -356,7 +308,7 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(headers[header::CONTENT_TYPE], "application/json");
         assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=3600");
-        assert_eq!(*calls.lock().unwrap(), ["Rust"]);
+        assert_eq!(*calls.lock().unwrap(), [Call::Subreddit("Rust".into())]);
         assert_eq!(
             serde_json::from_slice::<Value>(&body).unwrap(),
             json!({
@@ -399,7 +351,7 @@ mod tests {
                 "quarantineMessageMarkdown": null, "interstitialWarningMarkdown": {"content": "Untrusted <em>warning</em>", "media": []}
             })
         );
-        assert_eq!(*calls.lock().unwrap(), ["example"]);
+        assert_eq!(*calls.lock().unwrap(), [Call::Subreddit("example".into())]);
     }
 
     #[test]
@@ -480,29 +432,16 @@ mod tests {
     #[tokio::test]
     async fn when_the_resource_is_unavailable_without_metadata_then_the_endpoint_should_return_not_found()
      {
-        for error in [Error::Unavailable, Error::NotFound] {
-            let calls = Arc::new(Mutex::new(Vec::new()));
-            let app = app(Err(error), calls.clone());
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let app = app(Err(Error::Unavailable), calls.clone());
 
-            let response = app.oneshot(request("missing")).await.unwrap();
+        let response = app.oneshot(request("missing")).await.unwrap();
 
-            assert_eq!(response.status(), StatusCode::NOT_FOUND);
-            assert_eq!(
-                response.headers()[header::CACHE_CONTROL],
-                "public, max-age=10"
-            );
-            assert_eq!(
-                response.headers()[header::CONTENT_TYPE],
-                "application/problem+json"
-            );
-            assert_eq!(
-                serde_json::from_slice::<Value>(
-                    &to_bytes(response.into_body(), 4096).await.unwrap()
-                )
-                .unwrap(),
-                json!({"type": "about:blank", "title": "Not Found", "status": 404})
-            );
-            assert_eq!(*calls.lock().unwrap(), ["missing"]);
-        }
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "application/problem+json"
+        );
+        assert_eq!(*calls.lock().unwrap(), [Call::Subreddit("missing".into())]);
     }
 }

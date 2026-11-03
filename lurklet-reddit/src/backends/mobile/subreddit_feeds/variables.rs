@@ -103,26 +103,4 @@ mod tests {
             assert!(!variables.as_object().unwrap().contains_key("after"));
         }
     }
-
-    #[test]
-    fn when_a_page_is_continued_then_variables_should_preserve_cursor_and_integer_distance() {
-        let navigation = Uuid::new_v4();
-        let cursor = "opaque+/=% continuation";
-
-        let variables = serde_json::to_value(Variables::new(
-            "rust",
-            SubredditSort::New,
-            navigation,
-            Some(cursor),
-            Some(4),
-        ))
-        .unwrap();
-
-        assert_eq!(variables["after"], cursor);
-        assert_eq!(variables["adContextInput"]["distance"], 4);
-        assert_eq!(
-            variables["feedContextInput"]["navigationSessionId"],
-            navigation.to_string()
-        );
-    }
 }

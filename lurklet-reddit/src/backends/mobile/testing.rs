@@ -1,7 +1,7 @@
 use crate::backends::mobile::graphql::PersistedQuery;
 use crate::{
     AccessToken, AnonymousSession, ClientState, Clock, ClockError, InMemoryStore, Installation,
-    MobileBackend, RedditClient, Storage,
+    MobileBackend, RedditClient, StateStore, Storage,
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -59,11 +59,11 @@ pub fn response() -> ResponseTemplate {
         .insert_header("x-reddit-session", "must-not-be-replayed")
 }
 
-pub fn client(
+pub fn client<S: StateStore>(
     server: &MockServer,
-    storage: Storage,
+    storage: Storage<S>,
     clock: TestClock,
-) -> RedditClient<MobileBackend> {
+) -> RedditClient<MobileBackend<S>> {
     RedditClient::builder()
         .with_storage(storage)
         .with_clock(clock)

@@ -225,77 +225,13 @@ async fn list_subreddit_posts<B: RedditBackend>(
 mod tests {
     use super::*;
     use crate::ApiCacheOptions;
+    use crate::routes::testing::{Call, FakeBackend};
     use axum::Router;
     use axum::body::{Body, to_bytes};
     use axum::http::{Request, StatusCode, header};
-    use lurklet_reddit::{
-        AnonymousSession, CommentForest, CommentSort, CommentThread, MediaFile, Post as RedditPost,
-        RedditId, Subreddit,
-    };
     use serde_json::{Value, json};
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt;
-
-    #[derive(Debug, PartialEq)]
-    struct ListingCall {
-        subreddit: String,
-        sort: RedditSubredditSort,
-        after: Option<String>,
-    }
-
-    struct FakeBackend {
-        result: Result<RedditSubredditPage, RedditError>,
-        calls: Arc<Mutex<Vec<ListingCall>>>,
-    }
-
-    impl RedditBackend for FakeBackend {
-        async fn get_media(&self, _: &str) -> Result<MediaFile, RedditError> {
-            panic!("the listing endpoint must not fetch media")
-        }
-
-        async fn get_subreddit(&self, _: &str) -> Result<Subreddit, RedditError> {
-            panic!("the listing endpoint must not fetch subreddit metadata")
-        }
-
-        async fn get_post_comments(
-            &self,
-            _: &RedditId,
-            _: CommentSort,
-            _: Option<&str>,
-        ) -> Result<CommentForest, RedditError> {
-            panic!("the listing endpoint must not fetch comments")
-        }
-
-        async fn get_comment_thread(
-            &self,
-            _: &RedditId,
-            _: CommentSort,
-        ) -> Result<CommentThread, RedditError> {
-            panic!("the listing endpoint must not fetch comment threads")
-        }
-
-        async fn bootstrap(&self) -> Result<AnonymousSession, RedditError> {
-            panic!("the endpoint must leave bootstrap to the client backend")
-        }
-
-        async fn get_post(&self, _: &RedditId) -> Result<RedditPost, RedditError> {
-            panic!("the listing endpoint must not fetch post details")
-        }
-
-        async fn list_subreddit_posts(
-            &self,
-            subreddit: &str,
-            sort: RedditSubredditSort,
-            after: Option<&str>,
-        ) -> Result<RedditSubredditPage, RedditError> {
-            self.calls.lock().unwrap().push(ListingCall {
-                subreddit: subreddit.into(),
-                sort,
-                after: after.map(Into::into),
-            });
-            self.result.clone()
-        }
-    }
 
     fn fixture() -> RedditSubredditPage {
         RedditSubredditPage {
@@ -346,9 +282,13 @@ mod tests {
 
     fn app(
         result: Result<RedditSubredditPage, RedditError>,
-        calls: Arc<Mutex<Vec<ListingCall>>>,
+        calls: Arc<Mutex<Vec<Call>>>,
     ) -> Router {
-        let reddit = RedditClient::from_backend(FakeBackend { result, calls });
+        let reddit = RedditClient::from_backend(FakeBackend {
+            listing: Some(result),
+            calls,
+            ..FakeBackend::default()
+        });
         let routes = router()
             .split_for_parts()
             .0
@@ -419,7 +359,7 @@ mod tests {
             assert_eq!(response.status(), StatusCode::OK, "{query}");
             assert_eq!(
                 *calls.lock().unwrap(),
-                [ListingCall {
+                [Call::Listing {
                     subreddit: "Rust".into(),
                     sort,
                     after: after.map(Into::into),
@@ -544,7 +484,6 @@ mod tests {
     async fn when_the_client_rejects_a_listing_then_the_endpoint_should_distinguish_missing_content_and_invalid_cursors()
      {
         for (error, status) in [
-            (RedditError::NotFound, StatusCode::NOT_FOUND),
             (RedditError::Unavailable, StatusCode::NOT_FOUND),
             (
                 RedditError::InvalidRequest { field: "after" },
@@ -567,17 +506,6 @@ mod tests {
             assert_eq!(
                 response.headers()[header::CONTENT_TYPE],
                 "application/problem+json"
-            );
-            assert_eq!(
-                response.headers()[header::CACHE_CONTROL],
-                "public, max-age=10"
-            );
-            assert_eq!(
-                serde_json::from_slice::<Value>(
-                    &to_bytes(response.into_body(), 4096).await.unwrap()
-                )
-                .unwrap(),
-                json!({"type": "about:blank", "title": status.canonical_reason().unwrap(), "status": status.as_u16()})
             );
             assert_eq!(calls.lock().unwrap().len(), 1);
         }

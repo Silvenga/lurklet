@@ -104,7 +104,7 @@ mod tests {
             .await;
         let client = graphql_client(&server, testing::storage());
 
-        let post = client.get_post(&"18t5968".into()).await.unwrap();
+        let post = client.get_post(&"t3_18t5968".into()).await.unwrap();
 
         assert_eq!(post.id.as_str(), "18t5968");
         assert_eq!(post.markdown, Some("Hello **world**.".into()));

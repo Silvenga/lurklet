@@ -265,7 +265,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_health_is_requested_through_the_api_then_response_should_disable_caching() {
+    async fn when_health_is_requested_through_the_api_then_get_and_head_should_preserve_the_liveness_contract()
+     {
         let app = super::application(
             RedditClient::builder().build().unwrap(),
             &RateLimits::default(),
@@ -274,16 +275,31 @@ mod tests {
                 api_cache_max_age_seconds: 42,
             },
         );
-        let request = Request::builder()
-            .uri("/api/health")
-            .body(Body::empty())
-            .unwrap();
+        for method in [Method::GET, Method::HEAD] {
+            let request = Request::builder()
+                .method(method.clone())
+                .uri("/api/health")
+                .body(Body::empty())
+                .unwrap();
 
-        let response = app.oneshot(request).await.unwrap();
+            let response = app.clone().oneshot(request).await.unwrap();
+            let status = response.status();
+            let headers = response.headers().clone();
+            let body = to_bytes(response.into_body(), 4096).await.unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
-        assert_browser_policy(response.headers());
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+            assert_eq!(headers[header::CONTENT_TYPE], "application/json");
+            assert_browser_policy(&headers);
+            if method == Method::HEAD {
+                assert!(body.is_empty());
+            } else {
+                assert_eq!(
+                    serde_json::from_slice::<Value>(&body).unwrap(),
+                    json!({"health": "ok"})
+                );
+            }
+        }
     }
 
     #[tokio::test]
@@ -490,14 +506,17 @@ mod tests {
     }
 
     #[test]
-    fn when_openapi_is_generated_then_contract_should_document_api_routes() {
+    fn when_openapi_is_generated_then_the_frontend_contract_should_match() {
         let specification = specification();
+        let mut expected: Value =
+            serde_json::from_str(include_str!("../openapi-spec.json")).unwrap();
 
         let mut document = serde_json::to_value(specification).unwrap();
 
         assert_eq!(document["info"]["version"], env!("CARGO_PKG_VERSION"));
         document["info"]["version"] = json!("[package version]");
-        insta::assert_json_snapshot!("openapi", document);
+        expected["info"]["version"] = json!("[package version]");
+        assert_eq!(document, expected);
     }
 
     #[tokio::test]
@@ -658,37 +677,11 @@ mod tests {
     }
 
     #[test]
-    fn when_comment_contracts_are_generated_then_defaults_and_recursive_references_should_be_resolvable()
-     {
+    fn when_openapi_contains_references_then_every_target_should_be_resolvable() {
         let specification = specification();
 
         let document = serde_json::to_value(specification).unwrap();
 
-        for path in ["/api/posts/{id}/comments", "/api/comments/{id}/thread"] {
-            assert_eq!(
-                document["paths"][path]["get"]["parameters"][1],
-                json!({
-                    "name": "sort", "in": "query", "required": false,
-                    "schema": {"type": "string", "default": "best", "enum": ["best", "top", "new"]}
-                })
-            );
-        }
-        assert_eq!(
-            document["components"]["schemas"]["CommentItem"]["oneOf"][0]["properties"]["replies"]["items"]
-                ["$ref"],
-            "#/components/schemas/CommentItem"
-        );
-        assert_eq!(
-            document["paths"]["/api/posts/{id}/comments"]["get"]["parameters"][2]["name"],
-            "cursor"
-        );
-        assert_eq!(
-            document["paths"]["/api/comments/{id}/thread"]["get"]["parameters"]
-                .as_array()
-                .unwrap()
-                .len(),
-            2
-        );
         let mut pending = vec![&document];
         while let Some(value) = pending.pop() {
             match value {

@@ -159,11 +159,19 @@ async fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::{CommandFactory, FromArgMatches};
     use lurklet_api::ClientIpSource;
+
+    fn parse<const N: usize>(arguments: [&str; N]) -> Result<Arguments, clap::Error> {
+        let matches = Arguments::command()
+            .mut_args(|argument| argument.env(None::<&str>))
+            .try_get_matches_from(arguments)?;
+        Arguments::from_arg_matches(&matches)
+    }
 
     #[test]
     fn when_defaults_are_used_then_cli_and_library_quotas_should_match() {
-        let arguments = Arguments::try_parse_from(["lurklet-api"]).unwrap();
+        let arguments = parse(["lurklet-api"]).unwrap();
         let defaults = RateLimitOptions::default();
 
         assert_eq!(arguments.rate_limit.rate_limit_rps, defaults.rate_limit_rps);
@@ -194,7 +202,7 @@ mod tests {
     #[test]
     fn when_api_freshness_is_selected_then_zero_and_positive_values_should_parse() {
         for seconds in [0, 1, 42, 3600] {
-            let arguments = Arguments::try_parse_from([
+            let arguments = parse([
                 "lurklet-api",
                 "--api-cache-max-age-seconds",
                 &seconds.to_string(),
@@ -208,25 +216,16 @@ mod tests {
     #[test]
     fn when_api_freshness_is_invalid_then_argument_parsing_should_reject_it() {
         for seconds in ["-1", "1.5", "invalid", "18446744073709551616"] {
-            let result =
-                Arguments::try_parse_from(["lurklet-api", "--api-cache-max-age-seconds", seconds]);
+            let result = parse(["lurklet-api", "--api-cache-max-age-seconds", seconds]);
 
             assert!(result.is_err(), "{seconds}");
         }
     }
 
     #[test]
-    fn when_a_state_file_is_supplied_then_argument_parsing_should_retain_its_path() {
-        let arguments =
-            Arguments::try_parse_from(["lurklet-api", "--state-file", "session.json"]).unwrap();
-
-        assert_eq!(arguments.state_file, Some(PathBuf::from("session.json")));
-    }
-
-    #[test]
     fn when_a_request_timeout_is_selected_then_disabled_and_positive_values_should_parse() {
         for value in [-1, 1, 60] {
-            let arguments = Arguments::try_parse_from([
+            let arguments = parse([
                 "lurklet-api",
                 "--reddit-request-timeout-seconds",
                 &value.to_string(),
@@ -234,6 +233,24 @@ mod tests {
             .unwrap();
 
             assert_eq!(arguments.reddit_request_timeout_seconds, value);
+        }
+    }
+
+    #[test]
+    fn when_operator_options_are_invalid_then_parsing_should_reject_them() {
+        for (option, value) in [
+            ("--rate-limit-rps", "0"),
+            ("--rate-limit-burst", "0"),
+            ("--media-rate-limit-rps", "0"),
+            ("--media-rate-limit-burst", "0"),
+            ("--client-ip-source", "automatic"),
+            ("--trusted-proxies", "not-a-cidr"),
+            ("--reddit-request-timeout-seconds", "0"),
+            ("--reddit-request-timeout-seconds", "-2"),
+        ] {
+            let result = parse(["lurklet-api", option, value, "export-openapi"]);
+
+            assert!(result.is_err(), "{option}={value}");
         }
     }
 }

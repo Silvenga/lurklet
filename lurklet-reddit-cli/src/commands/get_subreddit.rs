@@ -29,90 +29,54 @@ mod tests {
         let Command::GetSubreddit { name } = arguments.command else {
             panic!("expected the subreddit command")
         };
+        let subreddit = Subreddit::Available(Box::new(SubredditDetails {
+            id: "t5_fixture".into(),
+            name: "rust".into(),
+            title: Some("Example community".into()),
+            created_at: Some("2010-12-02T21:27:18.336Z".parse().unwrap()),
+            short_description: Some("Short description".into()),
+            description_markdown: Some("## About".into()),
+            subscriber_count: Some(123),
+            weekly_active_user_count: Some(20),
+            weekly_contribution_count: Some(7),
+            styles: None,
+            community_type: Some("PUBLIC".into()),
+            is_nsfw: Some(false),
+            is_posting_restricted: Some(false),
+            is_quarantined: Some(false),
+            quarantine_message_markdown: None,
+            interstitial_warning_markdown: None,
+        }));
         let client = RedditClient::from_backend(FakeBackend {
-            subreddit: Some((
-                "Rust".into(),
-                Ok(Subreddit::Available(Box::new(SubredditDetails {
-                    id: "t5_fixture".into(),
-                    name: "rust".into(),
-                    title: Some("Example community".into()),
-                    created_at: Some("2010-12-02T21:27:18.336Z".parse().unwrap()),
-                    short_description: Some("Short description".into()),
-                    description_markdown: Some("## About".into()),
-                    subscriber_count: Some(123),
-                    weekly_active_user_count: Some(20),
-                    weekly_contribution_count: Some(7),
-                    styles: None,
-                    community_type: Some("PUBLIC".into()),
-                    is_nsfw: Some(false),
-                    is_posting_restricted: Some(false),
-                    is_quarantined: Some(false),
-                    quarantine_message_markdown: None,
-                    interstitial_warning_markdown: None,
-                }))),
-            )),
+            subreddit: Some(("Rust".into(), Ok(subreddit.clone()))),
             ..FakeBackend::default()
         });
 
         let output = execute(&client, &name).await.unwrap();
 
-        assert_eq!(
-            output.result,
-            json!({
-                "kind": "available",
-                "id": "fixture",
-                "name": "rust",
-                "title": "Example community",
-                "created_at": "2010-12-02T21:27:18.336Z",
-                "short_description": "Short description",
-                "description_markdown": {"content": "## About", "media": []},
-                "subscriber_count": 123,
-                "weekly_active_user_count": 20,
-                "weekly_contribution_count": 7,
-                "styles": null,
-                "community_type": "PUBLIC",
-                "is_nsfw": false,
-                "is_posting_restricted": false,
-                "is_quarantined": false,
-                "quarantine_message_markdown": null,
-                "interstitial_warning_markdown": null
-            })
-        );
+        assert_eq!(output.result, json!(subreddit));
         assert_eq!(output.error, None);
     }
 
     #[tokio::test]
     async fn when_unavailable_metadata_is_returned_then_the_command_should_succeed_without_inventing_identity()
      {
+        let subreddit = Subreddit::Unavailable(Box::new(UnavailableSubreddit {
+            id: None,
+            forbidden_reason: Some("PRIVATE".into()),
+            ban_title: None,
+            ban_message_markdown: None,
+            quarantine_message_markdown: None,
+            interstitial_warning_markdown: Some("This community is private.".into()),
+        }));
         let client = RedditClient::from_backend(FakeBackend {
-            subreddit: Some((
-                "example".into(),
-                Ok(Subreddit::Unavailable(Box::new(UnavailableSubreddit {
-                    id: None,
-                    forbidden_reason: Some("PRIVATE".into()),
-                    ban_title: None,
-                    ban_message_markdown: None,
-                    quarantine_message_markdown: None,
-                    interstitial_warning_markdown: Some("This community is private.".into()),
-                }))),
-            )),
+            subreddit: Some(("example".into(), Ok(subreddit.clone()))),
             ..FakeBackend::default()
         });
 
         let output = execute(&client, "example").await.unwrap();
 
-        assert_eq!(
-            output.result,
-            json!({
-                "kind": "unavailable",
-                "id": null,
-                "forbidden_reason": "PRIVATE",
-                "ban_title": null,
-                "ban_message_markdown": null,
-                "quarantine_message_markdown": null,
-                "interstitial_warning_markdown": {"content": "This community is private.", "media": []}
-            })
-        );
+        assert_eq!(output.result, json!(subreddit));
         assert_eq!(output.error, None);
     }
 

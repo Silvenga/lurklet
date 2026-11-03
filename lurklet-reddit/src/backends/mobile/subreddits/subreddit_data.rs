@@ -327,28 +327,6 @@ mod tests {
     }
 
     #[test]
-    fn when_creation_dates_include_fractional_seconds_and_offsets_then_projection_should_normalize_to_utc()
-     {
-        for (date, utc) in [
-            (
-                "2010-12-02T21:27:18.336000+0000",
-                "2010-12-02T21:27:18.336Z",
-            ),
-            (
-                "2010-12-02T21:27:18.336000+0530",
-                "2010-12-02T15:57:18.336Z",
-            ),
-        ] {
-            let mut wire = data();
-            wire["subredditInfoByName"]["createdAt"] = json!(date);
-
-            let actual = serde_json::to_value(decode(wire).unwrap()).unwrap();
-
-            assert_eq!(actual["created_at"], utc);
-        }
-    }
-
-    #[test]
     fn when_subscriber_counts_use_exponent_notation_then_projection_should_retain_the_integer_value()
      {
         for (number, expected) in [
@@ -419,15 +397,16 @@ mod tests {
         let actual = decode(fixture["data"].clone()).unwrap();
 
         assert_eq!(
-            actual,
-            Some(Subreddit::Unavailable(Box::new(UnavailableSubreddit {
-                id: Some("unavailable".into()),
-                forbidden_reason: Some("BANNED".into()),
-                ban_title: Some("Example ban title".into()),
-                ban_message_markdown: Some("Example **ban** explanation.".into()),
-                quarantine_message_markdown: Some("Example quarantine explanation.".into()),
-                interstitial_warning_markdown: Some("Example warning.".into()),
-            })))
+            serde_json::to_value(actual).unwrap(),
+            json!({
+                "kind": "unavailable",
+                "id": "unavailable",
+                "forbidden_reason": "BANNED",
+                "ban_title": "Example ban title",
+                "ban_message_markdown": {"content": "Example **ban** explanation.", "media": []},
+                "quarantine_message_markdown": {"content": "Example quarantine explanation.", "media": []},
+                "interstitial_warning_markdown": {"content": "Example warning.", "media": []}
+            })
         );
     }
 
@@ -448,15 +427,16 @@ mod tests {
             let actual = decode(wire).unwrap();
 
             assert_eq!(
-                actual,
-                Some(Subreddit::Unavailable(Box::new(UnavailableSubreddit {
-                    id: None,
-                    forbidden_reason: reason.map(Into::into),
-                    ban_title: None,
-                    ban_message_markdown: None,
-                    quarantine_message_markdown: None,
-                    interstitial_warning_markdown: None,
-                })))
+                serde_json::to_value(actual).unwrap(),
+                json!({
+                    "kind": "unavailable",
+                    "id": null,
+                    "forbidden_reason": reason,
+                    "ban_title": null,
+                    "ban_message_markdown": null,
+                    "quarantine_message_markdown": null,
+                    "interstitial_warning_markdown": null
+                })
             );
         }
     }

@@ -24,6 +24,7 @@ impl ServerProcess {
         let address = listener.local_addr().unwrap();
         drop(listener);
         let child = Command::new(env::current_exe().unwrap())
+            .env_clear()
             .args([
                 "--exact",
                 "when_processes_overlap_then_they_should_share_complete_cache_entries",

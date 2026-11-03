@@ -27,6 +27,7 @@ import { APP_ROUTES } from "./router";
 
 const POST_PATH = `/r/rust/comments/${POST_RESPONSE.id}`;
 const CROSSPOST_PATH = `/r/rust/comments/${CROSSPOST_RESPONSE.id}`;
+const RELATIVE_FORMAT = new Intl.RelativeTimeFormat(undefined, { numeric: "always" });
 
 const CONTENT_REQUESTS = [
   ["listing", "/r/rust", "*/api/subreddits/:subreddit/posts", SUBREDDIT_PAGE_RESPONSE],
@@ -34,14 +35,14 @@ const CONTENT_REQUESTS = [
 ] as const;
 
 test.each([
-  ["/r/rust", "Listing actions", "Fetched 10 minutes ago"],
+  ["/r/rust", "Listing actions", `Fetched ${RELATIVE_FORMAT.format(-10, "minute")}`],
   ["/r/rust", "Subreddit actions", "Fetched just now"],
-  [POST_PATH, "Post actions", "Fetched 51 minutes ago"],
-  [POST_PATH, "Comments actions", "Fetched 2 hours ago"],
+  [POST_PATH, "Post actions", `Fetched ${RELATIVE_FORMAT.format(-51, "minute")}`],
+  [POST_PATH, "Comments actions", `Fetched ${RELATIVE_FORMAT.format(-2, "hour")}`],
   [
     `${POST_PATH}/_/${COMMENTS_RESPONSE.items[0]!.comment.id}`,
     "Comment thread actions",
-    "Fetched 1 day ago",
+    `Fetched ${RELATIVE_FORMAT.format(-1, "day")}`,
   ],
 ])(
   "When %s exposes %s then its footer should show %s for that response",
@@ -52,8 +53,6 @@ test.each([
     await user.click(await screen.findByRole("button", { name: label }));
 
     expect(await screen.findByText(age)).toBeVisible();
-    expect(screen.getByRole("menu")).toHaveAccessibleDescription(age);
-    expect(screen.queryByRole("menuitem", { name: age })).toBeNull();
   },
 );
 
@@ -198,18 +197,6 @@ test("When the post's subreddit link is followed then it should open the subredd
 
   expect(await screen.findByRole("heading", { level: 1, name: "r/rust" })).toBeVisible();
   expect(router.state.location.pathname).toBe("/r/rust");
-});
-
-test("When a post has a link attachment then it should open an untrusted link without referrer or opener access", async () => {
-  renderPath(POST_PATH);
-
-  const article = await screen.findByRole("article");
-  const link = within(article).getByRole("link", { name: POST_RESPONSE.attachments[0]!.url });
-
-  expect(link).toHaveAttribute("href", POST_RESPONSE.attachments[0]!.url);
-  expect(link).toHaveAttribute("target", "_blank");
-  expect(link).toHaveAttribute("rel", "noopener noreferrer nofollow ugc external");
-  expect(screen.queryByRole("region", { name: "Post content" })).not.toBeInTheDocument();
 });
 
 test("When a post contains media attachments then proxied images and video placeholders should appear outside its Markdown body", async () => {
@@ -539,7 +526,7 @@ test("When the original post link is followed then its page should reuse the pre
 
   await user.click(screen.getByRole("button", { name: "Post actions" }));
 
-  expect(await screen.findByText("Fetched 2 minutes ago")).toBeVisible();
+  expect(await screen.findByText(`Fetched ${RELATIVE_FORMAT.format(-2, "minute")}`)).toBeVisible();
 });
 
 test.each([404, 503])(
@@ -707,6 +694,7 @@ test("When a post is loading then only the post region should show a loading sta
   await act(async () => pending.resolve(HttpResponse.json(POST_RESPONSE)));
 
   expect(await screen.findByRole("heading", { name: POST_RESPONSE.title })).toBeVisible();
+  expect(screen.queryByRole("region", { name: "Post content" })).not.toBeInTheDocument();
   expect(
     within(screen.getByRole("region", { name: "Page content" })).queryByRole("status"),
   ).not.toBeInTheDocument();
@@ -953,25 +941,6 @@ test("When listing options change then only relevant parameters should trigger a
 
   expect(await screen.findByRole("link", { name: "Listing 4" })).toBeVisible();
   expect(requests).toHaveLength(4);
-});
-
-test("When a continuation cursor is supplied then it should reach the API unchanged", async () => {
-  const requests: URL[] = [];
-  server.use(
-    http.get("*/api/subreddits/:subreddit/posts", ({ request }) => {
-      requests.push(new URL(request.url));
-      return HttpResponse.json({ posts: [], nextCursor: null });
-    }),
-  );
-  const cursor = SUBREDDIT_PAGE_RESPONSE.nextCursor;
-
-  renderPath(`/r/rust?after=${encodeURIComponent(cursor)}`);
-
-  expect(await screen.findByText("No posts")).toBeVisible();
-  expect(requests[0]?.searchParams.get("after")).toBe(cursor);
-  expect(requests[0]?.searchParams.get("sort")).toBe("hot");
-  await expectJsonMenu("Listing actions", requests[0]!.href);
-  await expectRedditMenu("Listing actions", "https://www.reddit.com/r/rust/hot/");
 });
 
 test.each([

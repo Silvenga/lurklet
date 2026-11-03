@@ -80,76 +80,17 @@ async fn get_comment_thread<B: RedditBackend>(
 mod tests {
     use super::*;
     use crate::ApiCacheOptions;
+    use crate::routes::testing::{Call, FakeBackend};
     use axum::Router;
     use axum::body::{Body, to_bytes};
     use axum::http::{Request, StatusCode, header};
     use lurklet_reddit::{
-        AnonymousSession, Comment, CommentForest as RedditCommentForest, CommentItem,
-        CommentSort as RedditCommentSort, CommentState, Error as RedditError, MediaFile, Post,
-        Subreddit, SubredditPage, SubredditSort,
+        Comment, CommentForest as RedditCommentForest, CommentItem,
+        CommentSort as RedditCommentSort, CommentState, Error as RedditError,
     };
     use serde_json::{Value, json};
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt;
-
-    #[derive(Debug, PartialEq)]
-    struct ThreadCall {
-        id: RedditId,
-        sort: RedditCommentSort,
-    }
-
-    struct FakeBackend {
-        result: Result<RedditCommentThread, RedditError>,
-        calls: Arc<Mutex<Vec<ThreadCall>>>,
-    }
-
-    impl RedditBackend for FakeBackend {
-        async fn get_media(&self, _: &str) -> Result<MediaFile, RedditError> {
-            panic!("the thread endpoint must not fetch media")
-        }
-
-        async fn get_subreddit(&self, _: &str) -> Result<Subreddit, RedditError> {
-            panic!("the thread endpoint must not fetch subreddit metadata")
-        }
-
-        async fn get_comment_thread(
-            &self,
-            id: &RedditId,
-            sort: RedditCommentSort,
-        ) -> Result<RedditCommentThread, RedditError> {
-            self.calls.lock().unwrap().push(ThreadCall {
-                id: id.clone(),
-                sort,
-            });
-            self.result.clone()
-        }
-
-        async fn get_post_comments(
-            &self,
-            _: &RedditId,
-            _: RedditCommentSort,
-            _: Option<&str>,
-        ) -> Result<RedditCommentForest, RedditError> {
-            panic!("the thread endpoint must not fetch or expand the post discussion")
-        }
-
-        async fn get_post(&self, _: &RedditId) -> Result<Post, RedditError> {
-            panic!("the thread endpoint must not fetch post details")
-        }
-
-        async fn list_subreddit_posts(
-            &self,
-            _: &str,
-            _: SubredditSort,
-            _: Option<&str>,
-        ) -> Result<SubredditPage, RedditError> {
-            panic!("the thread endpoint must not list subreddit posts")
-        }
-
-        async fn bootstrap(&self) -> Result<AnonymousSession, RedditError> {
-            panic!("the endpoint must leave bootstrap to the client backend")
-        }
-    }
 
     fn fixture() -> RedditCommentThread {
         let ancestor = Comment {
@@ -192,12 +133,16 @@ mod tests {
 
     fn app(
         result: Result<RedditCommentThread, RedditError>,
-        calls: Arc<Mutex<Vec<ThreadCall>>>,
+        calls: Arc<Mutex<Vec<Call>>>,
     ) -> Router {
         let routes = router()
             .split_for_parts()
             .0
-            .with_state(RedditClient::from_backend(FakeBackend { result, calls }));
+            .with_state(RedditClient::from_backend(FakeBackend {
+                thread: Some(result),
+                calls,
+                ..FakeBackend::default()
+            }));
         ApiCacheOptions::default().wrap(routes)
     }
 
@@ -229,7 +174,7 @@ mod tests {
             );
             assert_eq!(
                 *calls.lock().unwrap(),
-                [ThreadCall {
+                [Call::Thread {
                     id: "anchor".into(),
                     sort
                 }]
@@ -310,29 +255,26 @@ mod tests {
 
     #[tokio::test]
     async fn when_a_thread_is_unavailable_then_the_endpoint_should_use_shared_problem_details() {
-        for error in [RedditError::Unavailable, RedditError::NotFound] {
-            let calls = Arc::new(Mutex::new(Vec::new()));
-            let app = app(Err(error), calls.clone());
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let app = app(Err(RedditError::Unavailable), calls.clone());
 
-            let response = app
-                .oneshot(request("/comments/anchor/thread"))
-                .await
-                .unwrap();
+        let response = app
+            .oneshot(request("/comments/anchor/thread"))
+            .await
+            .unwrap();
 
-            assert_eq!(response.status(), StatusCode::NOT_FOUND);
-            assert_eq!(
-                response.headers()[header::CACHE_CONTROL],
-                "public, max-age=10"
-            );
-            assert_eq!(
-                serde_json::from_slice::<Value>(
-                    &to_bytes(response.into_body(), 4096).await.unwrap()
-                )
-                .unwrap(),
-                json!({"type": "about:blank", "title": "Not Found", "status": 404})
-            );
-            assert_eq!(calls.lock().unwrap().len(), 1);
-        }
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "application/problem+json"
+        );
+        assert_eq!(
+            *calls.lock().unwrap(),
+            [Call::Thread {
+                id: "anchor".into(),
+                sort: RedditCommentSort::Best
+            }]
+        );
     }
 
     #[tokio::test]

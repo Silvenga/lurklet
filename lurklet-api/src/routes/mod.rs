@@ -9,6 +9,8 @@ mod list_subreddit_posts;
 mod markdown;
 mod post_flair;
 mod robots;
+#[cfg(test)]
+pub mod testing;
 
 pub use comment_models::{CommentForest, CommentSort};
 pub use get_comment_thread::router as get_comment_thread;

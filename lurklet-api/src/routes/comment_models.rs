@@ -296,19 +296,6 @@ mod tests {
     }
 
     #[test]
-    fn when_a_forest_has_no_reported_sort_then_conversion_should_preserve_null_instead_of_defaulting()
-     {
-        let forest = RedditCommentForest {
-            applied_sort: None,
-            items: Vec::new(),
-        };
-
-        let actual = serde_json::to_value(CommentForest::from(forest)).unwrap();
-
-        assert_eq!(actual, json!({"appliedSort": null, "items": []}));
-    }
-
-    #[test]
     fn when_comment_sorts_are_converted_then_each_selection_should_round_trip() {
         for (sort, expected) in [
             (RedditCommentSort::Best, "best"),

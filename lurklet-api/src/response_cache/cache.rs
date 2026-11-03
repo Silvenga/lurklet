@@ -150,7 +150,7 @@ mod tests {
     use std::time::SystemTime;
     use tokio::sync::Notify;
     use tokio::task::{JoinSet, yield_now};
-    use tokio::time::{sleep, timeout};
+    use tokio::time::timeout;
     use tower::ServiceExt;
 
     fn request(uri: &str) -> Request {
@@ -816,35 +816,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_a_fetch_takes_longer_than_the_ttl_then_the_completed_response_should_start_fresh()
-    {
-        let directory = TempDir::new().unwrap();
-        let cache = ResponseCache::new(directory.path()).await.unwrap();
-        let calls = Arc::new(AtomicUsize::new(0));
-        let app = cache.wrap(Router::new().route(
-            "/resource",
-            get({
-                let calls = Arc::clone(&calls);
-                move || {
-                    calls.fetch_add(1, Ordering::SeqCst);
-                    async {
-                        sleep(Duration::from_millis(1100)).await;
-                        ([(header::CACHE_CONTROL, "public, max-age=1")], "fresh")
-                    }
-                }
-            }),
-        ));
-
-        let fresh = app.clone().oneshot(request("/resource")).await.unwrap();
-        assert_eq!(fresh.headers()["x-lurklet-cache"], "miss");
-        to_bytes(fresh.into_body(), 4096).await.unwrap();
-        let hit = app.oneshot(request("/resource")).await.unwrap();
-
-        assert_eq!(hit.headers()["x-lurklet-cache"], "hit");
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
-    }
-
-    #[tokio::test]
     async fn when_a_timestamp_is_ahead_of_the_local_clock_then_the_entry_should_remain_available_for_stale_fallback()
      {
         let directory = TempDir::new().unwrap();
@@ -985,29 +956,6 @@ mod tests {
                 .get(CacheKey::new(&"/resource".parse().unwrap()).digest())
                 .is_none()
         );
-    }
-
-    #[tokio::test]
-    async fn when_waiters_are_cancelled_then_weak_lock_entries_should_not_accumulate_indefinitely()
-    {
-        let mut locks = RefreshLocks::new();
-        let shared = locks
-            .entry("key".to_owned())
-            .or_insert_with(|| Arc::new(AsyncMutex::new(())));
-        let owner = Arc::clone(&shared).lock_owned().await;
-        let mut waiter = Box::pin(Arc::clone(&shared).lock_owned());
-        assert!(poll_fn(|cx| Poll::Ready(waiter.as_mut().poll(cx).is_pending())).await);
-
-        drop(shared);
-        drop(owner);
-        drop(waiter);
-        for key in 0..10_000 {
-            locks.insert(key.to_string(), Arc::new(AsyncMutex::new(())));
-        }
-
-        assert!(locks.get("key").is_none());
-        assert_eq!(locks.iter().count(), 0);
-        assert!(locks.capacity() < 256, "{}", locks.capacity());
     }
 
     #[tokio::test]

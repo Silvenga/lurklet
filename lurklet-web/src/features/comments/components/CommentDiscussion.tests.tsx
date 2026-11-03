@@ -2,7 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw/http";
-import { createMemoryRouter } from "react-router";
+import { createMemoryRouter, type RouteObject } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { expect, onTestFinished, test } from "vitest";
 import { expectJsonMenu } from "@/_tests/expect-json-menu";
@@ -11,8 +11,13 @@ import { server } from "@/_tests/mocks/server";
 import { createQueryClient } from "@/app/query-client";
 import { APP_ROUTES } from "@/app/router";
 import type { CommentItem } from "@/clients/lurklet-api/generated/types.gen";
+import { CommentDiscussion } from "./CommentDiscussion";
 
 const POST_PATH = `/r/rust/comments/${POST_RESPONSE.id}`;
+const DISCUSSION_ROUTES: RouteObject[] = [
+  { path: "/r/:subreddit/comments/:postId/:slug?", Component: CommentDiscussion },
+  { path: "/r/:subreddit/comments/:postId/:slug/:commentId", Component: CommentDiscussion },
+];
 
 function commentItem(
   id: string,
@@ -31,9 +36,9 @@ function commentItem(
   };
 }
 
-function renderPath(path = POST_PATH) {
+function renderPath(path = POST_PATH, routes = DISCUSSION_ROUTES) {
   const queryClient = createQueryClient();
-  const router = createMemoryRouter(APP_ROUTES, { initialEntries: [path] });
+  const router = createMemoryRouter(routes, { initialEntries: [path] });
   const { unmount } = render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
@@ -47,25 +52,15 @@ function renderPath(path = POST_PATH) {
   return router;
 }
 
-test("When a comment contains inline media references then the discussion should render only proxied images", async () => {
-  const item = commentItem(
-    "19rz5uw8v7dj6",
-    "Before ![img](v15d43aihzyh1) and ![gif](giphy|5L2okTiupVRxC) after.",
-  );
+test("When a comment contains an inline media reference then the discussion should pass it to Markdown", async () => {
+  const item = commentItem("reply", "Before ![An image](asset) after.");
   item.comment.markdown!.media = [
     {
-      id: "v15d43aihzyh1",
+      id: "asset",
       mimeType: "image/png",
       url: "https://preview.redd.it/v15d43aihzyh1.png?width=640&auto=webp&s=signature",
       width: 640,
       height: 359,
-    },
-    {
-      id: "giphy|5L2okTiupVRxC",
-      mimeType: "image/gif",
-      url: "https://external-preview.redd.it/asset.gif?auto=webp&s=signature",
-      width: 300,
-      height: 200,
     },
   ];
   server.use(
@@ -77,18 +72,10 @@ test("When a comment contains inline media references then the discussion should
   renderPath();
 
   const discussion = await screen.findByRole("region", { name: "Comments" });
-  for (const [alt, media] of [
-    ["img", item.comment.markdown!.media[0]!],
-    ["gif", item.comment.markdown!.media[1]!],
-  ] as const) {
-    const image = await within(discussion).findByRole("img", { name: alt });
-    const url = new URL(image.getAttribute("src")!);
-    expect(url.origin).toBe(location.origin);
-    expect(url.pathname).toBe("/api/media");
-    expect(url.searchParams.get("url")).toBe(media.url);
-    expect(image).toHaveAttribute("width", String(media.width));
-    expect(image).toHaveAttribute("height", String(media.height));
-  }
+  const image = await within(discussion).findByRole("img", { name: "An image" });
+  expect(new URL(image.getAttribute("src")!).searchParams.get("url")).toBe(
+    item.comment.markdown!.media[0]!.url,
+  );
 });
 
 test("When comment filters render then the URL selection and JSON action should agree", async () => {
@@ -128,7 +115,7 @@ test("When comments resolve first then they should render independently of the p
       return metadata.promise;
     }),
   );
-  renderPath();
+  renderPath(POST_PATH, APP_ROUTES);
   await Promise.all(started.map((value) => value.promise));
 
   await act(async () => {
@@ -159,7 +146,7 @@ test("When comments are pending then a ready post should remain readable", async
   const pending = Promise.withResolvers<Response>();
   server.use(http.get("*/api/posts/:id/comments", () => pending.promise));
 
-  renderPath();
+  renderPath(POST_PATH, APP_ROUTES);
 
   expect(await screen.findByRole("heading", { name: POST_RESPONSE.title })).toBeVisible();
   expect(
@@ -195,7 +182,7 @@ test("When comments fail then their retry should not refetch the post or metadat
       return HttpResponse.json(SUBREDDIT_RESPONSE);
     }),
   );
-  renderPath();
+  renderPath(POST_PATH, APP_ROUTES);
   const discussion = await screen.findByRole("region", { name: "Comments" });
   expect(await within(discussion).findByRole("alert")).toHaveTextContent("Unable to load comments");
   await expectJsonMenu(
@@ -218,7 +205,7 @@ test("When the post fails then available comments should still render", async ()
     http.get("*/api/posts/:id", () => HttpResponse.json({ status: 503 }, { status: 503 })),
   );
 
-  renderPath();
+  renderPath(POST_PATH, APP_ROUTES);
 
   expect(
     await within(await screen.findByRole("region", { name: "Post" })).findByRole("alert"),
@@ -429,7 +416,7 @@ test("When Continue thread is followed then the focused route should preserve so
       return HttpResponse.json(SUBREDDIT_RESPONSE);
     }),
   );
-  const router = renderPath(`${POST_PATH}?sort=top`);
+  const router = renderPath(`${POST_PATH}?sort=top`, APP_ROUTES);
   const link = await screen.findByRole("link", { name: "Continue thread" });
   expect(link).toHaveAttribute("href", `${POST_PATH}/_/target?sort=top`);
 
@@ -559,7 +546,7 @@ test("When the comment sort is unsupported then the post should still render wit
     }),
   );
 
-  renderPath(`${POST_PATH}?sort=invalid`);
+  renderPath(`${POST_PATH}?sort=invalid`, APP_ROUTES);
 
   expect(await screen.findByRole("heading", { name: POST_RESPONSE.title })).toBeVisible();
   expect(
@@ -588,7 +575,7 @@ test("When a focused thread is opened directly then it should load without reque
     }),
   );
 
-  renderPath(`${POST_PATH}/old_title/target?sort=new`);
+  renderPath(`${POST_PATH}/old_title/target?sort=new`, APP_ROUTES);
 
   expect(await screen.findByText("Direct thread")).toBeVisible();
   expect(screen.getByText("Selected comment")).toBeVisible();
@@ -700,7 +687,6 @@ test("When comment sorting is pending then the old tree should preserve collapse
 
   expect(router.state.location.search).toBe("?sort=new");
   expect(region).toHaveAttribute("aria-busy", "true");
-  expect(region).toHaveClass("opacity-80");
   expect(within(discussion).getAllByRole("list")[0]).toBe(tree);
   expect(screen.getByText("Already loaded reply")).toBe(reply);
   expect(reply).toBeVisible();
@@ -742,7 +728,6 @@ test("When comment sorting is pending then the old tree should preserve collapse
   );
   expect(screen.queryByText("Already loaded reply")).toBeNull();
   expect(region).toHaveAttribute("aria-busy", "false");
-  expect(region).not.toHaveClass("opacity-80");
 });
 
 test("When a focused thread sort is pending then its existing collapse state should remain until replacement", async () => {
@@ -900,7 +885,7 @@ test("When sorting supersedes an in-flight expansion then its late response shou
       return HttpResponse.json(SUBREDDIT_RESPONSE);
     }),
   );
-  const router = renderPath();
+  const router = renderPath(POST_PATH, APP_ROUTES);
   await screen.findByText("Retained root");
   await user.click(screen.getByRole("button", { name: "Load more replies" }));
   await expansionStarted.promise;

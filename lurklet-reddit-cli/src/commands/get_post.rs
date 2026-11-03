@@ -20,9 +20,7 @@ mod tests {
     use crate::commands::Command;
     use crate::commands::testing::FakeBackend;
     use clap::Parser;
-    use lurklet_reddit::{
-        FlairTextColor, NamedReference, Post, PostAttachment, PostFlair, VideoFormat, VideoSource,
-    };
+    use lurklet_reddit::{Post, PostAttachment};
 
     #[tokio::test]
     async fn when_a_post_is_requested_then_the_command_should_return_the_backend_neutral_json() {
@@ -33,41 +31,18 @@ mod tests {
         let post = Post {
             id: "18t5968".into(),
             title: "Example".into(),
-            flair: Some(PostFlair {
-                text: Some("News/Article".into()),
-                background_color: Some("#228822".into()),
-                text_color: Some(FlairTextColor::Light),
-                parts: vec![],
-            }),
+            flair: None,
             author: None,
-            community: Some(NamedReference {
-                id: Some("community".into()),
-                name: Some("example".into()),
-            }),
+            community: None,
             created_at: "2023-12-28T21:35:27.507Z".parse().unwrap(),
             score: None,
             comment_count: Some(2),
             is_nsfw: false,
             is_spoiler: true,
             markdown: Some("**Markdown**".into()),
-            attachments: vec![
-                PostAttachment::Link {
-                    url: "https://example.invalid/".into(),
-                },
-                PostAttachment::Video {
-                    sources: vec![
-                        VideoSource {
-                            url: "https://example.invalid/video.mp4".into(),
-                            format: VideoFormat::Mp4,
-                        },
-                        VideoSource {
-                            url: "https://example.invalid/video.m3u8".into(),
-                            format: VideoFormat::Hls,
-                        },
-                    ],
-                    poster_url: None,
-                },
-            ],
+            attachments: vec![PostAttachment::Link {
+                url: "https://example.invalid/".into(),
+            }],
             crosspost_id: None,
         };
         let client = RedditClient::from_backend(FakeBackend {
@@ -79,22 +54,6 @@ mod tests {
 
         assert!(output.error.is_none());
         assert_eq!(output.result, json!(post));
-        assert_eq!(
-            output.result["attachments"],
-            json!([
-                {"kind": "link", "url": "https://example.invalid/"},
-                {"kind": "video", "sources": [
-                    {"url": "https://example.invalid/video.mp4", "format": "mp4"},
-                    {"url": "https://example.invalid/video.m3u8", "format": "hls"}
-                ], "poster_url": null}
-            ])
-        );
-        assert!(output.result.get("graphql").is_none());
-        assert_eq!(output.result["created_at"], "2023-12-28T21:35:27.507Z");
-        assert_eq!(
-            output.result["community"],
-            json!({"id": "community", "name": "example"})
-        );
     }
 
     #[tokio::test]

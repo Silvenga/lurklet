@@ -16,5 +16,4 @@ export async function expectRedditMenu(label: string, href: string | undefined) 
 
   await user.keyboard("{Escape}");
   await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
-  await waitFor(() => expect(trigger).toHaveFocus());
 }

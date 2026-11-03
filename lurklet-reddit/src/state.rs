@@ -110,7 +110,15 @@ mod tests {
             },
         };
 
-        let formatted = format!("{state:?}");
+        let session = state.authentication.session.as_ref().unwrap();
+        let formatted = [
+            format!("{state:?}"),
+            format!("{:?}", state.installation.as_ref().unwrap()),
+            format!("{:?}", state.authentication),
+            format!("{:?}", state.analytics),
+            format!("{session:?}"),
+            format!("{:?}", session.access_token),
+        ];
         let serialized = serde_json::to_string(&state).unwrap();
         let restored: ClientState = serde_json::from_str(&serialized).unwrap();
 
@@ -120,7 +128,9 @@ mod tests {
             "private-session",
             &state.installation.as_ref().unwrap().id.to_string(),
         ] {
-            assert!(!formatted.contains(secret));
+            for output in &formatted {
+                assert!(!output.contains(secret), "{output}");
+            }
         }
         assert_eq!(state, restored);
     }

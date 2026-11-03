@@ -48,37 +48,51 @@ mod tests {
     use lurklet_reddit::BuildError;
 
     #[test]
-    fn when_diagnostic_overrides_are_supplied_then_argument_parsing_should_accept_them() {
-        let flags = "cli bootstrap
-            --auth-endpoint https://auth.invalid/token --graphql-endpoint https://content.invalid/
-            --client-id custom-client --scope one --scope two
-            --app-version 1.2.3 --app-build 42 --android-release 15
-            --manufacturer Example --model Model --locale en-GB --display-density -1
-            --display-width-px 800 --display-height-px 1200 --user-agent custom-agent
-            --emulation-profile okhttp_4.12 --reddit-compression 0 --download-rate-mbps 12.3
-            --graphql-accept application/json --graphql-retry-header attempt=0,max=0
-            --allowlist-operation-name CustomAllowlist --allowlist-sha256 custom-hash
-            --height-header=false --max-response-bytes 4096
-            --request-timeout-ms 1234 --connect-timeout-ms 567 --clock-ms 1000";
-        let arguments = Arguments::try_parse_from(flags.split_whitespace()).unwrap();
+    fn when_an_override_is_invalid_then_its_library_error_should_identify_the_forwarded_field() {
+        for (option, value, expected) in [
+            (
+                "--auth-endpoint",
+                "http://auth.invalid/token",
+                "auth_endpoint",
+            ),
+            (
+                "--graphql-endpoint",
+                "http://content.invalid/",
+                "graphql_endpoint",
+            ),
+            ("--client-id", "client:password", "client_id"),
+            ("--scope", "", "scopes"),
+            ("--app-version", "bad\nversion", "user_agent"),
+            ("--app-build", "bad\nbuild", "user_agent"),
+            ("--android-release", "bad\nrelease", "user_agent"),
+            ("--user-agent", "bad\nagent", "user_agent"),
+            ("--manufacturer", "bad\nmanufacturer", "manufacturer"),
+            ("--model", "bad\nmodel", "model"),
+            ("--locale", "", "locale"),
+            ("--display-density", "NaN", "display_density"),
+            ("--reddit-compression", "bad\nheader", "reddit_compression"),
+            ("--download-rate-mbps", "NaN", "download_rate_mbps"),
+            ("--graphql-accept", "bad\naccept", "graphql_accept"),
+            (
+                "--graphql-retry-header",
+                "bad\nretry",
+                "graphql_retry_header",
+            ),
+            ("--max-response-bytes", "0", "max_response_bytes"),
+            ("--request-timeout-ms", "0", "request_timeout"),
+            ("--connect-timeout-ms", "0", "connect_timeout"),
+        ] {
+            let arguments = Arguments::try_parse_from(["cli", "bootstrap", option, value]).unwrap();
 
-        let client = arguments.client.builder().build();
+            let result = arguments.client.builder().build();
 
-        assert!(client.is_ok());
-    }
-
-    #[test]
-    fn when_an_invalid_override_is_supplied_then_library_validation_should_reject_it() {
-        let arguments =
-            Arguments::try_parse_from(["cli", "bootstrap", "--request-timeout-ms", "0"]).unwrap();
-
-        let result = arguments.client.builder().build();
-
-        assert!(matches!(
-            result,
-            Err(BuildError::InvalidConfiguration {
-                field: "request_timeout"
-            })
-        ));
+            match result {
+                Err(
+                    BuildError::InvalidConfiguration { field }
+                    | BuildError::InvalidEndpoint { field },
+                ) => assert_eq!(field, expected, "{option}"),
+                _ => panic!("{option} was not forwarded to library validation"),
+            }
+        }
     }
 }

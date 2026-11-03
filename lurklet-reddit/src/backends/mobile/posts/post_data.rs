@@ -183,52 +183,12 @@ mod tests {
         for typename in ["SubredditPost", "ProfilePost", "AdPost"] {
             let mut data = data();
             data["postsInfoByIds"][0]["__typename"] = typename.into();
+            data["postsInfoByIds"][0]["createdAt"] = "2023-12-29T03:05:27.507+0530".into();
 
             let post = decode_post(&data).unwrap().unwrap();
 
             assert_eq!(post, expected());
         }
-    }
-
-    #[test]
-    fn when_timestamps_use_native_offsets_then_serde_should_normalize_them_to_utc() {
-        for timestamp in [
-            "2023-12-28T21:35:27.507000+0000",
-            "2023-12-28T21:35:27.507+00:00",
-            "2023-12-28T21:35:27.507Z",
-            "2023-12-29T03:05:27.507+0530",
-        ] {
-            let mut data = data();
-            data["postsInfoByIds"][0]["createdAt"] = timestamp.into();
-
-            let post = decode_post(&data).unwrap().unwrap();
-
-            assert_eq!(post, expected());
-        }
-    }
-
-    #[test]
-    fn when_dates_have_submillisecond_precision_then_serde_should_preserve_it_in_the_public_date() {
-        let mut data = data();
-        data["postsInfoByIds"][0]["createdAt"] = "2023-12-28T21:35:27.507123+0000".into();
-
-        let post = decode_post(&data).unwrap().unwrap();
-
-        assert_eq!(post.created_at.timestamp_subsec_micros(), 507123);
-        assert_eq!(
-            serde_json::to_value(&post).unwrap()["created_at"],
-            "2023-12-28T21:35:27.507123Z"
-        );
-    }
-
-    #[test]
-    fn when_dates_are_malformed_then_serde_should_reject_them_without_a_custom_parser() {
-        let mut data = data();
-        data["postsInfoByIds"][0]["createdAt"] = "not a date".into();
-
-        let result = decode_post(&data);
-
-        assert_eq!(result, Err(GraphQlDecodeError::InvalidData));
     }
 
     #[test]
@@ -319,11 +279,14 @@ mod tests {
 
     #[test]
     fn when_the_post_result_is_malformed_then_projection_should_not_report_unavailable_content() {
+        let mut malformed_date = data();
+        malformed_date["postsInfoByIds"][0]["createdAt"] = "not a date".into();
         for data in [
             json!({}),
             json!({"postsInfoByIds": {}}),
             json!({"postsInfoByIds": []}),
             json!({"postsInfoByIds": [{"__typename": "SubredditPost"}]}),
+            malformed_date,
         ] {
             let result = decode_post(&data);
 

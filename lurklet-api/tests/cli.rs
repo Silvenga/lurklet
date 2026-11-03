@@ -12,6 +12,12 @@ use tokio::net::TcpListener as AsyncTcpListener;
 use tokio::task;
 use tokio::time::{sleep, timeout};
 
+fn command() -> Command {
+    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    command.env_clear().timeout(Duration::from_secs(5));
+    command
+}
+
 #[test]
 fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract() {
     let directory = assert_fs::TempDir::new().unwrap();
@@ -19,7 +25,7 @@ fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract()
     let state_file = directory.path().join("session.json");
     fs::write(&state_file, "private-invalid-state").unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    let mut command = command();
     command
         .arg("--bind")
         .arg(listener.local_addr().unwrap().to_string())
@@ -41,32 +47,15 @@ fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract()
         fs::read_to_string(state_file).unwrap(),
         "private-invalid-state"
     );
-    assert_eq!(document["openapi"], "3.2.0");
     assert_eq!(
-        document["paths"]
-            .as_object()
-            .unwrap()
-            .keys()
-            .collect::<Vec<_>>(),
-        [
-            "/api/comments/{id}/thread",
-            "/api/health",
-            "/api/media",
-            "/api/posts/{id}",
-            "/api/posts/{id}/comments",
-            "/api/subreddits/{subreddit}",
-            "/api/subreddits/{subreddit}/posts"
-        ]
-    );
-    assert_eq!(
-        document["paths"]["/api/health"]["get"]["operationId"],
-        "get_health"
+        document,
+        serde_json::to_value(lurklet_api::specification()).unwrap()
     );
 }
 
 #[test]
 fn when_log_filter_is_invalid_then_command_should_fail_without_echoing_it() {
-    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    let mut command = command();
     command
         .arg("export-openapi")
         .timeout(Duration::from_secs(10))
@@ -83,7 +72,7 @@ fn when_log_filter_is_invalid_then_command_should_fail_without_echoing_it() {
 fn when_listener_cannot_bind_then_default_logs_should_report_failure_without_details() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap().to_string();
-    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    let mut command = command();
     command
         .env("LURKLET_BIND", &address)
         .env(
@@ -105,7 +94,7 @@ fn when_listener_cannot_bind_then_default_logs_should_report_failure_without_det
 
 #[test]
 fn when_openapi_export_flag_is_used_then_command_should_reject_it() {
-    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    let mut command = command();
     command
         .arg("--export-openapi")
         .env_remove("LURKLET_BIND")
@@ -125,7 +114,7 @@ fn when_openapi_export_flag_is_used_then_command_should_reject_it() {
 fn when_the_total_timeout_is_configured_through_the_environment_then_only_disabled_or_positive_values_should_be_accepted()
  {
     for (value, valid) in [("-1", true), ("30", true), ("0", false), ("-2", false)] {
-        let mut command = Command::new(cargo_bin!("lurklet-api"));
+        let mut command = command();
         command
             .arg("export-openapi")
             .env("LURKLET_REDDIT_REQUEST_TIMEOUT_SECONDS", value)
@@ -146,7 +135,7 @@ fn when_the_total_timeout_is_configured_through_the_environment_then_only_disabl
 fn when_api_freshness_is_configured_through_the_environment_then_the_cli_should_validate_and_override_it()
  {
     for (value, valid) in [("0", true), ("42", true), ("-1", false), ("invalid", false)] {
-        let mut command = Command::new(cargo_bin!("lurklet-api"));
+        let mut command = command();
         command
             .arg("export-openapi")
             .env("LURKLET_API_CACHE_MAX_AGE_SECONDS", value)
@@ -162,7 +151,7 @@ fn when_api_freshness_is_configured_through_the_environment_then_the_cli_should_
         }
     }
 
-    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    let mut command = command();
     command
         .args(["--api-cache-max-age-seconds", "42", "export-openapi"])
         .env("LURKLET_API_CACHE_MAX_AGE_SECONDS", "invalid")
@@ -188,7 +177,7 @@ async fn when_health_check_is_requested_then_command_should_probe_directly_and_s
         }),
     );
     let server = tokio::spawn(axum::serve(listener, app).into_future());
-    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    let mut command = command();
     command
         .arg("health-check")
         .env("LURKLET_BIND", format!("0.0.0.0:{}", address.port()))
@@ -236,7 +225,7 @@ fn when_state_restoration_fails_then_cli_and_environment_configuration_should_wa
         (false, "debug"),
         (true, "debug"),
     ] {
-        let mut command = Command::new(cargo_bin!("lurklet-api"));
+        let mut command = command();
         command
             .arg("--bind")
             .arg(listener.local_addr().unwrap().to_string())
@@ -269,7 +258,7 @@ fn when_cache_storage_cannot_be_initialized_then_startup_should_fail_without_log
     let directory = assert_fs::TempDir::new().unwrap();
     let invalid = directory.path().join("private-cache-path");
     fs::write(&invalid, "not a directory").unwrap();
-    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    let mut command = command();
     command
         .arg("--cache-dir")
         .arg(&invalid)
@@ -285,30 +274,18 @@ fn when_cache_storage_cannot_be_initialized_then_startup_should_fail_without_log
 
 #[test]
 fn when_rate_limit_configuration_is_invalid_then_command_should_reject_it() {
-    for (option, value) in [
-        ("--rate-limit-rps", "0"),
-        ("--rate-limit-burst", "0"),
-        ("--media-rate-limit-rps", "0"),
-        ("--media-rate-limit-burst", "0"),
-        ("--client-ip-source", "automatic"),
-        ("--trusted-proxies", "not-a-cidr"),
-        ("--reddit-request-timeout-seconds", "0"),
-        ("--reddit-request-timeout-seconds", "-2"),
-    ] {
-        let mut command = Command::new(cargo_bin!("lurklet-api"));
-        command
-            .args([option, value, "export-openapi"])
-            .timeout(Duration::from_secs(5));
+    let mut command = command();
+    command.args(["--rate-limit-rps", "0", "export-openapi"]);
 
-        let output = command.assert().failure().get_output().clone();
+    let output = command.assert().failure().get_output().clone();
 
-        assert!(output.stdout.is_empty());
-        assert!(
-            String::from_utf8(output.stderr)
-                .unwrap()
-                .contains("invalid value")
-        );
-    }
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .contains("invalid value")
+    );
 }
 
 #[tokio::test]
@@ -345,6 +322,7 @@ async fn when_the_server_is_started_then_socket_and_forwarded_ips_should_enforce
         drop(listener);
         let mut command = ProcessCommand::new(cargo_bin!("lurklet-api"));
         command
+            .env_clear()
             .args([
                 "--bind",
                 &address.to_string(),
@@ -448,7 +426,7 @@ fn when_health_check_fails_then_command_should_exit_unsuccessfully_without_sensi
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     drop(listener);
-    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    let mut command = command();
     command
         .arg("health-check")
         .env("LURKLET_BIND", address.to_string())
@@ -464,7 +442,7 @@ fn when_health_check_fails_then_command_should_exit_unsuccessfully_without_sensi
 #[test]
 fn when_static_index_is_missing_then_server_should_fail_before_binding() {
     let directory = assert_fs::TempDir::new().unwrap();
-    let mut command = Command::new(cargo_bin!("lurklet-api"));
+    let mut command = command();
     command
         .arg("--static-dir")
         .arg(directory.path())

@@ -105,25 +105,59 @@ mod tests {
         AccessToken, ClientState, InMemoryStore, RedditClient, RetryAfter, Storage, StorageError,
     };
     use futures_util::future::join_all;
+    use std::sync::atomic::AtomicUsize;
     use std::time::Duration;
+    use tokio::sync::Barrier;
     use tokio::time::timeout;
     use wiremock::matchers::path;
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    struct ConcurrentStore {
+        inner: InMemoryStore,
+        started: AtomicUsize,
+        readers: Barrier,
+    }
+
+    impl StateStore for ConcurrentStore {
+        async fn load(&self) -> Result<StateSnapshot, StorageError> {
+            if self.started.fetch_add(1, Ordering::SeqCst) < 12 {
+                self.readers.wait().await;
+            }
+            self.inner.load().await
+        }
+
+        async fn compare_exchange(
+            &self,
+            revision: u64,
+            state: ClientState,
+        ) -> Result<Option<StateSnapshot>, StorageError> {
+            self.inner.compare_exchange(revision, state).await
+        }
+    }
 
     #[tokio::test]
     async fn when_clients_share_storage_then_concurrent_bootstraps_should_share_one_request() {
         let server = MockServer::start().await;
         Mock::given(path(PATH))
-            .respond_with(testing::response().set_delay(Duration::from_millis(50)))
+            .respond_with(testing::response())
             .expect(1)
             .mount(&server)
             .await;
-        let storage = Storage::default();
+        let storage = Storage::new(ConcurrentStore {
+            inner: InMemoryStore::default(),
+            started: AtomicUsize::new(0),
+            readers: Barrier::new(12),
+        });
         let clients: Vec<_> = (0..12)
             .map(|_| testing::client(&server, storage.clone(), TestClock::default()))
             .collect();
 
-        let results = join_all(clients.iter().map(RedditClient::bootstrap)).await;
+        let results = timeout(
+            Duration::from_secs(5),
+            join_all(clients.iter().map(RedditClient::bootstrap)),
+        )
+        .await
+        .unwrap();
         let saved = storage.store().load().await.unwrap();
 
         let expected = AnonymousSession {
@@ -141,17 +175,23 @@ mod tests {
     async fn when_concurrent_acquisition_fails_then_waiters_should_share_the_failure() {
         let server = MockServer::start().await;
         Mock::given(path(PATH))
-            .respond_with(
-                ResponseTemplate::new(429)
-                    .set_delay(Duration::from_millis(50))
-                    .insert_header("retry-after", "120"),
-            )
+            .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "120"))
             .expect(1)
             .mount(&server)
             .await;
-        let client = testing::client(&server, testing::storage(), TestClock::default());
+        let storage = Storage::new(ConcurrentStore {
+            inner: InMemoryStore::with_state(testing::state()),
+            started: AtomicUsize::new(0),
+            readers: Barrier::new(12),
+        });
+        let client = testing::client(&server, storage, TestClock::default());
 
-        let results = join_all((0..12).map(|_| client.bootstrap())).await;
+        let results = timeout(
+            Duration::from_secs(5),
+            join_all((0..12).map(|_| client.bootstrap())),
+        )
+        .await
+        .unwrap();
 
         for result in results {
             assert!(

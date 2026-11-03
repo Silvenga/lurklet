@@ -26,19 +26,17 @@ test("When posts are returned then the list should preserve their order and show
   );
   expect(screen.getAllByText("Pinned")).toHaveLength(2);
   const first = screen.getAllByRole("listitem")[0]!;
-  expect(first).toHaveClass("select-text");
   expect(within(first).getByText("u/seino_chan")).toBeVisible();
   expect(within(first).getByText("44 points")).toBeVisible();
   expect(within(first).getByText("2 comments")).toBeVisible();
   const flair = within(first).getByText(POST_RESPONSE.flair.text).closest('[data-slot="badge"]');
   expect(flair).toBeVisible();
-  expect(flair?.nextElementSibling).toBe(within(first).getByText("Pinned"));
   expect(first.querySelector("time")).toHaveAttribute("datetime", "2026-10-22T01:16:16.094Z");
   expect(within(first).queryByText("Cross-post")).not.toBeInTheDocument();
 });
 
 test.each([8, null])(
-  "When a cross-post has comment count %j then its listing should append a muted text indicator",
+  "When a cross-post has comment count %j then its listing should identify the cross-post without changing its destination",
   (commentCount) => {
     const post = {
       ...SUBREDDIT_PAGE_RESPONSE.posts[0]!,
@@ -55,13 +53,9 @@ test.each([8, null])(
 
     const indicator = screen.getByText("Cross-post");
     expect(indicator).toBeVisible();
-    expect(indicator.tagName).toBe("SPAN");
-    expect(indicator.closest("p")).toHaveClass("text-muted-foreground");
-    expect(indicator.parentElement).toHaveClass("inline-flex");
     expect(indicator.closest("a, button, [data-slot=badge]")).toBeNull();
-    expect(indicator.nextElementSibling).toBeNull();
     if (commentCount !== null) {
-      expect(indicator.previousElementSibling).toBe(screen.getByText(`${commentCount} comments`));
+      expect(screen.getByText(`${commentCount} comments`)).toBeVisible();
     } else {
       expect(screen.queryByText(/comments$/)).not.toBeInTheDocument();
     }
@@ -139,7 +133,6 @@ test("When a post has a thumbnail then it should use the original proxied image 
   expect(url.origin).toBe(location.origin);
   expect(url.pathname).toBe("/api/media");
   expect(url.searchParams.get("url")).toBe(THUMBNAIL.url);
-  expect(image).toHaveClass("size-16", "object-cover");
   expect(image.parentElement).not.toHaveClass("[&_img]:blur-md");
   expect(screen.queryByRole("button", { name: /Reveal thumbnail/ })).toBeNull();
   expect(screen.getByRole("link", { name: post.title })).toHaveAttribute(

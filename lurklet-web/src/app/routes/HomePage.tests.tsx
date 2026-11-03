@@ -1,49 +1,31 @@
-import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw/http";
-import { createMemoryRouter } from "react-router";
+import { createMemoryRouter, useParams } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { expect, onTestFinished, test } from "vitest";
 import { SUBREDDIT_RESPONSE, SUBREDDIT_PAGE_RESPONSE } from "@/_tests/mocks/fixtures";
 import { server } from "@/_tests/mocks/server";
-import { createQueryClient } from "../query-client";
-import { APP_ROUTES } from "../router";
-
-const SUGGESTIONS = [
-  ["aww", "Cute animals and other adorable things"],
-  ["wholesomememes", "Feel-good memes"],
-  ["ContagiousLaughter", "Videos of infectious laughter"],
-  ["MadeMeSmile", "Moments that brighten someone's day"],
-  ["AnimalsBeingDerps", "Silly animals"],
-] as const;
+import { HomePage } from "./HomePage";
 
 function renderHome() {
-  const router = createMemoryRouter(APP_ROUTES);
-  const queryClient = createQueryClient();
-  const { unmount } = render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  );
+  const router = createMemoryRouter([
+    { path: "/", Component: HomePage },
+    {
+      path: "/r/:subreddit",
+      Component: () => {
+        const { subreddit } = useParams();
+        return <h1>r/{subreddit}</h1>;
+      },
+    },
+  ]);
+  const { unmount } = render(<RouterProvider router={router} />);
   onTestFinished(() => {
     unmount();
     router.dispose();
-    queryClient.clear();
   });
   return router;
 }
-
-test("When the home page renders then it should show the static introduction", () => {
-  renderHome();
-
-  expect(screen.getByRole("heading", { level: 1, name: "Lurklet" })).toBeInTheDocument();
-  expect(
-    screen.getByText("A lightweight, privacy-focused front end for Reddit."),
-  ).toBeInTheDocument();
-  expect(screen.getByRole("textbox", { name: "r/" })).toHaveClass("select-text");
-  expect(screen.getByRole("button", { name: "Go" })).toHaveAttribute("type", "submit");
-});
 
 test("When the submit button is pressed then it should navigate to the entered subreddit", async () => {
   const user = userEvent.setup();
@@ -87,41 +69,16 @@ test.each(["", "   "])(
     expect(screen.getByRole("heading", { level: 1, name: "Lurklet" })).toBeVisible();
   },
 );
-test("When the home page renders then the suggestions should be ordered subreddit links without subscriber counts", () => {
-  renderHome();
-
-  const suggestions = screen.getByRole("navigation", { name: "Suggested subreddits" });
-  const links = within(suggestions).getAllByRole("link");
-  expect(links.map((link) => link.textContent)).toEqual(SUGGESTIONS.map(([name]) => `r/${name}`));
-  for (const [name] of SUGGESTIONS) {
-    const link = within(suggestions).getByRole("link", { name: `r/${name}` });
-    expect(link).toHaveAttribute("href", `/r/${name}`);
-    expect(link).not.toHaveAttribute("target");
-    expect(link.closest("form")).toBeNull();
-  }
-  expect(suggestions).not.toHaveTextContent(/\d/);
-});
-
 test("When a suggested subreddit is hovered then its tooltip should describe it", async () => {
-  const [name, description] = SUGGESTIONS[3];
   const user = userEvent.setup();
   renderHome();
 
   await user.hover(document.body);
-  await user.hover(screen.getByRole("link", { name: `r/${name}` }));
+  await user.hover(screen.getByRole("link", { name: "r/MadeMeSmile" }));
 
-  expect(await screen.findByRole("tooltip")).toHaveTextContent(description);
-});
-
-test("When a suggested subreddit is clicked then its posts page should open", async () => {
-  const [name] = SUGGESTIONS[3];
-  const user = userEvent.setup();
-  const router = renderHome();
-
-  await user.click(screen.getByRole("link", { name: `r/${name}` }));
-
-  expect(await screen.findByRole("heading", { level: 1, name: `r/${name}` })).toBeVisible();
-  expect(router.state.location.pathname).toBe(`/r/${name}`);
+  expect(await screen.findByRole("tooltip")).toHaveTextContent(
+    "Moments that brighten someone's day",
+  );
 });
 
 test("When suggestions are explored with the keyboard then the tooltip should appear without fetching subreddit data", async () => {

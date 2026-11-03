@@ -109,7 +109,9 @@ mod tests {
     use lurklet_reddit::{RedditClient, Storage};
     use serde_json::json;
     use std::sync::Arc;
-    use tokio::task::{JoinSet, yield_now};
+    use tokio::sync::Barrier;
+    use tokio::task::JoinSet;
+    use tokio::time::{Duration, timeout};
 
     fn state() -> ClientState {
         serde_json::from_value(json!({
@@ -300,46 +302,53 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_writes_overlap_then_readers_should_only_observe_complete_snapshots() {
+    async fn when_independent_stores_publish_then_open_readers_should_retain_complete_snapshots() {
         let directory = TempDir::new().unwrap();
         let path = directory.path().join("session.json");
         let first = Arc::new(SessionStore::new(Some(path.clone())).await);
         first.compare_exchange(0, state()).await.unwrap().unwrap();
         let second = Arc::new(SessionStore::new(Some(path.clone())).await);
+        let reader = fs::File::open(&path).unwrap();
         let mut first_state = state();
         first_state.authentication.loid = Some("first".repeat(1024));
         let mut second_state = state();
         second_state.authentication.loid = Some("second".repeat(1024));
         let mut writes = JoinSet::new();
+        let start = Arc::new(Barrier::new(3));
 
-        for (store, state) in [(first, first_state.clone()), (second, second_state.clone())] {
+        for (store, state) in [
+            (first.clone(), first_state.clone()),
+            (second.clone(), second_state.clone()),
+        ] {
+            let start = start.clone();
             writes.spawn(async move {
-                for _ in 0..16 {
-                    let revision = store.load().await.unwrap().revision;
-                    store
-                        .compare_exchange(revision, state.clone())
-                        .await
-                        .unwrap()
-                        .unwrap();
-                }
+                let revision = store.load().await.unwrap().revision;
+                start.wait().await;
+                store
+                    .compare_exchange(revision, state)
+                    .await
+                    .unwrap()
+                    .unwrap();
             });
         }
-        for _ in 0..32 {
-            let stored: StoredSession = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-            assert_eq!(stored.version, 1);
-            assert!(
-                stored.state == state()
-                    || stored.state == first_state
-                    || stored.state == second_state
-            );
-            yield_now().await;
-        }
-        while let Some(result) = writes.join_next().await {
-            result.unwrap();
-        }
+
+        timeout(Duration::from_secs(5), async {
+            start.wait().await;
+            while let Some(result) = writes.join_next().await {
+                result.unwrap();
+            }
+        })
+        .await
+        .unwrap();
 
         let stored: StoredSession = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        let original: StoredSession = serde_json::from_reader(reader).unwrap();
+        assert_eq!(original.version, 1);
+        assert_eq!(original.state, state());
+        assert_eq!(stored.version, 1);
         assert!(stored.state == first_state || stored.state == second_state);
+        assert_eq!(first.load().await.unwrap().state, first_state);
+        assert_eq!(second.load().await.unwrap().state, second_state);
         assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
     }
 }
