@@ -10,5 +10,10 @@
     "includePremiumAvatarTreatment": false,
     "includeConsistencyToken": false
   },
-  "extensions": {"persistedQuery": {"version": 1, "sha256Hash": "314f29c2494fd78c7844ef2c6b09acb4bef5b37ab50b4ddc01691d6d5c8433f8"}}
+  "extensions": {
+    "persistedQuery": {
+      "version": 1,
+      "sha256Hash": "314f29c2494fd78c7844ef2c6b09acb4bef5b37ab50b4ddc01691d6d5c8433f8"
+    }
+  }
 }

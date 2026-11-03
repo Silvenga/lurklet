@@ -17,13 +17,13 @@
       "zeroRttClientAllowedQueries": {
         "clientName": "android-app",
         "queries": [
-          {"name": "HomeFeedSdui"},
-          {"name": "UsernameAndExperiments"},
-          {"name": "PostComments"},
-          {"name": "SubredditFeedSdui"}
+          { "name": "HomeFeedSdui" },
+          { "name": "UsernameAndExperiments" },
+          { "name": "PostComments" },
+          { "name": "SubredditFeedSdui" }
         ]
       }
     },
-    "extensions": {"traceID": "fixture-trace"}
+    "extensions": { "traceID": "fixture-trace" }
   }
 }

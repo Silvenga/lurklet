@@ -3,11 +3,11 @@
     "zeroRttClientAllowedQueries": {
       "clientName": "android-app",
       "queries": [
-        {"name": "PostsByIds"},
-        {"name": "FutureFixture", "futureField": true},
-        {"name": "PostsByIds"}
+        { "name": "PostsByIds" },
+        { "name": "FutureFixture", "futureField": true },
+        { "name": "PostsByIds" }
       ]
     }
   },
-  "extensions": {"traceID": "fixture-trace"}
+  "extensions": { "traceID": "fixture-trace" }
 }

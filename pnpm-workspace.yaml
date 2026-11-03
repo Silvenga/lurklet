@@ -1,6 +1,6 @@
 packages:
   - lurklet-web
 minimumReleaseAgeExclude:
-  - '@mswjs/interceptors@0.45.11'
-  - '@tanstack/query-core@5.105.1'
-  - '@tanstack/react-query@5.105.1'
+  - "@mswjs/interceptors@0.45.11"
+  - "@tanstack/query-core@5.105.1"
+  - "@tanstack/react-query@5.105.1"

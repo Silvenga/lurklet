@@ -32,11 +32,7 @@
             "schema": {
               "type": "string",
               "default": "best",
-              "enum": [
-                "best",
-                "top",
-                "new"
-              ]
+              "enum": ["best", "top", "new"]
             }
           }
         ],
@@ -489,11 +485,7 @@
             "schema": {
               "type": "string",
               "default": "best",
-              "enum": [
-                "best",
-                "top",
-                "new"
-              ]
+              "enum": ["best", "top", "new"]
             }
           },
           {
@@ -778,11 +770,7 @@
             "schema": {
               "type": "string",
               "default": "hot",
-              "enum": [
-                "hot",
-                "new",
-                "top"
-              ]
+              "enum": ["hot", "new", "top"]
             }
           },
           {
@@ -792,14 +780,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": [
-                "hour",
-                "day",
-                "week",
-                "month",
-                "year",
-                "all"
-              ]
+              "enum": ["hour", "day", "week", "month", "year", "all"]
             }
           },
           {
@@ -958,35 +939,20 @@
             ]
           },
           "createdAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "initiallyCollapsed": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": ["boolean", "null"]
           },
           "isOp": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": ["boolean", "null"]
           },
           "isPinned": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": ["boolean", "null"]
           },
           "markdown": {
             "oneOf": [
@@ -1000,10 +966,7 @@
             ]
           },
           "score": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64"
           },
           "state": {
@@ -1013,32 +976,20 @@
       },
       "CommentAuthor": {
         "type": "object",
-        "required": [
-          "id",
-          "name"
-        ],
+        "required": ["id", "name"],
         "properties": {
           "id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "name": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "CommentForest": {
         "type": "object",
         "description": "Ordered discussion roots, or replacement items for one selected placeholder.",
-        "required": [
-          "appliedSort",
-          "items"
-        ],
+        "required": ["appliedSort", "items"],
         "properties": {
           "appliedSort": {
             "oneOf": [
@@ -1062,20 +1013,14 @@
         "oneOf": [
           {
             "type": "object",
-            "required": [
-              "comment",
-              "replies",
-              "kind"
-            ],
+            "required": ["comment", "replies", "kind"],
             "properties": {
               "comment": {
                 "$ref": "#/components/schemas/Comment"
               },
               "kind": {
                 "type": "string",
-                "enum": [
-                  "comment"
-                ]
+                "enum": ["comment"]
               },
               "replies": {
                 "type": "array",
@@ -1087,55 +1032,35 @@
           },
           {
             "type": "object",
-            "required": [
-              "cursor",
-              "countHint",
-              "kind"
-            ],
+            "required": ["cursor", "countHint", "kind"],
             "properties": {
               "countHint": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": ["integer", "null"],
                 "format": "int64",
                 "description": "Upstream hint, not an exact count.",
                 "minimum": 0
               },
               "cursor": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "Opaque cursor for replacing this placeholder; null means no action is available."
               },
               "kind": {
                 "type": "string",
-                "enum": [
-                  "more"
-                ]
+                "enum": ["more"]
               }
             }
           },
           {
             "type": "object",
-            "required": [
-              "commentId",
-              "kind"
-            ],
+            "required": ["commentId", "kind"],
             "properties": {
               "commentId": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "Anchor for the thread endpoint; null means no action is available."
               },
               "kind": {
                 "type": "string",
-                "enum": [
-                  "continueThread"
-                ]
+                "enum": ["continueThread"]
               }
             }
           }
@@ -1144,43 +1069,27 @@
       "CommentSort": {
         "type": "string",
         "default": "best",
-        "enum": [
-          "best",
-          "top",
-          "new"
-        ]
+        "enum": ["best", "top", "new"]
       },
       "CommentState": {
         "type": "string",
-        "enum": [
-          "present",
-          "deleted",
-          "removed"
-        ]
+        "enum": ["present", "deleted", "removed"]
       },
       "CommentThread": {
         "type": "object",
-        "required": [
-          "postId",
-          "forest"
-        ],
+        "required": ["postId", "forest"],
         "properties": {
           "forest": {
             "$ref": "#/components/schemas/CommentForest"
           },
           "postId": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "Health": {
         "type": "object",
-        "required": [
-          "health"
-        ],
+        "required": ["health"],
         "properties": {
           "health": {
             "$ref": "#/components/schemas/HealthStatus"
@@ -1189,9 +1098,7 @@
       },
       "HealthStatus": {
         "type": "string",
-        "enum": [
-          "ok"
-        ]
+        "enum": ["ok"]
       },
       "ListedPost": {
         "type": "object",
@@ -1209,24 +1116,15 @@
         ],
         "properties": {
           "authorName": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "commentCount": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64",
             "minimum": 0
           },
           "createdAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "id": {
@@ -1242,10 +1140,7 @@
             "type": "boolean"
           },
           "score": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64"
           },
           "thumbnail": {
@@ -1259,20 +1154,14 @@
             ]
           },
           "title": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "Markdown": {
         "type": "object",
         "description": "Untrusted Markdown with resolved, unproxied media references.",
-        "required": [
-          "content",
-          "media"
-        ],
+        "required": ["content", "media"],
         "properties": {
           "content": {
             "type": "string"
@@ -1287,19 +1176,10 @@
       },
       "MarkdownMedia": {
         "type": "object",
-        "required": [
-          "id",
-          "mimeType",
-          "url",
-          "width",
-          "height"
-        ],
+        "required": ["id", "mimeType", "url", "width", "height"],
         "properties": {
           "height": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "minimum": 0
           },
@@ -1307,19 +1187,13 @@
             "type": "string"
           },
           "mimeType": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "url": {
             "type": "string"
           },
           "width": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "minimum": 0
           }
@@ -1327,22 +1201,13 @@
       },
       "NamedReference": {
         "type": "object",
-        "required": [
-          "id",
-          "name"
-        ],
+        "required": ["id", "name"],
         "properties": {
           "id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "name": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
@@ -1380,10 +1245,7 @@
             ]
           },
           "commentCount": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64",
             "minimum": 0
           },
@@ -1402,10 +1264,7 @@
             "format": "date-time"
           },
           "crosspostId": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "id": {
             "type": "string"
@@ -1428,10 +1287,7 @@
             ]
           },
           "score": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64"
           },
           "title": {
@@ -1443,16 +1299,11 @@
         "oneOf": [
           {
             "type": "object",
-            "required": [
-              "url",
-              "kind"
-            ],
+            "required": ["url", "kind"],
             "properties": {
               "kind": {
                 "type": "string",
-                "enum": [
-                  "link"
-                ]
+                "enum": ["link"]
               },
               "url": {
                 "type": "string"
@@ -1461,30 +1312,17 @@
           },
           {
             "type": "object",
-            "required": [
-              "url",
-              "altText",
-              "caption",
-              "kind"
-            ],
+            "required": ["url", "altText", "caption", "kind"],
             "properties": {
               "altText": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "caption": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "kind": {
                 "type": "string",
-                "enum": [
-                  "image"
-                ]
+                "enum": ["image"]
               },
               "url": {
                 "type": "string"
@@ -1493,23 +1331,14 @@
           },
           {
             "type": "object",
-            "required": [
-              "sources",
-              "posterUrl",
-              "kind"
-            ],
+            "required": ["sources", "posterUrl", "kind"],
             "properties": {
               "kind": {
                 "type": "string",
-                "enum": [
-                  "video"
-                ]
+                "enum": ["video"]
               },
               "posterUrl": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "sources": {
                 "type": "array",
@@ -1523,11 +1352,7 @@
       },
       "Problem": {
         "type": "object",
-        "required": [
-          "type",
-          "title",
-          "status"
-        ],
+        "required": ["type", "title", "status"],
         "properties": {
           "status": {
             "type": "integer",
@@ -1552,15 +1377,11 @@
               },
               {
                 "type": "object",
-                "required": [
-                  "kind"
-                ],
+                "required": ["kind"],
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": [
-                      "available"
-                    ]
+                    "enum": ["available"]
                   }
                 }
               }
@@ -1573,15 +1394,11 @@
               },
               {
                 "type": "object",
-                "required": [
-                  "kind"
-                ],
+                "required": ["kind"],
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": [
-                      "unavailable"
-                    ]
+                    "enum": ["unavailable"]
                   }
                 }
               }
@@ -1611,16 +1428,10 @@
         ],
         "properties": {
           "communityType": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "createdAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "descriptionMarkdown": {
@@ -1648,22 +1459,13 @@
             ]
           },
           "isNsfw": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": ["boolean", "null"]
           },
           "isPostingRestricted": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": ["boolean", "null"]
           },
           "isQuarantined": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": ["boolean", "null"]
           },
           "name": {
             "type": "string"
@@ -1679,10 +1481,7 @@
             ]
           },
           "shortDescription": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "styles": {
             "oneOf": [
@@ -1695,33 +1494,21 @@
             ]
           },
           "subscriberCount": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64",
             "minimum": 0
           },
           "title": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "weeklyActiveUserCount": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64",
             "description": "Weekly activity, not a count of currently online users.",
             "minimum": 0
           },
           "weeklyContributionCount": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64",
             "minimum": 0
           }
@@ -1729,16 +1516,10 @@
       },
       "SubredditPage": {
         "type": "object",
-        "required": [
-          "posts",
-          "nextCursor"
-        ],
+        "required": ["posts", "nextCursor"],
         "properties": {
           "nextCursor": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "posts": {
             "type": "array",
@@ -1761,87 +1542,48 @@
         ],
         "properties": {
           "bannerUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "iconUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "legacyBannerUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "legacyIconUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "legacyPrimaryColor": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "mobileBannerUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "primaryColor": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "Thumbnail": {
         "type": "object",
-        "required": [
-          "url",
-          "obfuscatedUrl",
-          "isObfuscated",
-          "width",
-          "height"
-        ],
+        "required": ["url", "obfuscatedUrl", "isObfuscated", "width", "height"],
         "properties": {
           "height": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "minimum": 0
           },
           "isObfuscated": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": ["boolean", "null"]
           },
           "obfuscatedUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "url": {
             "type": "string"
           },
           "width": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "minimum": 0
           }
@@ -1869,22 +1611,13 @@
             ]
           },
           "banTitle": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "forbiddenReason": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "interstitialWarningMarkdown": {
             "oneOf": [
@@ -1910,18 +1643,11 @@
       },
       "VideoFormat": {
         "type": "string",
-        "enum": [
-          "mp4",
-          "hls",
-          "dash"
-        ]
+        "enum": ["mp4", "hls", "dash"]
       },
       "VideoSource": {
         "type": "object",
-        "required": [
-          "url",
-          "format"
-        ],
+        "required": ["url", "format"],
         "properties": {
           "format": {
             "$ref": "#/components/schemas/VideoFormat"
