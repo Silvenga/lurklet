@@ -92,6 +92,10 @@ Options:
           Sustained API requests per second per client (IPv6 is by /64) [env: LURKLET_RATE_LIMIT_RPS=] [default: 1]
       --rate-limit-burst <RATE_LIMIT_BURST>
           Maximum burst of API requests per client [env: LURKLET_RATE_LIMIT_BURST=] [default: 10]
+      --media-rate-limit-rps <MEDIA_RATE_LIMIT_RPS>
+          Sustained media requests per second per client (IPv6 is by /64) [env: LURKLET_MEDIA_RATE_LIMIT_RPS=] [default: 5]
+      --media-rate-limit-burst <MEDIA_RATE_LIMIT_BURST>
+          Maximum burst of media requests per client [env: LURKLET_MEDIA_RATE_LIMIT_BURST=] [default: 20]
       --client-ip-source <CLIENT_IP_SOURCE>
           Client-IP source [env: LURKLET_CLIENT_IP_SOURCE=] [default: peer] [possible values: peer, x-forwarded-for, x-real-ip]
       --trusted-proxies <TRUSTED_PROXIES>

@@ -71,7 +71,7 @@ async fn get_media<B: RedditBackend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ApiCacheOptions, RateLimit, ResponseCache, application};
+    use crate::{ApiCacheOptions, RateLimits, ResponseCache, application};
     use axum::Router;
     use axum::body::to_bytes;
     use axum::extract::ConnectInfo;
@@ -249,7 +249,7 @@ mod tests {
             });
             let app = application(
                 reddit,
-                &RateLimit::default(),
+                &RateLimits::default(),
                 caching.then_some(&cache),
                 &ApiCacheOptions {
                     api_cache_max_age_seconds: 42,

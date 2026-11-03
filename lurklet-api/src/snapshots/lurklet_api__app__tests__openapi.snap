@@ -1119,7 +1119,7 @@ expression: document
     }
   },
   "info": {
-    "description": "Internal API contract. API requests share a per-client rate limit, except for /api/health. Excess requests return 429 Problem Details with Retry-After. Unknown API paths return 404 Problem Details unless rate limited.",
+    "description": "Internal API contract. Data and media requests use separate per-client rate limits; /api/health is exempt. Excess requests return 429 Problem Details with Retry-After. Unknown API paths return 404 Problem Details unless rate limited.",
     "license": {
       "identifier": "AGPL-3.0-only",
       "name": "AGPL-3.0-only"

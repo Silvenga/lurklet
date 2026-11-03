@@ -288,6 +288,8 @@ fn when_rate_limit_configuration_is_invalid_then_command_should_reject_it() {
     for (option, value) in [
         ("--rate-limit-rps", "0"),
         ("--rate-limit-burst", "0"),
+        ("--media-rate-limit-rps", "0"),
+        ("--media-rate-limit-burst", "0"),
         ("--client-ip-source", "automatic"),
         ("--trusted-proxies", "not-a-cidr"),
         ("--reddit-request-timeout-seconds", "0"),

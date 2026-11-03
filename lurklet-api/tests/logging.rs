@@ -4,7 +4,7 @@ use assert_fs::prelude::*;
 use axum::body::{Body, to_bytes};
 use axum::extract::ConnectInfo;
 use axum::http::{Method, Request, header};
-use lurklet_api::{ApiCacheOptions, RateLimit, RateLimitOptions, StaticHost, application};
+use lurklet_api::{ApiCacheOptions, RateLimitOptions, RateLimits, StaticHost, application};
 use lurklet_reddit::RedditClient;
 use std::net::SocketAddr;
 use std::sync::Mutex;
@@ -26,12 +26,12 @@ async fn when_requests_are_logged_then_details_should_follow_the_configured_leve
         );
 
         async {
-            let limiter = RateLimit::new(RateLimitOptions {
+            let rate_limits = RateLimits::new(RateLimitOptions {
                 rate_limit_burst: 1.try_into().unwrap(),
                 ..RateLimitOptions::default()
             });
             let reddit = RedditClient::builder().build().unwrap();
-            let app = application(reddit, &limiter, None, &ApiCacheOptions::default());
+            let app = application(reddit, &rate_limits, None, &ApiCacheOptions::default());
             let app =
                 app.fallback_service(StaticHost::new(directory.path()).await.unwrap().router());
             tracing::info!("Operator event");

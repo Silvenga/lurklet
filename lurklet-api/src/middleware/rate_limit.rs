@@ -24,6 +24,12 @@ pub struct RateLimitOptions {
     /// Maximum burst of API requests per client.
     #[arg(long, env = "LURKLET_RATE_LIMIT_BURST", default_value = "10")]
     pub rate_limit_burst: NonZeroU32,
+    /// Sustained media requests per second per client (IPv6 is by /64).
+    #[arg(long, env = "LURKLET_MEDIA_RATE_LIMIT_RPS", default_value = "5")]
+    pub media_rate_limit_rps: NonZeroU32,
+    /// Maximum burst of media requests per client.
+    #[arg(long, env = "LURKLET_MEDIA_RATE_LIMIT_BURST", default_value = "20")]
+    pub media_rate_limit_burst: NonZeroU32,
     /// Client-IP source.
     #[arg(
         long,
@@ -42,6 +48,8 @@ impl Default for RateLimitOptions {
         Self {
             rate_limit_rps: NonZeroU32::new(1).unwrap(),
             rate_limit_burst: NonZeroU32::new(10).unwrap(),
+            media_rate_limit_rps: NonZeroU32::new(5).unwrap(),
+            media_rate_limit_burst: NonZeroU32::new(20).unwrap(),
             client_ip_source: ClientIpSource::Peer,
             trusted_proxies: Vec::new(),
         }
@@ -97,31 +105,20 @@ impl KeyExtractor for ClientIpKey {
     }
 }
 
-/// Shared in-memory API limiter; cloning retains the same client budgets.
+/// Shared in-memory limiter for one endpoint family; cloning retains the same client budgets.
 #[derive(Clone)]
 pub struct RateLimit {
     config: Arc<GovernorConfig<ClientIpKey, StateInformationMiddleware>>,
 }
 
-impl Default for RateLimit {
-    fn default() -> Self {
-        Self::new(RateLimitOptions::default())
-    }
-}
-
 impl RateLimit {
     /// Builds a limiter without starting background tasks.
-    pub fn new(options: RateLimitOptions) -> Self {
-        let period = Duration::from_nanos(
-            1_000_000_000_u64.div_ceil(u64::from(options.rate_limit_rps.get())),
-        );
+    fn new(rps: NonZeroU32, burst: NonZeroU32, key: ClientIpKey) -> Self {
+        let period = Duration::from_nanos(1_000_000_000_u64.div_ceil(u64::from(rps.get())));
         let config = GovernorConfigBuilder::default()
             .period(period)
-            .burst_size(options.rate_limit_burst.get())
-            .key_extractor(ClientIpKey {
-                source: options.client_ip_source,
-                trusted_proxies: options.trusted_proxies,
-            })
+            .burst_size(burst.get())
+            .key_extractor(key)
             .use_headers()
             .finish()
             .expect("rate limit period and burst are nonzero");
@@ -134,6 +131,48 @@ impl RateLimit {
     /// Removes entries whose quota has completely recovered.
     pub fn retain_recent(&self) {
         self.config.limiter().retain_recent();
+    }
+}
+
+/// Data API and media proxy rate limiters sharing one client-identity configuration.
+pub struct RateLimits {
+    /// Data API budget.
+    pub(crate) api: RateLimit,
+    /// Media proxy budget.
+    pub(crate) media: RateLimit,
+}
+
+impl Default for RateLimits {
+    fn default() -> Self {
+        Self::new(RateLimitOptions::default())
+    }
+}
+
+impl RateLimits {
+    /// Builds both limiters without starting background tasks.
+    pub fn new(options: RateLimitOptions) -> Self {
+        let key = ClientIpKey {
+            source: options.client_ip_source,
+            trusted_proxies: options.trusted_proxies,
+        };
+        Self {
+            api: RateLimit::new(
+                options.rate_limit_rps,
+                options.rate_limit_burst,
+                key.clone(),
+            ),
+            media: RateLimit::new(
+                options.media_rate_limit_rps,
+                options.media_rate_limit_burst,
+                key,
+            ),
+        }
+    }
+
+    /// Removes entries whose quota has completely recovered.
+    pub fn retain_recent(&self) {
+        self.api.retain_recent();
+        self.media.retain_recent();
     }
 }
 
@@ -191,10 +230,14 @@ mod tests {
     }
 
     fn limiter(burst: u32) -> RateLimit {
-        RateLimit::new(RateLimitOptions {
-            rate_limit_burst: burst.try_into().unwrap(),
-            ..RateLimitOptions::default()
-        })
+        RateLimit::new(
+            1.try_into().unwrap(),
+            burst.try_into().unwrap(),
+            ClientIpKey {
+                source: ClientIpSource::Peer,
+                trusted_proxies: Vec::new(),
+            },
+        )
     }
 
     fn app(limiter: &RateLimit) -> Router {
@@ -207,25 +250,33 @@ mod tests {
     }
 
     #[test]
-    fn when_a_rate_is_configured_then_quota_should_replenish_at_that_rate_independently_of_burst() {
-        let limiter = RateLimit::new(RateLimitOptions {
+    fn when_rates_are_configured_then_api_and_media_should_replenish_at_their_own_rates() {
+        let limits = RateLimits::new(RateLimitOptions {
             rate_limit_rps: 4.try_into().unwrap(),
             rate_limit_burst: 20.try_into().unwrap(),
+            media_rate_limit_rps: 2.try_into().unwrap(),
+            media_rate_limit_burst: 6.try_into().unwrap(),
             ..RateLimitOptions::default()
         });
+        let budget = |limiter: &RateLimit| {
+            limiter
+                .config
+                .limiter()
+                .check_key(&"192.0.2.1".parse().unwrap())
+                .unwrap()
+        };
+        let api = budget(&limits.api);
+        let media = budget(&limits.media);
 
-        let snapshot = limiter
-            .config
-            .limiter()
-            .check_key(&"192.0.2.1".parse().unwrap())
-            .unwrap();
-
+        assert_eq!(api.quota().replenish_interval(), Duration::from_millis(250));
+        assert_eq!(api.quota().burst_size().get(), 20);
+        assert_eq!(api.remaining_burst_capacity(), 19);
         assert_eq!(
-            snapshot.quota().replenish_interval(),
-            Duration::from_millis(250)
+            media.quota().replenish_interval(),
+            Duration::from_millis(500)
         );
-        assert_eq!(snapshot.quota().burst_size().get(), 20);
-        assert_eq!(snapshot.remaining_burst_capacity(), 19);
+        assert_eq!(media.quota().burst_size().get(), 6);
+        assert_eq!(media.remaining_burst_capacity(), 5);
     }
 
     #[tokio::test]

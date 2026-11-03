@@ -1,6 +1,6 @@
 use anyhow::Context;
 use axum::Router;
-use lurklet_api::RateLimit;
+use lurklet_api::RateLimits;
 use std::future::IntoFuture;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -11,7 +11,7 @@ use tokio::time::{MissedTickBehavior, interval};
 pub async fn serve(
     listener: TcpListener,
     app: Router,
-    rate_limit: RateLimit,
+    rate_limits: RateLimits,
 ) -> anyhow::Result<()> {
     #[cfg(unix)]
     let shutdown = {
@@ -58,7 +58,7 @@ pub async fn serve(
                 result.context("API server failed")?;
                 break;
             }
-            _ = cleanup.tick() => rate_limit.retain_recent(),
+            _ = cleanup.tick() => rate_limits.retain_recent(),
         }
     }
     tracing::info!("API server stopped");
@@ -99,7 +99,7 @@ mod tests {
         );
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
-        let server = tokio::spawn(serve(listener, app, RateLimit::default()));
+        let server = tokio::spawn(serve(listener, app, RateLimits::default()));
         let mut connection = TcpStream::connect(address).await.unwrap();
         connection
             .write_all(b"GET /slow HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")

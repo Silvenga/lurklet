@@ -1,8 +1,8 @@
 use crate::ResponseCache;
 use crate::error::{ApiError, Problem};
 use crate::middleware::{
-    ApiCacheOptions, RateLimit, access_log, api_cache_policy, api_content_security_policy,
-    content_type_options, limit_requests, response_compression,
+    ApiCacheOptions, RateLimit, RateLimits, access_log, api_cache_policy,
+    api_content_security_policy, content_type_options, limit_requests, response_compression,
 };
 use crate::routes;
 use axum::Router;
@@ -16,7 +16,7 @@ use utoipa::openapi::{OpenApi, OpenApiVersion};
 #[openapi(
     info(
         title = "Lurklet API",
-        description = "Internal API contract. API requests share a per-client rate limit, except for /api/health. Excess requests return 429 Problem Details with Retry-After. Unknown API paths return 404 Problem Details unless rate limited."
+        description = "Internal API contract. Data and media requests use separate per-client rate limits; /api/health is exempt. Excess requests return 429 Problem Details with Retry-After. Unknown API paths return 404 Problem Details unless rate limited."
     ),
     components(schemas(Problem))
 )]
@@ -27,7 +27,7 @@ const API_PREFIX: &str = "/api";
 /// Builds the API router without starting a listener.
 pub fn application<B: RedditBackend + 'static>(
     reddit: RedditClient<B>,
-    rate_limit: &RateLimit,
+    rate_limits: &RateLimits,
     cache: Option<&ResponseCache>,
     cache_options: &ApiCacheOptions,
 ) -> Router {
@@ -49,14 +49,20 @@ pub fn application<B: RedditBackend + 'static>(
     let json_api = data_api(
         json_routes,
         reddit.clone(),
-        rate_limit,
+        &rate_limits.api,
         cache,
         cache_options,
     )
     .merge(health)
     .layer(middleware::from_fn(response_compression));
     let (media_routes, _) = routes::get_media().split_for_parts();
-    let media_api = data_api(media_routes, reddit, rate_limit, cache, cache_options);
+    let media_api = data_api(
+        media_routes,
+        reddit,
+        &rate_limits.media,
+        cache,
+        cache_options,
+    );
     let api = json_api
         .merge(media_api)
         .layer(middleware::from_fn(api_cache_policy))
@@ -105,7 +111,7 @@ fn data_api<B: RedditBackend + 'static>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{RateLimitOptions, StaticHost};
+    use crate::{RateLimitOptions, RateLimits, StaticHost};
     use assert_fs::prelude::*;
     use axum::body::{Body, to_bytes};
     use axum::extract::{ConnectInfo, State};
@@ -124,7 +130,7 @@ mod tests {
         let reddit = RedditClient::builder().build().unwrap();
         let app = super::application(
             reddit,
-            &RateLimit::default(),
+            &RateLimits::default(),
             None,
             &ApiCacheOptions::default(),
         );
@@ -171,7 +177,7 @@ mod tests {
             let app = data_api(
                 routes,
                 reddit.clone(),
-                &RateLimit::default(),
+                &RateLimits::default().api,
                 cache,
                 &ApiCacheOptions::default(),
             );
@@ -209,7 +215,7 @@ mod tests {
                 let app = data_api(
                     routes,
                     RedditClient::builder().build().unwrap(),
-                    &RateLimit::default(),
+                    &RateLimits::default().api,
                     caching.then_some(&cache),
                     &ApiCacheOptions {
                         api_cache_max_age_seconds: seconds,
@@ -262,7 +268,7 @@ mod tests {
     async fn when_health_is_requested_through_the_api_then_response_should_disable_caching() {
         let app = super::application(
             RedditClient::builder().build().unwrap(),
-            &RateLimit::default(),
+            &RateLimits::default(),
             None,
             &ApiCacheOptions {
                 api_cache_max_age_seconds: 42,
@@ -285,7 +291,7 @@ mod tests {
         let reddit = RedditClient::builder().build().unwrap();
         let app = super::application(
             reddit,
-            &RateLimit::default(),
+            &RateLimits::default(),
             None,
             &ApiCacheOptions::default(),
         );
@@ -301,19 +307,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_an_ip_is_limited_then_health_robots_and_static_routes_should_remain_exempt() {
+    async fn when_the_api_budget_is_exhausted_then_exempt_routes_should_remain_available_and_media_should_limit_independently()
+     {
         let directory = assert_fs::TempDir::new().unwrap();
         directory.child("index.html").write_str("site").unwrap();
         directory
             .child("assets/app.js")
             .write_str("script")
             .unwrap();
-        let limiter = RateLimit::new(RateLimitOptions {
+        let rate_limits = RateLimits::new(RateLimitOptions {
             rate_limit_burst: 1.try_into().unwrap(),
+            media_rate_limit_burst: 2.try_into().unwrap(),
             ..RateLimitOptions::default()
         });
         let reddit = RedditClient::builder().build().unwrap();
-        let app = super::application(reddit, &limiter, None, &ApiCacheOptions::default());
+        let app = super::application(reddit, &rate_limits, None, &ApiCacheOptions::default());
         let peer: SocketAddr = "192.0.2.1:1234".parse().unwrap();
         let app = app
             .fallback_service(StaticHost::new(directory.path()).await.unwrap().router())
@@ -362,17 +370,35 @@ mod tests {
             assert!(!response.headers().contains_key("x-ratelimit-limit"));
         }
         for path in [
+            "/api/missing",
             "/api",
             "/api/",
             "/api/health/",
             "/api/robots.txt",
-            "/api/media",
         ] {
             let response = app.clone().oneshot(request(path)).await.unwrap();
 
             assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS, "{path}");
+            assert_eq!(response.headers()["x-ratelimit-limit"], "1", "{path}");
+            assert_eq!(response.headers()["x-ratelimit-remaining"], "0", "{path}");
             assert_browser_policy(response.headers());
         }
+        for attempt in 1..=2 {
+            let response = app.clone().oneshot(request("/api/media")).await.unwrap();
+
+            assert_eq!(
+                response.status(),
+                StatusCode::BAD_REQUEST,
+                "attempt {attempt}"
+            );
+            assert_browser_policy(response.headers());
+        }
+        let response = app.clone().oneshot(request("/api/media")).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(response.headers()["x-ratelimit-limit"], "2");
+        assert_eq!(response.headers()["x-ratelimit-remaining"], "0");
+        assert_browser_policy(response.headers());
     }
 
     #[tokio::test]
@@ -510,7 +536,7 @@ mod tests {
         let reddit = RedditClient::builder().build().unwrap();
         let app = super::application(
             reddit,
-            &RateLimit::default(),
+            &RateLimits::default(),
             Some(&cache),
             &ApiCacheOptions::default(),
         )
@@ -731,12 +757,17 @@ mod tests {
             .unwrap();
         assert_eq!(response.headers()["x-lurklet-cache"], "miss");
         to_bytes(response.into_body(), 4096).await.unwrap();
-        let limiter = RateLimit::new(RateLimitOptions {
+        let rate_limits = RateLimits::new(RateLimitOptions {
             rate_limit_burst: 1.try_into().unwrap(),
             ..RateLimitOptions::default()
         });
         let reddit = RedditClient::builder().build().unwrap();
-        let app = super::application(reddit, &limiter, Some(&cache), &ApiCacheOptions::default());
+        let app = super::application(
+            reddit,
+            &rate_limits,
+            Some(&cache),
+            &ApiCacheOptions::default(),
+        );
         for _ in 0..12 {
             let response = app
                 .clone()
@@ -862,7 +893,7 @@ mod tests {
                 let reddit = RedditClient::builder().build().unwrap();
                 let app = super::application(
                     reddit,
-                    &RateLimit::default(),
+                    &RateLimits::default(),
                     Some(&cache),
                     &ApiCacheOptions::default(),
                 )
@@ -911,7 +942,7 @@ mod tests {
         let reddit = RedditClient::builder().build().unwrap();
         let app = super::application(
             reddit,
-            &RateLimit::default(),
+            &RateLimits::default(),
             Some(&cache),
             &ApiCacheOptions::default(),
         );

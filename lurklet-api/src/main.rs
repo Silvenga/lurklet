@@ -2,7 +2,7 @@ use crate::session_store::SessionStore;
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use lurklet_api::{
-    ApiCacheOptions, RateLimit, RateLimitOptions, ResponseCache, StaticHost, application,
+    ApiCacheOptions, RateLimitOptions, RateLimits, ResponseCache, StaticHost, application,
     specification,
 };
 use lurklet_reddit::{RedditClient, Storage};
@@ -118,7 +118,7 @@ async fn main() -> ExitCode {
                 }
                 .build()
                 .context("failed to initialize Reddit client")?;
-                let rate_limit = RateLimit::new(arguments.rate_limit);
+                let rate_limits = RateLimits::new(arguments.rate_limit);
                 let cache = match arguments.cache_dir {
                     Some(directory) => Some(
                         ResponseCache::new(directory)
@@ -127,7 +127,7 @@ async fn main() -> ExitCode {
                     ),
                     None => None,
                 };
-                let app = application(reddit, &rate_limit, cache.as_ref(), &arguments.api_cache);
+                let app = application(reddit, &rate_limits, cache.as_ref(), &arguments.api_cache);
                 let static_host = StaticHost::new(&arguments.static_dir)
                     .await
                     .context("failed to initialize static hosting")?;
@@ -136,7 +136,7 @@ async fn main() -> ExitCode {
                     .await
                     .context("failed to bind the API listener")?;
 
-                server::serve(listener, app, rate_limit).await
+                server::serve(listener, app, rate_limits).await
             }
         }
     }
@@ -170,6 +170,14 @@ mod tests {
         assert_eq!(
             arguments.rate_limit.rate_limit_burst,
             defaults.rate_limit_burst
+        );
+        assert_eq!(
+            arguments.rate_limit.media_rate_limit_rps,
+            defaults.media_rate_limit_rps
+        );
+        assert_eq!(
+            arguments.rate_limit.media_rate_limit_burst,
+            defaults.media_rate_limit_burst
         );
         assert!(matches!(
             arguments.rate_limit.client_ip_source,
