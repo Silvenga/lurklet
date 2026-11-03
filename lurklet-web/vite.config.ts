@@ -11,6 +11,14 @@ export default defineConfig(({ command, mode }) => ({
     command === "serve" && mode === "mock" && msw({ mode: "worker-only" }),
   ],
   build: {
+    cssCodeSplit: false,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [{ name: "vendor", test: /node_modules[\\/]/ }],
+        },
+      },
+    },
     sourcemap: true,
   },
   resolve: {

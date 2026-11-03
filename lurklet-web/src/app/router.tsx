@@ -4,6 +4,7 @@ import { HomePage } from "@/app/routes/HomePage";
 import { NotFoundPage } from "@/app/routes/NotFoundPage";
 import { PostListPage } from "@/app/routes/PostListPage";
 import { PostListRedirect } from "@/app/routes/PostListRedirect";
+import { PostPage } from "@/app/routes/PostPage";
 import { SubredditLayout } from "@/app/routes/SubredditLayout";
 import { UserPage } from "@/app/routes/UserPage";
 import { postListLoader } from "@/features/posts/api/post-list-loader";
@@ -53,12 +54,12 @@ export const APP_ROUTES: RouteObject[] = [
           { path: ":sort", Component: PostListRedirect },
           {
             path: "comments/:postId/:slug/:commentId",
-            lazy: async () => ({ Component: (await import("@/app/routes/PostPage")).PostPage }),
+            Component: PostPage,
             HydrateFallback: PostLoading,
           },
           {
             path: "comments/:postId/:slug?",
-            lazy: async () => ({ Component: (await import("@/app/routes/PostPage")).PostPage }),
+            Component: PostPage,
             HydrateFallback: PostLoading,
           },
           { path: "*", Component: NotFoundPage },
