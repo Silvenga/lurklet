@@ -20,7 +20,9 @@ mod tests {
     use crate::commands::Command;
     use crate::commands::testing::FakeBackend;
     use clap::Parser;
-    use lurklet_reddit::{NamedReference, Post, PostAttachment, VideoFormat, VideoSource};
+    use lurklet_reddit::{
+        FlairTextColor, NamedReference, Post, PostAttachment, PostFlair, VideoFormat, VideoSource,
+    };
 
     #[tokio::test]
     async fn when_a_post_is_requested_then_the_command_should_return_the_backend_neutral_json() {
@@ -31,6 +33,12 @@ mod tests {
         let post = Post {
             id: "18t5968".into(),
             title: "Example".into(),
+            flair: Some(PostFlair {
+                text: Some("News/Article".into()),
+                background_color: Some("#228822".into()),
+                text_color: Some(FlairTextColor::Light),
+                parts: vec![],
+            }),
             author: None,
             community: Some(NamedReference {
                 id: Some("community".into()),

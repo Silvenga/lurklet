@@ -13,11 +13,12 @@ mod state;
 mod storage;
 
 pub use backends::{
-    Comment, CommentForest, CommentItem, CommentSort, CommentState, CommentThread,
-    GraphQlDecodeError, GraphQlErrorKind, GraphQlOutcome, GraphQlResponse, ListedPost, Markdown,
-    MarkdownMedia, MediaBody, MediaFile, MediaKind, MobileBackend, Post, PostAttachment,
-    RedditBackend, RequestAllowlist, Subreddit, SubredditDetails, SubredditPage, SubredditSort,
-    SubredditStyles, Thumbnail, TimeRange, UnavailableSubreddit, VideoFormat, VideoSource,
+    Comment, CommentForest, CommentItem, CommentSort, CommentState, CommentThread, FlairPart,
+    FlairTextColor, GraphQlDecodeError, GraphQlErrorKind, GraphQlOutcome, GraphQlResponse,
+    ListedPost, Markdown, MarkdownMedia, MediaBody, MediaFile, MediaKind, MobileBackend, Post,
+    PostAttachment, PostFlair, RedditBackend, RequestAllowlist, Subreddit, SubredditDetails,
+    SubredditPage, SubredditSort, SubredditStyles, Thumbnail, TimeRange, UnavailableSubreddit,
+    VideoFormat, VideoSource,
 };
 pub use builder::RedditClientBuilder;
 pub use capture::{ResponseCapture, ResponseObserver};

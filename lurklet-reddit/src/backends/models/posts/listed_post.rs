@@ -1,4 +1,4 @@
-use crate::RedditId;
+use crate::{PostFlair, RedditId};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
@@ -8,6 +8,7 @@ use serde::Serialize;
 pub struct ListedPost {
     pub id: RedditId,
     pub title: Option<String>,
+    pub flair: Option<PostFlair>,
     pub thumbnail: Option<Thumbnail>,
     pub score: Option<i64>,
     pub comment_count: Option<u64>,

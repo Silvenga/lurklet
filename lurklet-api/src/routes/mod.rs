@@ -7,6 +7,7 @@ mod get_subreddit;
 mod health;
 mod list_subreddit_posts;
 mod markdown;
+mod post_flair;
 mod robots;
 
 pub use comment_models::{CommentForest, CommentSort};
@@ -18,4 +19,5 @@ pub use get_subreddit::router as get_subreddit;
 pub use health::router as health;
 pub use list_subreddit_posts::router as list_subreddit_posts;
 pub use markdown::Markdown;
+pub use post_flair::PostFlair;
 pub use robots::robots;

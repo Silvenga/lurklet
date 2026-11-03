@@ -1,7 +1,18 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, onTestFinished, test, vi } from "vitest";
+import { expectRedditMenu } from "@/_tests/expect-reddit-menu";
 import { PaneMenu } from "./PaneMenu";
+
+test("When a pane menu mounts after its link check begins then the check should wait for its trigger", async () => {
+  const href = "https://www.reddit.com/r/rust/hot/";
+  const { rerender } = render(<></>);
+
+  const checking = expectRedditMenu("Listing actions", href);
+  rerender(<PaneMenu jsonHref={undefined} redditHref={href} label="Listing actions" />);
+
+  await checking;
+});
 
 test("When a pane menu opens with the keyboard then its JSON item should be a new-tab link and Escape should restore focus", async () => {
   const user = userEvent.setup();

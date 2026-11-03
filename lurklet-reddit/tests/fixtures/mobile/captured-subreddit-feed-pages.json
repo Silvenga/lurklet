@@ -2,9 +2,10 @@
   "provenance": {
     "source": "captured lurklet-reddit-cli list-subreddit-posts rust, CLASSIC context and query-default selections",
     "sampling": "one organic row without a thumbnail, one with a thumbnail, and the first ad, control, and unsupported unit present on each page; original order retained",
-    "pruning": "only node identity/type, ad presence, and consumed cell fields retained",
+    "pruning": "only node identity/type, ad presence, consumed cell fields, and flair cells retained",
+    "flair_restoration": "flairCell restored from the original raw captures on 2026-11-03 UTC; subreddit-defined text, colors, and nulls retained",
     "redactions": [
-      "post and cell identifiers",
+      "post, cell, and flair template identifiers",
       "titles and author labels",
       "URLs, tracking data, and opaque cursors",
       "extensions and response headers omitted"
@@ -45,6 +46,23 @@
                           "statusIndicators": ["PINNED"],
                           "subredditName": "u/example_author_1_1"
                         },
+                        "flairCell": {
+                          "__typename": "FlairCell",
+                          "id": "flair-page1post1",
+                          "flair": {
+                            "richtext": null,
+                            "template": {
+                              "backgroundColor": "#DFFFD2",
+                              "id": "00000000-0000-4000-8000-000000000001",
+                              "isEditable": false,
+                              "textColor": "DARK",
+                              "type": "text"
+                            },
+                            "text": "📅 this week in rust",
+                            "textColor": "DARK",
+                            "type": "text"
+                          }
+                        },
                         "indicatorsCell": null,
                         "thumbnailCell": { "image": null }
                       },
@@ -73,6 +91,7 @@
                           "statusIndicators": [],
                           "subredditName": "u/example_author_1_4"
                         },
+                        "flairCell": null,
                         "indicatorsCell": null,
                         "thumbnailCell": {
                           "image": {
@@ -115,6 +134,23 @@
                           "statusIndicators": [],
                           "subredditName": "u/example_author_1_7"
                         },
+                        "flairCell": {
+                          "__typename": "FlairCell",
+                          "id": "flair-page1post7",
+                          "flair": {
+                            "richtext": null,
+                            "template": {
+                              "backgroundColor": "#F2F2F2",
+                              "id": "00000000-0000-4000-8000-000000000002",
+                              "isEditable": false,
+                              "textColor": "DARK",
+                              "type": "text"
+                            },
+                            "text": "🛠️ project",
+                            "textColor": "DARK",
+                            "type": "text"
+                          }
+                        },
                         "indicatorsCell": null,
                         "thumbnailCell": {
                           "image": {
@@ -151,7 +187,13 @@
           "is_spoiler": false,
           "score": 44,
           "thumbnail": null,
-          "title": "Captured post 1-1"
+          "title": "Captured post 1-1",
+          "flair": {
+            "text": "📅 this week in rust",
+            "background_color": "#DFFFD2",
+            "text_color": "dark",
+            "parts": []
+          }
         },
         {
           "author_name": "example_author_1_7",
@@ -169,7 +211,13 @@
             "url": "https://example.invalid/1-7.jpg",
             "width": 320
           },
-          "title": "Captured post 1-7"
+          "title": "Captured post 1-7",
+          "flair": {
+            "text": "🛠️ project",
+            "background_color": "#F2F2F2",
+            "text_color": "dark",
+            "parts": []
+          }
         }
       ]
     },
@@ -197,6 +245,23 @@
                           "createdAt": "2026-10-25T16:02:29.239000+0000",
                           "statusIndicators": [],
                           "subredditName": "u/example_author_2_0"
+                        },
+                        "flairCell": {
+                          "__typename": "FlairCell",
+                          "id": "flair-page2post0",
+                          "flair": {
+                            "richtext": null,
+                            "template": {
+                              "backgroundColor": "#F2F2F2",
+                              "id": "00000000-0000-4000-8000-000000000003",
+                              "isEditable": false,
+                              "textColor": "DARK",
+                              "type": "text"
+                            },
+                            "text": "🙋 seeking help & advice",
+                            "textColor": "DARK",
+                            "type": "text"
+                          }
                         },
                         "indicatorsCell": null,
                         "thumbnailCell": {
@@ -233,6 +298,7 @@
                           "statusIndicators": [],
                           "subredditName": "u/example_author_2_2"
                         },
+                        "flairCell": null,
                         "indicatorsCell": null,
                         "thumbnailCell": { "image": null }
                       },
@@ -261,6 +327,7 @@
                           "statusIndicators": [],
                           "subredditName": "u/example_author_2_3"
                         },
+                        "flairCell": null,
                         "indicatorsCell": null,
                         "thumbnailCell": {
                           "image": {
@@ -304,7 +371,13 @@
             "url": "https://example.invalid/2-0.jpg",
             "width": 320
           },
-          "title": "Captured post 2-0"
+          "title": "Captured post 2-0",
+          "flair": {
+            "text": "🙋 seeking help & advice",
+            "background_color": "#F2F2F2",
+            "text_color": "dark",
+            "parts": []
+          }
         },
         {
           "author_name": "example_author_2_2",
@@ -316,7 +389,8 @@
           "is_spoiler": false,
           "score": 2,
           "thumbnail": null,
-          "title": "Captured post 2-2"
+          "title": "Captured post 2-2",
+          "flair": null
         }
       ]
     }

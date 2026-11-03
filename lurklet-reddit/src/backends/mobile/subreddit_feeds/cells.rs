@@ -1,3 +1,4 @@
+use crate::backends::mobile::Flair;
 use crate::{ListedPost, Thumbnail};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -45,6 +46,7 @@ enum Cell {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ClassicCell {
+    flair_cell: Option<FlairCell>,
     title_cell: Option<TitleCell>,
     metadata_cell: Option<MetadataCell>,
     indicators_cell: Option<IndicatorsCell>,
@@ -54,6 +56,11 @@ struct ClassicCell {
 #[derive(Deserialize)]
 struct TitleCell {
     title: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct FlairCell {
+    flair: Option<Flair>,
 }
 
 #[derive(Deserialize)]
@@ -119,6 +126,7 @@ impl CellGroup {
         let mut post = ListedPost {
             id: id.into(),
             title: None,
+            flair: None,
             thumbnail: None,
             score: None,
             comment_count: None,
@@ -131,6 +139,10 @@ impl CellGroup {
         for cell in self.cells.into_iter().flatten().flatten() {
             match cell {
                 Cell::Classic(cell) => {
+                    post.flair = post.flair.or(cell
+                        .flair_cell
+                        .and_then(|cell| cell.flair)
+                        .and_then(Flair::into_flair));
                     post.title = post.title.or(cell.title_cell.and_then(|title| title.title));
                     if let Some(metadata) = cell.metadata_cell {
                         post.created_at = post.created_at.or(metadata.created_at);

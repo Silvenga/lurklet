@@ -122,6 +122,7 @@ mod tests {
         {
           "id": "first",
           "title": "First post",
+          "flair": null,
           "thumbnail": {
             "url": "https://example.invalid/preview.png",
             "obfuscated_url": "https://example.invalid/blurred.png",

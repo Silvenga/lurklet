@@ -4,7 +4,7 @@ import { expect } from "vitest";
 
 export async function expectRedditMenu(label: string, href: string | undefined) {
   const user = userEvent.setup();
-  const trigger = screen.getByRole("button", { name: label });
+  const trigger = await screen.findByRole("button", { name: label });
   await user.click(trigger);
   await screen.findByRole("menu");
 

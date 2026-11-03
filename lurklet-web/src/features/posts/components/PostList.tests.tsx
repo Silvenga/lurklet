@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { expect, test } from "vitest";
-import { SUBREDDIT_PAGE_RESPONSE } from "@/_tests/mocks/fixtures";
+import { POST_RESPONSE, SUBREDDIT_PAGE_RESPONSE } from "@/_tests/mocks/fixtures";
 import type { Thumbnail } from "@/clients/lurklet-api/generated/types.gen";
 import { PostList } from "./PostList";
 
@@ -30,6 +30,9 @@ test("When posts are returned then the list should preserve their order and show
   expect(within(first).getByText("u/seino_chan")).toBeVisible();
   expect(within(first).getByText("44 points")).toBeVisible();
   expect(within(first).getByText("2 comments")).toBeVisible();
+  const flair = within(first).getByText(POST_RESPONSE.flair.text).closest('[data-slot="badge"]');
+  expect(flair).toBeVisible();
+  expect(flair?.nextElementSibling).toBe(within(first).getByText("Pinned"));
   expect(first.querySelector("time")).toHaveAttribute("datetime", "2026-10-22T01:16:16.094Z");
 });
 
@@ -42,6 +45,7 @@ test("When optional metadata is missing then the list should omit it without hid
     score: 0,
     commentCount: 0,
     isPinned: false,
+    flair: null,
   };
 
   const { container } = render(
@@ -58,6 +62,7 @@ test("When optional metadata is missing then the list should omit it without hid
   expect(screen.getByText("0 comments")).toBeVisible();
   expect(screen.queryByText(/^u\//)).not.toBeInTheDocument();
   expect(screen.queryByText("Pinned")).not.toBeInTheDocument();
+  expect(screen.queryByText("Flair:")).not.toBeInTheDocument();
   expect(container.querySelector("time")).toBeNull();
 });
 

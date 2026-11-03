@@ -1,0 +1,156 @@
+{
+  "provenance": {
+    "source": "live lurklet-reddit-cli list-subreddit-posts and get-post responses using CLASSIC feeds and query-default selections",
+    "sampling": "matched feed and post-detail flair for one rich-text label, one plain-text Unicode label, one custom-image emoji label, and one post without flair",
+    "pruning": "only ClassicCell.flairCell and the matching postsInfoByIds entry's flair retained; capture dates taken from response Date headers",
+    "preserved": [
+      "subreddit-defined labels",
+      "encoded richtext strings and node order",
+      "colors, types, and nulls",
+      "emoji URL host and alias"
+    ],
+    "redactions": [
+      "cell and flair template identifiers",
+      "emoji URL path identifiers",
+      "post identifiers and all unrelated response data omitted"
+    ]
+  },
+  "samples": [
+    {
+      "name": "richtext_text",
+      "expected_flair": {
+        "text": "News/Article",
+        "background_color": "#228822",
+        "text_color": "light",
+        "parts": [{ "kind": "text", "text": "News/Article" }]
+      },
+      "subreddit": "pcmasterrace",
+      "feed_captured_at": "2026-11-03T00:23:12Z",
+      "post_captured_at": "2026-11-03T00:23:39Z",
+      "feed_flair_cell": {
+        "__typename": "FlairCell",
+        "id": "flair-richtext-text",
+        "flair": {
+          "richtext": "[{\"e\":\"text\",\"t\":\"News/Article\"}]",
+          "template": {
+            "backgroundColor": "#228822",
+            "id": "00000000-0000-4000-8000-000000000001",
+            "isEditable": false,
+            "textColor": "LIGHT",
+            "type": "richtext"
+          },
+          "text": "News/Article",
+          "textColor": "LIGHT",
+          "type": "richtext"
+        }
+      },
+      "post_flair": {
+        "__typename": "PostFlair",
+        "richtext": "[{\"e\":\"text\",\"t\":\"News/Article\"}]",
+        "template": {
+          "backgroundColor": "#228822",
+          "id": "00000000-0000-4000-8000-000000000001"
+        },
+        "text": "News/Article",
+        "textColor": "LIGHT",
+        "type": "richtext"
+      }
+    },
+    {
+      "name": "plain_text_unicode",
+      "expected_flair": {
+        "text": "🙋 questions megathread",
+        "background_color": "#EDE8FF",
+        "text_color": "dark",
+        "parts": []
+      },
+      "subreddit": "rust",
+      "feed_captured_at": "2026-11-03T00:23:40Z",
+      "post_captured_at": "2026-11-03T00:24:42Z",
+      "feed_flair_cell": {
+        "__typename": "FlairCell",
+        "id": "flair-plain-text-unicode",
+        "flair": {
+          "richtext": null,
+          "template": {
+            "backgroundColor": "#EDE8FF",
+            "id": "00000000-0000-4000-8000-000000000002",
+            "isEditable": false,
+            "textColor": "DARK",
+            "type": "text"
+          },
+          "text": "🙋 questions megathread",
+          "textColor": "DARK",
+          "type": "text"
+        }
+      },
+      "post_flair": {
+        "__typename": "PostFlair",
+        "richtext": null,
+        "template": {
+          "backgroundColor": "#EDE8FF",
+          "id": "00000000-0000-4000-8000-000000000002"
+        },
+        "text": "🙋 questions megathread",
+        "textColor": "DARK",
+        "type": "text"
+      }
+    },
+    {
+      "name": "richtext_emoji",
+      "expected_flair": {
+        "text": ":post-daily-discussion: Daily Discussion",
+        "background_color": "#EDEFF1",
+        "text_color": "dark",
+        "parts": [
+          {
+            "kind": "emoji",
+            "url": "https://emoji.redditmedia.com/fixture_t5_fixture/post-daily-discussion",
+            "alt": ":post-daily-discussion:"
+          },
+          { "kind": "text", "text": " Daily Discussion" }
+        ]
+      },
+      "subreddit": "formula1",
+      "feed_captured_at": "2026-11-03T00:24:42Z",
+      "post_captured_at": "2026-11-03T00:25:25Z",
+      "feed_flair_cell": {
+        "__typename": "FlairCell",
+        "id": "flair-richtext-emoji",
+        "flair": {
+          "richtext": "[{\"a\":\":post-daily-discussion:\",\"e\":\"emoji\",\"u\":\"https://emoji.redditmedia.com/fixture_t5_fixture/post-daily-discussion\"},{\"e\":\"text\",\"t\":\" Daily Discussion\"}]",
+          "template": {
+            "backgroundColor": "#EDEFF1",
+            "id": "00000000-0000-4000-8000-000000000003",
+            "isEditable": false,
+            "textColor": "DARK",
+            "type": "richtext"
+          },
+          "text": ":post-daily-discussion: Daily Discussion",
+          "textColor": "DARK",
+          "type": "richtext"
+        }
+      },
+      "post_flair": {
+        "__typename": "PostFlair",
+        "richtext": "[{\"a\":\":post-daily-discussion:\",\"e\":\"emoji\",\"u\":\"https://emoji.redditmedia.com/fixture_t5_fixture/post-daily-discussion\"},{\"e\":\"text\",\"t\":\" Daily Discussion\"}]",
+        "template": {
+          "backgroundColor": "#EDEFF1",
+          "id": "00000000-0000-4000-8000-000000000003"
+        },
+        "text": ":post-daily-discussion: Daily Discussion",
+        "textColor": "DARK",
+        "type": "richtext"
+      }
+    },
+    {
+      "name": "absent",
+      "expected_flair": null,
+      "subreddit": "rust",
+      "feed_captured_at": "2026-11-03T00:23:40Z",
+      "post_captured_at": "2026-11-03T00:25:25Z",
+      "feed_flair_cell": null,
+      "post_flair": null
+    }
+  ]
+}

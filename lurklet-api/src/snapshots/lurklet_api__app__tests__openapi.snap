@@ -248,6 +248,57 @@ expression: document
         ],
         "type": "object"
       },
+      "FlairPart": {
+        "oneOf": [
+          {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "text"
+                ],
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "alt": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "emoji"
+                ],
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "url",
+              "alt",
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FlairTextColor": {
+        "enum": [
+          "light",
+          "dark"
+        ],
+        "type": "string"
+      },
       "Health": {
         "properties": {
           "health": {
@@ -286,6 +337,16 @@ expression: document
             "type": [
               "string",
               "null"
+            ]
+          },
+          "flair": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PostFlair"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "id": {
@@ -327,6 +388,7 @@ expression: document
         "required": [
           "id",
           "title",
+          "flair",
           "thumbnail",
           "score",
           "commentCount",
@@ -464,6 +526,16 @@ expression: document
               "null"
             ]
           },
+          "flair": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PostFlair"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -498,6 +570,7 @@ expression: document
         "required": [
           "id",
           "title",
+          "flair",
           "author",
           "community",
           "createdAt",
@@ -592,6 +665,46 @@ expression: document
             "type": "object"
           }
         ]
+      },
+      "PostFlair": {
+        "description": "Subreddit-defined flair with plain-text fallback and unproxied emoji URLs.",
+        "properties": {
+          "backgroundColor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/FlairPart"
+            },
+            "type": "array"
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "textColor": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FlairTextColor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "backgroundColor",
+          "textColor",
+          "parts"
+        ],
+        "type": "object"
       },
       "Problem": {
         "properties": {

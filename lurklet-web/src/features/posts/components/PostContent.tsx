@@ -1,4 +1,4 @@
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
 import { Markdown } from "@/components/Markdown";
 import { PaneMenu } from "@/components/PaneMenu";
@@ -9,6 +9,7 @@ import { PostMetadata } from "@/features/posts/components/PostMetadata";
 import { useJsonQuery } from "@/hooks/useJsonQuery";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { PostAttachments } from "./PostAttachments";
+import { PostFlair } from "./PostFlair";
 
 export function PostContent({ postId }: { postId: string }) {
   const { subreddit } = useParams();
@@ -27,19 +28,30 @@ export function PostContent({ postId }: { postId: string }) {
         : post.data.title,
   );
 
-  const menu = (
-    <PaneMenu
-      jsonHref={jsonHref}
-      fetchedAt={fetchedAt}
-      redditHref={`https://www.reddit.com/r/${encodeURIComponent(subreddit!)}/comments/${encodeURIComponent(postId)}/`}
-      label="Post actions"
-    />
+  const header = (
+    <>
+      <PaneMenu
+        jsonHref={jsonHref}
+        fetchedAt={fetchedAt}
+        redditHref={`https://www.reddit.com/r/${encodeURIComponent(subreddit!)}/comments/${encodeURIComponent(postId)}/`}
+        label="Post actions"
+      />
+      <div className="flex min-w-0 flex-wrap items-center gap-2 pr-10">
+        <Link
+          className="text-muted-foreground min-w-0 text-sm wrap-anywhere hover:underline"
+          to={`/r/${encodeURIComponent(subreddit!)}`}
+        >
+          r/{subreddit}
+        </Link>
+        <PostFlair flair={post.isSuccess ? post.data.flair : null} />
+      </div>
+    </>
   );
 
   if (!post.isSuccess) {
     return (
       <>
-        {menu}
+        {header}
         {post.isPending ? <PostLoading /> : <PostError error={post.error} />}
       </>
     );
@@ -49,7 +61,7 @@ export function PostContent({ postId }: { postId: string }) {
 
   return (
     <>
-      {menu}
+      {header}
       <article className="flex flex-col gap-6 select-text">
         <div className="flex flex-col gap-2">
           <h1 className="min-w-0 text-2xl font-semibold wrap-anywhere">{value.title}</h1>

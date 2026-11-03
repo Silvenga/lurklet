@@ -7,7 +7,7 @@
       "name": "AGPL-3.0-only",
       "identifier": "AGPL-3.0-only"
     },
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "paths": {
     "/api/comments/{id}/thread": {
@@ -1087,6 +1087,43 @@
           }
         }
       },
+      "FlairPart": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["text", "kind"],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["text"]
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["url", "alt", "kind"],
+            "properties": {
+              "alt": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": ["emoji"]
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "FlairTextColor": {
+        "type": "string",
+        "enum": ["light", "dark"]
+      },
       "Health": {
         "type": "object",
         "required": ["health"],
@@ -1105,6 +1142,7 @@
         "required": [
           "id",
           "title",
+          "flair",
           "thumbnail",
           "score",
           "commentCount",
@@ -1126,6 +1164,16 @@
           "createdAt": {
             "type": ["string", "null"],
             "format": "date-time"
+          },
+          "flair": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PostFlair"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "id": {
             "type": "string"
@@ -1216,6 +1264,7 @@
         "required": [
           "id",
           "title",
+          "flair",
           "author",
           "community",
           "createdAt",
@@ -1265,6 +1314,16 @@
           },
           "crosspostId": {
             "type": ["string", "null"]
+          },
+          "flair": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PostFlair"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "id": {
             "type": "string"
@@ -1349,6 +1408,35 @@
             }
           }
         ]
+      },
+      "PostFlair": {
+        "type": "object",
+        "description": "Subreddit-defined flair with plain-text fallback and unproxied emoji URLs.",
+        "required": ["text", "backgroundColor", "textColor", "parts"],
+        "properties": {
+          "backgroundColor": {
+            "type": ["string", "null"]
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FlairPart"
+            }
+          },
+          "text": {
+            "type": ["string", "null"]
+          },
+          "textColor": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FlairTextColor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
       },
       "Problem": {
         "type": "object",

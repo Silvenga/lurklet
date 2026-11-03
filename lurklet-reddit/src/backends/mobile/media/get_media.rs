@@ -7,7 +7,8 @@ use std::time::Instant;
 use wreq::Uri;
 use wreq::header::{ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE, USER_AGENT};
 
-const HOSTS: [&str; 9] = [
+const HOSTS: [&str; 10] = [
+    "emoji.redditmedia.com",
     "i.redd.it",
     "preview.redd.it",
     "external-preview.redd.it",
@@ -354,6 +355,8 @@ mod tests {
         for url in [
             "http://i.redd.it/image",
             "https://i.redd.it.evil.test/image",
+            "https://emoji.redditmedia.com.evil.test/image",
+            "https://user:pass@emoji.redditmedia.com/image",
             "https://example.test/i.redd.it/image",
             "https://user@i.redd.it/image",
             "https://user:pass@i.redd.it/image",

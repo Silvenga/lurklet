@@ -1,4 +1,5 @@
 use crate::error::ApiError;
+use crate::routes::PostFlair;
 use axum::Json;
 use axum::extract::rejection::{PathRejection, QueryRejection};
 use axum::extract::{Path, Query, State};
@@ -85,6 +86,8 @@ struct ListedPost {
     #[schema(required)]
     title: Option<String>,
     #[schema(required)]
+    flair: Option<PostFlair>,
+    #[schema(required)]
     thumbnail: Option<Thumbnail>,
     #[schema(required)]
     score: Option<i64>,
@@ -128,6 +131,7 @@ impl From<RedditListedPost> for ListedPost {
         let RedditListedPost {
             id,
             title,
+            flair,
             thumbnail,
             score,
             comment_count,
@@ -140,6 +144,7 @@ impl From<RedditListedPost> for ListedPost {
         Self {
             id: id.as_str().to_owned(),
             title,
+            flair: flair.map(Into::into),
             thumbnail: thumbnail.map(Into::into),
             score,
             comment_count,
@@ -295,6 +300,12 @@ mod tests {
                 RedditListedPost {
                     id: "first".into(),
                     title: Some("First post".into()),
+                    flair: Some(lurklet_reddit::PostFlair {
+                        text: Some("🙋 questions megathread".into()),
+                        background_color: Some("#EDE8FF".into()),
+                        text_color: Some(lurklet_reddit::FlairTextColor::Dark),
+                        parts: vec![],
+                    }),
                     thumbnail: Some(RedditThumbnail {
                         url: "https://example.test/image.png".into(),
                         obfuscated_url: Some("https://example.test/blurred.png".into()),
@@ -313,6 +324,7 @@ mod tests {
                 RedditListedPost {
                     id: "second".into(),
                     title: None,
+                    flair: None,
                     thumbnail: None,
                     score: None,
                     comment_count: None,
@@ -514,6 +526,7 @@ mod tests {
                 "posts": [
                     {
                         "id": "first", "title": "First post",
+                        "flair": {"text": "🙋 questions megathread", "backgroundColor": "#EDE8FF", "textColor": "dark", "parts": []},
                         "thumbnail": {
                             "url": "https://example.test/image.png",
                             "obfuscatedUrl": "https://example.test/blurred.png",
@@ -525,6 +538,7 @@ mod tests {
                     },
                     {
                         "id": "second", "title": null, "thumbnail": null,
+                        "flair": null,
                         "score": null, "commentCount": null, "authorName": null,
                         "createdAt": null, "isNsfw": false, "isSpoiler": false, "isPinned": false
                     }

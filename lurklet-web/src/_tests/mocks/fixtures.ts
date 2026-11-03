@@ -202,6 +202,12 @@ Most links here will now take you to a search page listing posts with the releva
 export const POST_RESPONSE = {
   id: "1xc54av",
   title: "This Week in Rust #674",
+  flair: {
+    text: "📅 this week in rust",
+    backgroundColor: "#DFFFD2",
+    textColor: "dark",
+    parts: [],
+  },
   author: { id: "eki22", name: "seino_chan" },
   community: { id: "2s7lj", name: "rust" },
   createdAt: "2026-10-22T01:16:16.094Z",
@@ -221,6 +227,7 @@ export const SUBREDDIT_PAGE_RESPONSE = {
     {
       id: "1xc54av",
       title: "This Week in Rust #674",
+      flair: POST_RESPONSE.flair,
       thumbnail: null,
       score: 44,
       commentCount: 2,
@@ -233,6 +240,12 @@ export const SUBREDDIT_PAGE_RESPONSE = {
     {
       id: "1x9w6by",
       title: "Hey Rustaceans! Got a question? Ask here (43/2026)!",
+      flair: {
+        text: "🙋 questions megathread",
+        backgroundColor: "#EDE8FF",
+        textColor: "dark",
+        parts: [],
+      },
       thumbnail: null,
       score: 9,
       commentCount: 6,
@@ -245,6 +258,12 @@ export const SUBREDDIT_PAGE_RESPONSE = {
     {
       id: "1xf9qev",
       title: "This Month in Redox OS - September 2026",
+      flair: {
+        text: "News/Article",
+        backgroundColor: "#228822",
+        textColor: "light",
+        parts: [{ kind: "text", text: "News/Article" }],
+      },
       thumbnail: {
         url: "https://preview.redd.it/mock-redox.png?width=140&format=png",
         width: 140,
@@ -263,6 +282,19 @@ export const SUBREDDIT_PAGE_RESPONSE = {
     {
       id: "1xeyq76",
       title: "I want more mobile apps to be developed in Rust",
+      flair: {
+        text: ":post-daily-discussion: Daily Discussion",
+        backgroundColor: "#EDEFF1",
+        textColor: "dark",
+        parts: [
+          {
+            kind: "emoji",
+            url: "https://emoji.redditmedia.com/fixture_t5_fixture/post-daily-discussion",
+            alt: ":post-daily-discussion:",
+          },
+          { kind: "text", text: " Daily Discussion" },
+        ],
+      },
       thumbnail: {
         url: "https://preview.redd.it/mock-mobile.png?width=140&format=png",
         width: 140,
@@ -281,6 +313,7 @@ export const SUBREDDIT_PAGE_RESPONSE = {
     {
       id: "1xf6ib7",
       title: "Rust rules for the Please build system",
+      flair: null,
       thumbnail: null,
       score: 7,
       commentCount: 3,
@@ -293,6 +326,7 @@ export const SUBREDDIT_PAGE_RESPONSE = {
     {
       id: "1xf88gz",
       title: "I face a problem with opensource projects",
+      flair: null,
       thumbnail: null,
       score: 5,
       commentCount: 25,

@@ -1,5 +1,5 @@
 use crate::error::ApiError;
-use crate::routes::Markdown;
+use crate::routes::{Markdown, PostFlair};
 use axum::Json;
 use axum::extract::rejection::PathRejection;
 use axum::extract::{Path, State};
@@ -29,6 +29,8 @@ struct GetPostInput {
 struct Post {
     id: String,
     title: String,
+    #[schema(required)]
+    flair: Option<PostFlair>,
     #[schema(required)]
     author: Option<NamedReference>,
     #[schema(required)]
@@ -99,6 +101,7 @@ impl From<RedditPost> for Post {
         let RedditPost {
             id,
             title,
+            flair,
             author,
             community,
             created_at,
@@ -113,6 +116,7 @@ impl From<RedditPost> for Post {
         Self {
             id: id.as_str().to_owned(),
             title,
+            flair: flair.map(Into::into),
             author: author.map(Into::into),
             community: community.map(Into::into),
             created_at,
@@ -273,6 +277,20 @@ mod tests {
         RedditPost {
             id: "18t5968".into(),
             title: "Example post".into(),
+            flair: Some(lurklet_reddit::PostFlair {
+                text: Some(":example: News".into()),
+                background_color: Some("#228822".into()),
+                text_color: Some(lurklet_reddit::FlairTextColor::Light),
+                parts: vec![
+                    lurklet_reddit::FlairPart::Emoji {
+                        url: "https://emoji.redditmedia.com/example/news".into(),
+                        alt: ":example:".into(),
+                    },
+                    lurklet_reddit::FlairPart::Text {
+                        text: " News".into(),
+                    },
+                ],
+            }),
             author: Some(RedditNamedReference {
                 id: Some("author".into()),
                 name: Some("example-user".into()),
@@ -352,6 +370,10 @@ mod tests {
             json!({
                 "id": "18t5968",
                 "title": "Example post",
+                "flair": {"text": ":example: News", "backgroundColor": "#228822", "textColor": "light", "parts": [
+                    {"kind": "emoji", "url": "https://emoji.redditmedia.com/example/news", "alt": ":example:"},
+                    {"kind": "text", "text": " News"}
+                ]},
                 "author": {"id": "author", "name": "example-user"},
                 "community": {"id": null, "name": "rust"},
                 "createdAt": "1970-01-01T00:00:00Z",

@@ -14,7 +14,7 @@ export function Media({
   variant = "content",
 }: Pick<ComponentProps<"img">, "src" | "alt" | "title" | "width" | "height"> & {
   kind?: "image" | "video";
-  variant?: "content" | "thumbnail" | "icon";
+  variant?: "content" | "thumbnail" | "icon" | "emoji";
 }) {
   const [failedSource, setFailedSource] = useState<string | null>(null);
   if (failedSource !== null && failedSource !== src) {
@@ -41,12 +41,18 @@ export function Media({
         className={cn(
           variant === "content"
             ? "inline-block h-auto max-w-full self-start rounded-lg align-middle"
-            : "bg-muted block object-cover",
+            : variant === "emoji"
+              ? "inline-block size-4 object-contain align-text-bottom"
+              : "bg-muted block object-cover",
           compactClassName,
         )}
         onError={() => setFailedSource(src)}
       />
     );
+  }
+
+  if (variant === "emoji") {
+    return <span>{alt}</span>;
   }
 
   const type = kind === "image" ? "Image" : kind === "video" ? "Video" : "Media";

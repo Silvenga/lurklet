@@ -8,9 +8,9 @@ pub use mobile::{
     RequestAllowlist,
 };
 pub use models::{
-    Comment, CommentForest, CommentItem, CommentSort, CommentState, CommentThread, ListedPost,
-    Markdown, MarkdownMedia, MediaBody, MediaFile, MediaKind, Post, PostAttachment, Subreddit,
-    SubredditDetails, SubredditPage, SubredditSort, SubredditStyles, Thumbnail, TimeRange,
-    UnavailableSubreddit, VideoFormat, VideoSource,
+    Comment, CommentForest, CommentItem, CommentSort, CommentState, CommentThread, FlairPart,
+    FlairTextColor, ListedPost, Markdown, MarkdownMedia, MediaBody, MediaFile, MediaKind, Post,
+    PostAttachment, PostFlair, Subreddit, SubredditDetails, SubredditPage, SubredditSort,
+    SubredditStyles, Thumbnail, TimeRange, UnavailableSubreddit, VideoFormat, VideoSource,
 };
 pub use reddit_backend::RedditBackend;

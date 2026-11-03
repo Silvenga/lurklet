@@ -1,5 +1,5 @@
-use crate::backends::mobile::Content;
 use crate::backends::mobile::posts::attachments::Attachments;
+use crate::backends::mobile::{Content, Flair};
 use crate::{GraphQlDecodeError, NamedReference, Post, RedditId};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -31,6 +31,7 @@ struct PostFields {
     id: RedditId,
     #[serde(rename = "postTitle")]
     title: String,
+    flair: Option<Flair>,
     created_at: DateTime<Utc>,
     is_nsfw: bool,
     is_spoiler: bool,
@@ -80,6 +81,7 @@ impl From<PostFields> for Post {
         Self {
             id: fields.id,
             title: fields.title,
+            flair: fields.flair.and_then(Flair::into_flair),
             author: fields.author,
             community: fields.community,
             created_at: fields.created_at,
@@ -120,6 +122,7 @@ mod tests {
         Post {
             id: "18t5968".into(),
             title: "Example title".into(),
+            flair: None,
             author: Some(NamedReference {
                 id: Some("author".into()),
                 name: Some("example_author".into()),
@@ -150,6 +153,7 @@ mod tests {
         {
           "id": "18t5968",
           "title": "Example title",
+          "flair": null,
           "author": {
             "id": "author",
             "name": "example_author"

@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import type { ListedPost } from "@/clients/lurklet-api/generated/types.gen";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { PostFlair } from "./PostFlair";
 import { PostMetadata } from "./PostMetadata";
 import { PostThumbnail } from "./PostThumbnail";
 
@@ -35,8 +36,8 @@ export function PostList({ subreddit, posts }: PostListProps) {
             />
           )}
           <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <div className="flex items-start gap-2">
-              <h2 className="min-w-0 flex-1 text-lg font-medium wrap-anywhere">
+            <div className="flex flex-wrap items-start gap-2">
+              <h2 className="min-w-0 flex-1 basis-1/2 text-lg font-medium wrap-anywhere">
                 <Link
                   className="hover:underline"
                   to={`/r/${encodeURIComponent(subreddit)}/comments/${encodeURIComponent(post.id)}`}
@@ -44,7 +45,16 @@ export function PostList({ subreddit, posts }: PostListProps) {
                   {post.title ?? `Post ${post.id}`}
                 </Link>
               </h2>
-              {post.isPinned && <Badge variant="secondary">Pinned</Badge>}
+              {(post.flair || post.isPinned) && (
+                <div className="ms-auto flex max-w-full min-w-0 items-start gap-2">
+                  <PostFlair flair={post.flair} />
+                  {post.isPinned && (
+                    <Badge variant="secondary" className="font-normal">
+                      Pinned
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
             <PostMetadata
               authorName={post.authorName}

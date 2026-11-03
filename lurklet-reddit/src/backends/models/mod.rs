@@ -8,6 +8,9 @@ mod subreddits;
 pub use comments::{Comment, CommentForest, CommentItem, CommentSort, CommentState, CommentThread};
 pub use markdown::{Markdown, MarkdownMedia};
 pub use media::{MediaBody, MediaFile, MediaKind};
-pub use posts::{ListedPost, Post, PostAttachment, Thumbnail, VideoFormat, VideoSource};
+pub use posts::{
+    FlairPart, FlairTextColor, ListedPost, Post, PostAttachment, PostFlair, Thumbnail, VideoFormat,
+    VideoSource,
+};
 pub use subreddit_feeds::{SubredditPage, SubredditSort, TimeRange};
 pub use subreddits::{Subreddit, SubredditDetails, SubredditStyles, UnavailableSubreddit};

@@ -1,4 +1,4 @@
-use crate::{Markdown, NamedReference, RedditId};
+use crate::{Markdown, NamedReference, PostFlair, RedditId};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
@@ -7,6 +7,7 @@ use serde::Serialize;
 pub struct Post {
     pub id: RedditId,
     pub title: String,
+    pub flair: Option<PostFlair>,
     pub author: Option<NamedReference>,
     pub community: Option<NamedReference>,
     pub created_at: DateTime<Utc>,

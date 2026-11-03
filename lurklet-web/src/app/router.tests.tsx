@@ -169,6 +169,14 @@ test("When a subreddit is entered then its listing should link to the supplied p
   const article = screen.getByRole("article");
   expect(within(article).getByText("u/seino_chan")).toBeVisible();
   expect(within(article).getByText("44 points")).toBeVisible();
+  const postRegion = screen.getByRole("region", { name: "Post" });
+  const subreddit = within(postRegion).getByRole("link", { name: "r/rust" });
+  const flair = within(postRegion)
+    .getByText(POST_RESPONSE.flair.text)
+    .closest('[data-slot="badge"]');
+  expect(flair).toBeVisible();
+  expect(subreddit.nextElementSibling).toBe(flair);
+  expect(subreddit.parentElement?.nextElementSibling).toBe(article);
   expect(
     within(article).getByRole("link", { name: POST_RESPONSE.attachments[0]!.url }),
   ).toHaveAttribute("href", POST_RESPONSE.attachments[0]!.url);
