@@ -4,7 +4,7 @@ import { version } from "../../package.json";
 
 export function AppLayout() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 sm:px-6">
+    <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 sm:px-6">
       <ScrollRestoration />
       <header className="flex h-14 items-center justify-between">
         <Link className="text-2xl font-light tracking-tight" to="/">
@@ -20,7 +20,7 @@ export function AppLayout() {
           <FaGithub aria-hidden="true" className="size-5" />
         </a>
       </header>
-      <main className="pt-2 pb-4 sm:py-8">
+      <main className="grow pt-2 pb-4 sm:py-8">
         <Outlet />
       </main>
       <footer className="text-muted-foreground py-4 text-center text-xs select-text">
