@@ -13,7 +13,14 @@
               "groupId": "t3_first",
               "adPayload": null,
               "crosspostCells": [
-                { "__typename": "CrossPostCell", "innerPost": { "id": "t3_not_another_row" } }
+                {
+                  "__typename": "CrossPostCell",
+                  "innerPost": {
+                    "__typename": "CellGroup",
+                    "id": "opaque_not_another_row",
+                    "groupId": "t3_original"
+                  }
+                }
               ],
               "cells": [
                 {

@@ -222,6 +222,56 @@ export const POST_RESPONSE = {
   crosspostId: null,
 } satisfies Post;
 
+export const ORIGINAL_POST_RESPONSE = {
+  id: "1xlyoom",
+  title: "What are some common Rust misconceptions?",
+  flair: null,
+  author: { id: "229wfzxiyi", name: "lyuhdev" },
+  community: { id: "3amtr", name: "learnrust" },
+  createdAt: "2026-11-02T14:29:31.485Z",
+  score: 6,
+  commentCount: 14,
+  isNsfw: false,
+  isSpoiler: false,
+  markdown: {
+    content:
+      "I just found out that const functions aren't evaluated at compile-time unless it is assigned to a const value or in a const context.\n\nAnother one I had: Rust doesn't prevent memory leaks.\n\nNow I am just wondering how many other assumptions I made",
+    media: [],
+  },
+  attachments: [],
+  crosspostId: null,
+} satisfies Post;
+
+export const CROSSPOST_RESPONSE = {
+  ...ORIGINAL_POST_RESPONSE,
+  id: "1xlyp3g",
+  community: { id: "2s7lj", name: "rust" },
+  createdAt: "2026-11-02T14:29:56.948Z",
+  score: 0,
+  commentCount: 8,
+  markdown: null,
+  crosspostId: ORIGINAL_POST_RESPONSE.id,
+} satisfies Post;
+
+export const CROSSPOST_COMMENTS_RESPONSE = {
+  appliedSort: "best",
+  items: [
+    {
+      kind: "comment",
+      comment: {
+        ...COMMENTS_RESPONSE.items[0]!.comment,
+        id: "crosscomment",
+        createdAt: "2026-11-02T14:35:00Z",
+        markdown: {
+          content: "This mock comment belongs to the r/rust cross-post discussion.",
+          media: [],
+        },
+      },
+      replies: [],
+    },
+  ],
+} satisfies CommentForest;
+
 export const SUBREDDIT_PAGE_RESPONSE = {
   posts: [
     {
@@ -236,6 +286,7 @@ export const SUBREDDIT_PAGE_RESPONSE = {
       isNsfw: false,
       isSpoiler: false,
       isPinned: true,
+      crosspostId: null,
     },
     {
       id: "1x9w6by",
@@ -254,6 +305,7 @@ export const SUBREDDIT_PAGE_RESPONSE = {
       isNsfw: false,
       isSpoiler: false,
       isPinned: true,
+      crosspostId: null,
     },
     {
       id: "1xf9qev",
@@ -278,6 +330,7 @@ export const SUBREDDIT_PAGE_RESPONSE = {
       isNsfw: false,
       isSpoiler: false,
       isPinned: false,
+      crosspostId: null,
     },
     {
       id: "1xeyq76",
@@ -309,6 +362,7 @@ export const SUBREDDIT_PAGE_RESPONSE = {
       isNsfw: false,
       isSpoiler: false,
       isPinned: false,
+      crosspostId: null,
     },
     {
       id: "1xf6ib7",
@@ -322,6 +376,7 @@ export const SUBREDDIT_PAGE_RESPONSE = {
       isNsfw: false,
       isSpoiler: false,
       isPinned: false,
+      crosspostId: null,
     },
     {
       id: "1xf88gz",
@@ -335,6 +390,21 @@ export const SUBREDDIT_PAGE_RESPONSE = {
       isNsfw: false,
       isSpoiler: false,
       isPinned: false,
+      crosspostId: null,
+    },
+    {
+      id: CROSSPOST_RESPONSE.id,
+      title: CROSSPOST_RESPONSE.title,
+      flair: CROSSPOST_RESPONSE.flair,
+      thumbnail: null,
+      score: CROSSPOST_RESPONSE.score,
+      commentCount: CROSSPOST_RESPONSE.commentCount,
+      authorName: CROSSPOST_RESPONSE.author.name,
+      createdAt: CROSSPOST_RESPONSE.createdAt,
+      isNsfw: CROSSPOST_RESPONSE.isNsfw,
+      isSpoiler: CROSSPOST_RESPONSE.isSpoiler,
+      isPinned: false,
+      crosspostId: CROSSPOST_RESPONSE.crosspostId,
     },
   ],
   nextCursor:

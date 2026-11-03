@@ -17,6 +17,7 @@ pub struct ListedPost {
     pub is_nsfw: bool,
     pub is_spoiler: bool,
     pub is_pinned: bool,
+    pub crosspost_id: Option<RedditId>,
 }
 
 /// A feed preview, including the upstream information needed to honor obfuscation.

@@ -1,0 +1,86 @@
+{
+  "provenance": {
+    "source": "captured lurklet-reddit-cli list-subreddit-posts rust --sort new, CLASSIC context and query-default selections",
+    "captured_date": "2026-11-03",
+    "sampling": "one organic cross-post from a page of nine feed elements",
+    "pruning": "only node identity, ad presence, consumed cells, and the crosspostCells original reference retained",
+    "redactions": [
+      "post and cell identifiers",
+      "titles and author labels",
+      "opaque cursor",
+      "tracking data, extensions, and response headers omitted"
+    ]
+  },
+  "body": {
+    "data": {
+      "subredditV3": {
+        "elements": {
+          "dist": 4,
+          "pageInfo": { "endCursor": "fixture-next-page" },
+          "edges": [
+            {
+              "node": {
+                "__typename": "CellGroup",
+                "id": "opaque-crosspost-element",
+                "groupId": "t3_crosspost",
+                "adPayload": null,
+                "cells": [
+                  {
+                    "__typename": "ClassicCell",
+                    "titleCell": { "title": "Captured cross-post" },
+                    "metadataCell": {
+                      "createdAt": "2026-11-03T02:19:28.050000+0000",
+                      "statusIndicators": [],
+                      "subredditName": "u/example_crossposter"
+                    },
+                    "indicatorsCell": null,
+                    "thumbnailCell": { "image": null }
+                  },
+                  { "__typename": "CrossPostCell", "id": "opaque-crosspost-cell" },
+                  {
+                    "__typename": "ActionCell",
+                    "score": 0,
+                    "commentCount": 0,
+                    "isScoreHidden": false
+                  },
+                  { "__typename": "MarginCell" }
+                ],
+                "crosspostCells": [
+                  { "__typename": "ClassicCell" },
+                  {
+                    "__typename": "CrossPostCell",
+                    "id": "opaque-crosspost-cell",
+                    "innerPost": {
+                      "__typename": "CellGroup",
+                      "id": "opaque-original-element",
+                      "groupId": "t3_original",
+                      "adPayload": null
+                    }
+                  },
+                  { "__typename": "ActionCell" },
+                  { "__typename": "MarginCell" }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expected_posts": [
+    {
+      "id": "crosspost",
+      "title": "Captured cross-post",
+      "flair": null,
+      "thumbnail": null,
+      "score": 0,
+      "comment_count": 0,
+      "author_name": "example_crossposter",
+      "created_at": "2026-11-03T02:19:28.050Z",
+      "is_nsfw": false,
+      "is_spoiler": false,
+      "is_pinned": false,
+      "crosspost_id": "original"
+    }
+  ]
+}

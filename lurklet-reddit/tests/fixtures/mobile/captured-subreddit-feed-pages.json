@@ -193,7 +193,8 @@
             "background_color": "#DFFFD2",
             "text_color": "dark",
             "parts": []
-          }
+          },
+          "crosspost_id": null
         },
         {
           "author_name": "example_author_1_7",
@@ -217,7 +218,8 @@
             "background_color": "#F2F2F2",
             "text_color": "dark",
             "parts": []
-          }
+          },
+          "crosspost_id": null
         }
       ]
     },
@@ -377,7 +379,8 @@
             "background_color": "#F2F2F2",
             "text_color": "dark",
             "parts": []
-          }
+          },
+          "crosspost_id": null
         },
         {
           "author_name": "example_author_2_2",
@@ -390,7 +393,8 @@
           "score": 2,
           "thumbnail": null,
           "title": "Captured post 2-2",
-          "flair": null
+          "flair": null,
+          "crosspost_id": null
         }
       ]
     }

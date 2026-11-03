@@ -88,6 +88,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn when_a_captured_crosspost_listing_is_replayed_then_its_original_id_should_be_returned_without_hydration()
+     {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/mobile/captured-crosspost-feed.json"
+        ))
+        .unwrap();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(fixture["body"].clone()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = graphql_client(&server, cached_storage());
+
+        let page = client
+            .list_subreddit_posts("rust", SubredditSort::New, None)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            serde_json::to_value(page.posts).unwrap(),
+            fixture["expected_posts"]
+        );
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
     async fn when_captured_pages_are_replayed_then_rows_and_opaque_continuation_should_match_the_sanitized_capture()
      {
         let fixture: Value = serde_json::from_str(include_str!(

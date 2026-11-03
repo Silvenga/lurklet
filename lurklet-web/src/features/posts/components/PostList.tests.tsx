@@ -34,7 +34,43 @@ test("When posts are returned then the list should preserve their order and show
   expect(flair).toBeVisible();
   expect(flair?.nextElementSibling).toBe(within(first).getByText("Pinned"));
   expect(first.querySelector("time")).toHaveAttribute("datetime", "2026-10-22T01:16:16.094Z");
+  expect(within(first).queryByText("Cross-post")).not.toBeInTheDocument();
 });
+
+test.each([8, null])(
+  "When a cross-post has comment count %j then its listing should append a muted text indicator",
+  (commentCount) => {
+    const post = {
+      ...SUBREDDIT_PAGE_RESPONSE.posts[0]!,
+      commentCount,
+      crosspostId: "original",
+      isPinned: false,
+    };
+
+    render(
+      <MemoryRouter>
+        <PostList subreddit="rust" posts={[post]} />
+      </MemoryRouter>,
+    );
+
+    const indicator = screen.getByText("Cross-post");
+    expect(indicator).toBeVisible();
+    expect(indicator.tagName).toBe("SPAN");
+    expect(indicator.closest("p")).toHaveClass("text-muted-foreground");
+    expect(indicator.parentElement).toHaveClass("inline-flex");
+    expect(indicator.closest("a, button, [data-slot=badge]")).toBeNull();
+    expect(indicator.nextElementSibling).toBeNull();
+    if (commentCount !== null) {
+      expect(indicator.previousElementSibling).toBe(screen.getByText(`${commentCount} comments`));
+    } else {
+      expect(screen.queryByText(/comments$/)).not.toBeInTheDocument();
+    }
+    expect(screen.getByRole("link", { name: post.title })).toHaveAttribute(
+      "href",
+      `/r/rust/comments/${post.id}`,
+    );
+  },
+);
 
 test("When optional metadata is missing then the list should omit it without hiding zero counts", () => {
   const post = {

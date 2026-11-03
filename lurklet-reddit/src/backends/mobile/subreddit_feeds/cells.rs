@@ -1,5 +1,5 @@
 use crate::backends::mobile::Flair;
-use crate::{ListedPost, Thumbnail};
+use crate::{ListedPost, RedditId, Thumbnail};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde::de::IgnoredAny;
@@ -11,6 +11,7 @@ pub struct CellGroup {
     #[serde(default, rename = "adPayload")]
     ad_presence: AdPresence,
     cells: Option<Vec<Option<Cell>>>,
+    crosspost_cells: Option<Vec<Option<CrosspostCell>>>,
 }
 
 // Only an explicit null proves this group has no ad payload; missing data does not.
@@ -41,6 +42,24 @@ enum Cell {
     Action(ActionCell),
     #[serde(other)]
     Other,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "__typename")]
+enum CrosspostCell {
+    #[serde(rename = "CrossPostCell")]
+    Crosspost {
+        #[serde(rename = "innerPost")]
+        inner_post: Option<CrosspostReference>,
+    },
+    #[serde(other)]
+    Other,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CrosspostReference {
+    group_id: Option<RedditId>,
 }
 
 #[derive(Deserialize)]
@@ -135,6 +154,17 @@ impl CellGroup {
             is_nsfw: false,
             is_spoiler: false,
             is_pinned: false,
+            crosspost_id: self
+                .crosspost_cells
+                .into_iter()
+                .flatten()
+                .flatten()
+                .find_map(|cell| match cell {
+                    CrosspostCell::Crosspost { inner_post } => {
+                        inner_post.and_then(|post| post.group_id)
+                    }
+                    CrosspostCell::Other => None,
+                }),
         };
         for cell in self.cells.into_iter().flatten().flatten() {
             match cell {
@@ -338,5 +368,32 @@ mod tests {
 
         assert_eq!(post.score, None);
         assert_eq!(post.comment_count, Some(3));
+    }
+
+    #[test]
+    fn when_a_crosspost_reference_is_unavailable_then_the_listing_should_keep_its_outer_row() {
+        let mut value = group();
+        value["crosspostCells"] = Value::Null;
+        let GroupResult::Post(expected) = CellGroup::deserialize(&value).unwrap().into_post()
+        else {
+            panic!("expected a post")
+        };
+
+        for cells in [
+            json!([null, {"__typename": "ClassicCell"}]),
+            json!([{"__typename": "CrossPostCell", "innerPost": null}]),
+            json!([{"__typename": "CrossPostCell", "innerPost": {"id": "opaque-original", "groupId": null}}]),
+            json!([{"__typename": "CrossPostCell", "innerPost": {"id": "opaque-original"}}]),
+        ] {
+            value["crosspostCells"] = cells;
+
+            let GroupResult::Post(post) = CellGroup::deserialize(&value).unwrap().into_post()
+            else {
+                panic!("expected a post")
+            };
+
+            assert_eq!(post, expected);
+            assert_eq!(post.crosspost_id, None);
+        }
     }
 }

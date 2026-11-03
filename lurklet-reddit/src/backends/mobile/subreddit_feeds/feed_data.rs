@@ -136,7 +136,8 @@ mod tests {
           "created_at": "2023-12-28T21:35:27.507Z",
           "is_nsfw": true,
           "is_spoiler": true,
-          "is_pinned": true
+          "is_pinned": true,
+          "crosspost_id": "original"
         }
         "#);
         assert_eq!(page.posts[1].author_name, None);

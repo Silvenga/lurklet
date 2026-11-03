@@ -339,6 +339,12 @@ expression: document
               "null"
             ]
           },
+          "crosspostId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "flair": {
             "oneOf": [
               {
@@ -396,7 +402,8 @@ expression: document
           "createdAt",
           "isNsfw",
           "isSpoiler",
-          "isPinned"
+          "isPinned",
+          "crosspostId"
         ],
         "type": "object"
       },

@@ -8,6 +8,7 @@ import { PostLoading } from "@/features/posts/components/PostLoading";
 import { PostMetadata } from "@/features/posts/components/PostMetadata";
 import { useJsonQuery } from "@/hooks/useJsonQuery";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { CrosspostPreview } from "./CrosspostPreview";
 import { PostAttachments } from "./PostAttachments";
 import { PostFlair } from "./PostFlair";
 
@@ -79,6 +80,13 @@ export function PostContent({ postId }: { postId: string }) {
           </section>
         )}
         <PostAttachments attachments={value.attachments} />
+        {value.crosspostId && (
+          <CrosspostPreview
+            key={`${value.id}:${value.crosspostId}`}
+            postId={value.crosspostId}
+            isSensitive={value.isNsfw || value.isSpoiler}
+          />
+        )}
       </article>
     </>
   );

@@ -1,10 +1,13 @@
 import { http, HttpResponse } from "msw/http";
-import type { Problem } from "@/clients/lurklet-api/generated/types.gen";
+import type { CommentThread, Problem } from "@/clients/lurklet-api/generated/types.gen";
 import {
   COMMENTS_RESPONSE,
   COMMENT_THREAD_RESPONSE,
+  CROSSPOST_COMMENTS_RESPONSE,
+  CROSSPOST_RESPONSE,
   HEALTH_RESPONSE,
   MEDIA_PNG_BASE64,
+  ORIGINAL_POST_RESPONSE,
   POST_RESPONSE,
   SUBREDDIT_NEXT_PAGE_RESPONSE,
   SUBREDDIT_PAGE_RESPONSE,
@@ -23,27 +26,40 @@ export const handlers = [
           { status: 400 },
         ),
   ),
-  http.get("*/api/posts/:id/comments", ({ params, request }) =>
-    HttpResponse.json(
-      params.id === POST_RESPONSE.id && !new URL(request.url).searchParams.has("cursor")
+  http.get("*/api/posts/:id/comments", ({ params, request }) => {
+    const comments =
+      params.id === POST_RESPONSE.id
+        ? COMMENTS_RESPONSE
+        : params.id === CROSSPOST_RESPONSE.id
+          ? CROSSPOST_COMMENTS_RESPONSE
+          : null;
+    return HttpResponse.json(
+      comments && !new URL(request.url).searchParams.has("cursor")
         ? {
-            ...COMMENTS_RESPONSE,
+            ...comments,
             appliedSort: new URL(request.url).searchParams.get("sort") ?? "best",
           }
         : { appliedSort: new URL(request.url).searchParams.get("sort") ?? "best", items: [] },
       { headers: { "Cache-Control": "no-store", Age: "7200" } },
-    ),
-  ),
-  http.get("*/api/comments/:id/thread", ({ params }) =>
-    params.id === COMMENTS_RESPONSE.items[0]!.comment.id
-      ? HttpResponse.json(COMMENT_THREAD_RESPONSE, {
-          headers: { "Cache-Control": "no-store", Age: "86400" },
-        })
+    );
+  }),
+  http.get("*/api/comments/:id/thread", ({ params }) => {
+    const thread =
+      params.id === COMMENTS_RESPONSE.items[0]!.comment.id
+        ? COMMENT_THREAD_RESPONSE
+        : params.id === CROSSPOST_COMMENTS_RESPONSE.items[0]!.comment.id
+          ? ({
+              postId: CROSSPOST_RESPONSE.id,
+              forest: CROSSPOST_COMMENTS_RESPONSE,
+            } satisfies CommentThread)
+          : null;
+    return thread
+      ? HttpResponse.json(thread, { headers: { "Cache-Control": "no-store", Age: "86400" } })
       : HttpResponse.json(
           { type: "about:blank", title: "Not Found", status: 404 } satisfies Problem,
           { status: 404 },
-        ),
-  ),
+        );
+  }),
   http.get("*/api/health", () =>
     HttpResponse.json(HEALTH_RESPONSE, { headers: { "Cache-Control": "no-store" } }),
   ),
@@ -84,7 +100,10 @@ export const handlers = [
     return HttpResponse.json(page, { headers: { "Cache-Control": "no-store", Age: "600" } });
   }),
   http.get("*/api/posts/:id", ({ params }) => {
-    if (params.id !== POST_RESPONSE.id) {
+    const post = [POST_RESPONSE, CROSSPOST_RESPONSE, ORIGINAL_POST_RESPONSE].find(
+      (value) => value.id === params.id,
+    );
+    if (!post) {
       return HttpResponse.json(
         { type: "about:blank", title: "Not Found", status: 404 } satisfies Problem,
         {
@@ -93,7 +112,7 @@ export const handlers = [
         },
       );
     }
-    return HttpResponse.json(POST_RESPONSE, {
+    return HttpResponse.json(post, {
       headers: { "Cache-Control": "no-store", Age: "3060" },
     });
   }),

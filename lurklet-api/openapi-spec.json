@@ -1150,7 +1150,8 @@
           "createdAt",
           "isNsfw",
           "isSpoiler",
-          "isPinned"
+          "isPinned",
+          "crosspostId"
         ],
         "properties": {
           "authorName": {
@@ -1164,6 +1165,9 @@
           "createdAt": {
             "type": ["string", "null"],
             "format": "date-time"
+          },
+          "crosspostId": {
+            "type": ["string", "null"]
           },
           "flair": {
             "oneOf": [

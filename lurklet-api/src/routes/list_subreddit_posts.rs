@@ -100,6 +100,8 @@ struct ListedPost {
     is_nsfw: bool,
     is_spoiler: bool,
     is_pinned: bool,
+    #[schema(required)]
+    crosspost_id: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -140,6 +142,7 @@ impl From<RedditListedPost> for ListedPost {
             is_nsfw,
             is_spoiler,
             is_pinned,
+            crosspost_id,
         } = post;
         Self {
             id: id.as_str().to_owned(),
@@ -153,6 +156,7 @@ impl From<RedditListedPost> for ListedPost {
             is_nsfw,
             is_spoiler,
             is_pinned,
+            crosspost_id: crosspost_id.map(|id| id.as_str().to_owned()),
         }
     }
 }
@@ -320,6 +324,7 @@ mod tests {
                     is_nsfw: true,
                     is_spoiler: false,
                     is_pinned: true,
+                    crosspost_id: Some("original".into()),
                 },
                 RedditListedPost {
                     id: "second".into(),
@@ -333,6 +338,7 @@ mod tests {
                     is_nsfw: false,
                     is_spoiler: false,
                     is_pinned: false,
+                    crosspost_id: None,
                 },
             ],
             next_cursor: Some("next+/=% token".into()),
@@ -357,7 +363,7 @@ mod tests {
     }
 
     #[test]
-    fn when_the_listing_contract_is_generated_then_indicator_flags_should_be_required_booleans() {
+    fn when_the_listing_contract_is_generated_then_indicators_should_have_required_types() {
         let specification = router::<FakeBackend>().into_openapi();
 
         let document = serde_json::to_value(specification).unwrap();
@@ -372,6 +378,16 @@ mod tests {
                     .contains(&json!(field))
             );
         }
+        assert_eq!(
+            schema["properties"]["crosspostId"]["type"],
+            json!(["string", "null"])
+        );
+        assert!(
+            schema["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("crosspostId"))
+        );
     }
 
     #[test]
@@ -534,13 +550,13 @@ mod tests {
                         },
                         "score": -1, "commentCount": 42, "authorName": "example-user",
                         "createdAt": "1970-01-01T00:00:00Z",
-                        "isNsfw": true, "isSpoiler": false, "isPinned": true
+                        "isNsfw": true, "isSpoiler": false, "isPinned": true, "crosspostId": "original"
                     },
                     {
                         "id": "second", "title": null, "thumbnail": null,
                         "flair": null,
                         "score": null, "commentCount": null, "authorName": null,
-                        "createdAt": null, "isNsfw": false, "isSpoiler": false, "isPinned": false
+                        "createdAt": null, "isNsfw": false, "isSpoiler": false, "isPinned": false, "crosspostId": null
                     }
                 ],
                 "nextCursor": "next+/=% token"

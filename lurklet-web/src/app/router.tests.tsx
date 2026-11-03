@@ -9,6 +9,9 @@ import { expectJsonMenu } from "@/_tests/expect-json-menu";
 import { expectRedditMenu } from "@/_tests/expect-reddit-menu";
 import {
   COMMENTS_RESPONSE,
+  CROSSPOST_COMMENTS_RESPONSE,
+  CROSSPOST_RESPONSE,
+  ORIGINAL_POST_RESPONSE,
   POST_RESPONSE,
   SUBREDDIT_NEXT_PAGE_RESPONSE,
   SUBREDDIT_PAGE_RESPONSE,
@@ -23,6 +26,7 @@ import { createQueryClient } from "./query-client";
 import { APP_ROUTES } from "./router";
 
 const POST_PATH = `/r/rust/comments/${POST_RESPONSE.id}`;
+const CROSSPOST_PATH = `/r/rust/comments/${CROSSPOST_RESPONSE.id}`;
 
 const CONTENT_REQUESTS = [
   ["listing", "/r/rust", "*/api/subreddits/:subreddit/posts", SUBREDDIT_PAGE_RESPONSE],
@@ -488,6 +492,263 @@ test.each([
     expect(screen.getAllByRole("main")).toHaveLength(1);
   },
 );
+
+test("When a cross-post is opened then its original should render without replacing the primary post or fetching related discussions", async () => {
+  const primary = {
+    ...CROSSPOST_RESPONSE,
+    title: "A cross-poster's take",
+    author: { id: "crossposter", name: "crossposter" },
+    markdown: { content: "The cross-poster's own text.", media: [] },
+    attachments: POST_RESPONSE.attachments,
+  };
+  const original = {
+    ...ORIGINAL_POST_RESPONSE,
+    title: "The original title",
+    author: { id: "originalauthor", name: "originalauthor" },
+    attachments: [
+      {
+        kind: "image",
+        url: "https://i.redd.it/original.png",
+        altText: "Original diagram",
+        caption: null,
+      },
+    ],
+    crosspostId: "deeper",
+  };
+  const requests: string[] = [];
+  server.use(
+    http.get("*/api/*", ({ request }) => {
+      requests.push(new URL(request.url).pathname);
+    }),
+    http.get(`*/api/posts/${primary.id}`, () => HttpResponse.json(primary)),
+    http.get(`*/api/posts/${original.id}`, () => HttpResponse.json(original)),
+  );
+
+  renderPath(CROSSPOST_PATH);
+
+  const preview = await screen.findByRole("region", { name: "Original post" });
+  expect(
+    await within(preview).findByRole("heading", { level: 2, name: original.title }),
+  ).toBeVisible();
+  expect(screen.getByRole("heading", { level: 1, name: primary.title })).toBeVisible();
+  expect(document.title).toBe(`${primary.title} - Lurklet`);
+  expect(screen.getByText("u/crossposter")).toBeVisible();
+  expect(screen.getByText("0 points")).toBeVisible();
+  expect(screen.getByText("8 comments")).toBeVisible();
+  const article = screen.getByRole("article");
+  expect(article.querySelector("time")).toHaveAttribute("datetime", primary.createdAt);
+  expect(preview).not.toContainElement(screen.getByText(primary.markdown.content));
+  expect(preview).not.toContainElement(
+    screen.getByRole("link", { name: primary.attachments[0]!.url }),
+  );
+  expect(preview).not.toHaveTextContent("Cross-posted from");
+  expect(within(preview).getByRole("link", { name: "r/learnrust" })).toHaveAttribute(
+    "href",
+    "/r/learnrust",
+  );
+  expect(within(preview).getByRole("link", { name: original.title })).toHaveAttribute(
+    "href",
+    `/r/learnrust/comments/${original.id}`,
+  );
+  expect(within(preview).getByText("u/originalauthor")).toBeVisible();
+  expect(within(preview).getByText("6 points")).toBeVisible();
+  expect(within(preview).getByText("14 comments")).toBeVisible();
+  expect(preview.querySelector("time")).toHaveAttribute("datetime", original.createdAt);
+  expect(within(preview).getByText(/Rust doesn't prevent memory leaks/)).toBeVisible();
+  const image = within(preview).getByRole("img", { name: "Original diagram" });
+  expect(new URL(image.getAttribute("src")!).pathname).toBe("/api/media");
+  expect(image.closest("a")).toBeNull();
+  const comment = await within(screen.getByRole("region", { name: "Comments" })).findByText(
+    /This mock comment belongs to/,
+  );
+  expect(comment).toBeVisible();
+  expect(comment).toHaveTextContent(CROSSPOST_COMMENTS_RESPONSE.items[0]!.comment.markdown.content);
+  expect(
+    within(screen.getByRole("complementary")).getByRole("heading", { name: "r/rust" }),
+  ).toBeVisible();
+  await expectRedditMenu("Post actions", `https://www.reddit.com${CROSSPOST_PATH}/`);
+  await expectJsonMenu("Post actions", new URL(`/api/posts/${primary.id}`, location.origin).href);
+  expect(requests.filter((path) => path !== "/api/media").toSorted()).toEqual(
+    [
+      `/api/posts/${primary.id}`,
+      `/api/posts/${primary.id}/comments`,
+      `/api/posts/${original.id}`,
+      "/api/subreddits/rust",
+    ].toSorted(),
+  );
+});
+
+test("When the original post link is followed then its page should reuse the preview's cached post and response age", async () => {
+  const user = userEvent.setup();
+  let originalRequests = 0;
+  server.use(
+    http.get(`*/api/posts/${ORIGINAL_POST_RESPONSE.id}`, () => {
+      originalRequests++;
+      return HttpResponse.json(ORIGINAL_POST_RESPONSE, { headers: { Age: "120" } });
+    }),
+  );
+  const router = renderPath(CROSSPOST_PATH);
+  const preview = await screen.findByRole("region", { name: "Original post" });
+  const link = await within(preview).findByRole("link", { name: ORIGINAL_POST_RESPONSE.title });
+
+  await user.click(link);
+
+  expect(router.state.location.pathname).toBe(`/r/learnrust/comments/${ORIGINAL_POST_RESPONSE.id}`);
+  expect(
+    await screen.findByRole("heading", { level: 1, name: ORIGINAL_POST_RESPONSE.title }),
+  ).toBeVisible();
+  expect(
+    await within(screen.getByRole("complementary")).findByRole("link", { name: "r/learnrust" }),
+  ).toBeVisible();
+  expect(screen.queryByRole("region", { name: "Original post" })).not.toBeInTheDocument();
+  expect(originalRequests).toBe(1);
+
+  await user.click(screen.getByRole("button", { name: "Post actions" }));
+
+  expect(await screen.findByText("Fetched 2 minutes ago")).toBeVisible();
+});
+
+test.each([404, 503])(
+  "When an original post returns %s then only its preview should show the failure",
+  async (status) => {
+    const user = userEvent.setup();
+    const pending = Promise.withResolvers<Response>();
+    server.use(http.get(`*/api/posts/${ORIGINAL_POST_RESPONSE.id}`, () => pending.promise));
+    renderPath(CROSSPOST_PATH);
+    const preview = await screen.findByRole("region", { name: "Original post" });
+    expect(within(preview).getByRole("status")).toHaveTextContent("Loading original post");
+    const heading = screen.getByRole("heading", { level: 1, name: CROSSPOST_RESPONSE.title });
+    const comment = await screen.findByText(/This mock comment belongs to/);
+
+    await act(async () =>
+      pending.resolve(
+        HttpResponse.json(
+          { type: "about:blank", title: "Original request failed", status },
+          { status },
+        ),
+      ),
+    );
+
+    expect(await within(preview).findByRole("alert")).toHaveTextContent(
+      status === 404 ? "Original post unavailable" : "Unable to load original post",
+    );
+    expect(heading).toBeVisible();
+    expect(comment).toBeVisible();
+    expect(document.title).toBe(`${CROSSPOST_RESPONSE.title} - Lurklet`);
+    if (status === 404) {
+      expect(within(preview).queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    } else {
+      server.use(
+        http.get(`*/api/posts/${ORIGINAL_POST_RESPONSE.id}`, () =>
+          HttpResponse.json(ORIGINAL_POST_RESPONSE),
+        ),
+      );
+
+      await user.click(within(preview).getByRole("button", { name: "Retry" }));
+
+      expect(
+        await within(preview).findByRole("link", { name: ORIGINAL_POST_RESPONSE.title }),
+      ).toBeVisible();
+      expect(heading).toBeVisible();
+      expect(comment).toBeVisible();
+    }
+  },
+);
+
+test.each([null, { id: "source", name: null }])(
+  "When an original has community %j then its preview should render without inventing navigation links",
+  async (community) => {
+    server.use(
+      http.get(`*/api/posts/${ORIGINAL_POST_RESPONSE.id}`, () =>
+        HttpResponse.json({ ...ORIGINAL_POST_RESPONSE, community }),
+      ),
+    );
+
+    renderPath(CROSSPOST_PATH);
+
+    const preview = await screen.findByRole("region", { name: "Original post" });
+    expect(
+      await within(preview).findByRole("heading", { name: ORIGINAL_POST_RESPONSE.title }),
+    ).toBeVisible();
+    expect(within(preview).getByText(/Rust doesn't prevent memory leaks/)).toBeVisible();
+    expect(within(preview).getByText("Unknown community")).toBeVisible();
+    expect(within(preview).queryByRole("link")).not.toBeInTheDocument();
+  },
+);
+
+test.each([
+  ["primary", "isNsfw"],
+  ["primary", "isSpoiler"],
+  ["original", "isNsfw"],
+  ["original", "isSpoiler"],
+])(
+  "When the %s post has %s set then its preview content should require a keyboard-accessible reveal",
+  async (owner, flag) => {
+    const user = userEvent.setup();
+    server.use(
+      http.get(`*/api/posts/${CROSSPOST_RESPONSE.id}`, () =>
+        HttpResponse.json({ ...CROSSPOST_RESPONSE, [flag]: owner === "primary" }),
+      ),
+      http.get(`*/api/posts/${ORIGINAL_POST_RESPONSE.id}`, () =>
+        HttpResponse.json({
+          ...ORIGINAL_POST_RESPONSE,
+          [flag]: owner === "original",
+          attachments: [
+            {
+              kind: "image",
+              url: "https://i.redd.it/sensitive.png",
+              altText: "Sensitive image",
+              caption: null,
+            },
+          ],
+        }),
+      ),
+    );
+    renderPath(CROSSPOST_PATH);
+    const preview = await screen.findByRole("region", { name: "Original post" });
+    const reveal = await within(preview).findByRole("button", { name: "Reveal original content" });
+    expect(within(preview).getByRole("link", { name: ORIGINAL_POST_RESPONSE.title })).toBeVisible();
+    expect(
+      within(preview).queryByText(/Rust doesn't prevent memory leaks/),
+    ).not.toBeInTheDocument();
+    expect(preview.querySelector("img")).toBeNull();
+
+    reveal.focus();
+    await user.keyboard("{Enter}");
+
+    expect(within(preview).getByText(/Rust doesn't prevent memory leaks/)).toBeVisible();
+    expect(within(preview).getByRole("img", { name: "Sensitive image" })).toBeVisible();
+    expect(
+      within(preview).queryByRole("button", { name: "Reveal original content" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: CROSSPOST_RESPONSE.title })).toBeVisible();
+  },
+);
+
+test("When navigating to another cross-post after revealing content then its preview should start concealed", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/posts/:id", ({ params }) =>
+      HttpResponse.json(
+        params.id === ORIGINAL_POST_RESPONSE.id
+          ? { ...ORIGINAL_POST_RESPONSE, isSpoiler: true }
+          : { ...CROSSPOST_RESPONSE, id: String(params.id) },
+      ),
+    ),
+  );
+  const router = renderPath(CROSSPOST_PATH);
+  await user.click(await screen.findByRole("button", { name: "Reveal original content" }));
+
+  await act(async () => {
+    await router.navigate("/r/rust/comments/another");
+  });
+
+  const preview = await screen.findByRole("region", { name: "Original post" });
+  expect(
+    await within(preview).findByRole("button", { name: "Reveal original content" }),
+  ).toBeVisible();
+  expect(within(preview).queryByText(/Rust doesn't prevent memory leaks/)).not.toBeInTheDocument();
+});
 
 test("When a post is loading then only the post region should show a loading state", async () => {
   const pending = Promise.withResolvers<Response>();

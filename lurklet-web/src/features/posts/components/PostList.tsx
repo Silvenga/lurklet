@@ -61,6 +61,7 @@ export function PostList({ subreddit, posts }: PostListProps) {
               createdAt={post.createdAt}
               score={post.score}
               commentCount={post.commentCount}
+              crosspostId={post.crosspostId}
             />
           </div>
         </li>

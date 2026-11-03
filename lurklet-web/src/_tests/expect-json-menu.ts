@@ -7,7 +7,7 @@ export async function expectJsonMenu(
   href: string | undefined,
   user = userEvent.setup(),
 ) {
-  const trigger = screen.getByRole("button", { name: label });
+  const trigger = await screen.findByRole("button", { name: label });
   await user.click(trigger);
   const item = await screen.findByRole("menuitem", { name: "JSON" });
 
