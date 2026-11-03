@@ -1,10 +1,7 @@
 import { cn } from "cn";
 import { Link, useParams, useSearchParams } from "react-router";
-import {
-  getCommentThreadOptions,
-  getPostCommentsOptions,
-} from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
 import type { CommentForest, CommentSort } from "@/clients/lurklet-api/generated/types.gen";
+import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
 import { PaneMenu } from "@/components/PaneMenu";
 import { PendingRegion } from "@/components/PendingRegion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,29 +21,35 @@ export function CommentDiscussion() {
     requestedSort === "best" || requestedSort === "top" || requestedSort === "new";
   const sort = isValidSort ? requestedSort : "best";
   const comments = useJsonQuery({
-    ...getPostCommentsOptions({ path: { id: postId! }, query: { sort } }),
+    ...apiQueryOptions.getPostComments({ path: { id: postId! }, query: { sort } }),
     enabled: isValidSort && !commentId,
     placeholderData: (previous, previousQuery) =>
       previous && previousQuery && previousQuery.queryKey[0].path?.id === postId
-        ? retainQueryView(previous, previousQuery.queryKey[0].query?.sort ?? "best")
+        ? {
+            ...previous,
+            data: retainQueryView(previous.data, previousQuery.queryKey[0].query?.sort ?? "best"),
+          }
         : undefined,
   });
   const thread = useJsonQuery({
-    ...getCommentThreadOptions({ path: { id: commentId ?? "" }, query: { sort } }),
+    ...apiQueryOptions.getCommentThread({ path: { id: commentId ?? "" }, query: { sort } }),
     enabled: isValidSort && Boolean(commentId),
     placeholderData: (previous, previousQuery) =>
       previous && previousQuery && previousQuery.queryKey[0].path?.id === commentId
         ? {
             ...previous,
-            forest: retainQueryView(
-              previous.forest,
-              previousQuery.queryKey[0].query?.sort ?? "best",
-            ),
+            data: {
+              ...previous.data,
+              forest: retainQueryView(
+                previous.data.forest,
+                previousQuery.queryKey[0].query?.sort ?? "best",
+              ),
+            },
           }
         : undefined,
-    select: (value) => value.forest,
+    select: (value) => value.data.forest,
   });
-  const { query, jsonHref } = commentId ? thread : comments;
+  const { query, jsonHref, fetchedAt } = commentId ? thread : comments;
   const displayed: RetainedQueryView<CommentForest, CommentSort> | undefined = query.data;
   const displayedSort = displayed?.__retainedContext ?? sort;
 
@@ -54,6 +57,7 @@ export function CommentDiscussion() {
     <section aria-label="Comments" className="relative flex min-w-0 flex-col gap-4">
       <PaneMenu
         jsonHref={jsonHref}
+        fetchedAt={fetchedAt}
         label={commentId ? "Comment thread actions" : "Comments actions"}
       />
       <div className="flex flex-wrap items-center justify-between gap-3 pr-10">

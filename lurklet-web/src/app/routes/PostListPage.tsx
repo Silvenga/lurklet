@@ -1,6 +1,6 @@
 import { useLoaderData, useParams } from "react-router";
-import { listSubredditPostsOptions } from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
 import type { SubredditPage } from "@/clients/lurklet-api/generated/types.gen";
+import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
 import { PaneMenu } from "@/components/PaneMenu";
 import { PendingRegion } from "@/components/PendingRegion";
 import type { postListLoader } from "@/features/posts/api/post-list-loader";
@@ -21,13 +21,20 @@ export function PostListPage() {
   if (timeRange) {
     redditUrl.searchParams.set("t", timeRange);
   }
-  const { query: page, jsonHref } = useJsonQuery({
-    ...listSubredditPostsOptions(options),
+  const {
+    query: page,
+    jsonHref,
+    fetchedAt,
+  } = useJsonQuery({
+    ...apiQueryOptions.listSubredditPosts(options),
     placeholderData: (previous, previousQuery) =>
       previous && previousQuery && previousQuery.queryKey[0].path?.subreddit === subreddit
-        ? retainQueryView(previous, {
-            hasPreviousPages: Boolean(previousQuery.queryKey[0].query?.after),
-          })
+        ? {
+            ...previous,
+            data: retainQueryView(previous.data, {
+              hasPreviousPages: Boolean(previousQuery.queryKey[0].query?.after),
+            }),
+          }
         : undefined,
   });
   const displayed: RetainedQueryView<SubredditPage, { hasPreviousPages: boolean }> | undefined =
@@ -36,7 +43,12 @@ export function PostListPage() {
   return (
     <div className="relative flex flex-col gap-6">
       <h1 className="pr-10 text-2xl font-semibold wrap-anywhere">r/{subreddit}</h1>
-      <PaneMenu jsonHref={jsonHref} redditHref={redditUrl.href} label="Listing actions" />
+      <PaneMenu
+        jsonHref={jsonHref}
+        fetchedAt={fetchedAt}
+        redditHref={redditUrl.href}
+        label="Listing actions"
+      />
       <PostListControls sort={sort} {...(timeRange ? { timeRange } : {})} />
       <PendingRegion
         pending={page.isPlaceholderData || (page.isFetching && page.data !== undefined)}

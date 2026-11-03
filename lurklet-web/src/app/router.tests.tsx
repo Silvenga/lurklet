@@ -29,6 +29,30 @@ const CONTENT_REQUESTS = [
   ["post", POST_PATH, "*/api/posts/:id", POST_RESPONSE],
 ] as const;
 
+test.each([
+  ["/r/rust", "Listing actions", "Fetched 10 minutes ago"],
+  ["/r/rust", "Subreddit actions", "Fetched just now"],
+  [POST_PATH, "Post actions", "Fetched 51 minutes ago"],
+  [POST_PATH, "Comments actions", "Fetched 2 hours ago"],
+  [
+    `${POST_PATH}/_/${COMMENTS_RESPONSE.items[0]!.comment.id}`,
+    "Comment thread actions",
+    "Fetched 1 day ago",
+  ],
+])(
+  "When %s exposes %s then its footer should show %s for that response",
+  async (path, label, age) => {
+    const user = userEvent.setup();
+    renderPath(path);
+
+    await user.click(await screen.findByRole("button", { name: label }));
+
+    expect(await screen.findByText(age)).toBeVisible();
+    expect(screen.getByRole("menu")).toHaveAccessibleDescription(age);
+    expect(screen.queryByRole("menuitem", { name: age })).toBeNull();
+  },
+);
+
 function renderPath(path: string, queryClient = createQueryClient()) {
   const router = createMemoryRouter(APP_ROUTES, { initialEntries: [path] });
   const { unmount } = render(

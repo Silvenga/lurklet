@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { getSubredditOptions } from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
+import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
 import { DateAgo } from "@/components/DateAgo";
 import { Markdown } from "@/components/Markdown";
 import { PaneMenu } from "@/components/PaneMenu";
@@ -13,7 +13,11 @@ const NUMBER_FORMAT = new Intl.NumberFormat();
 const MARKDOWN_CLASS = "prose-sm max-w-none overflow-x-auto wrap-anywhere";
 
 export function SubredditMetadata({ subreddit }: { subreddit: string }) {
-  const { query: metadata, jsonHref } = useJsonQuery(getSubredditOptions({ path: { subreddit } }));
+  const {
+    query: metadata,
+    jsonHref,
+    fetchedAt,
+  } = useJsonQuery(apiQueryOptions.getSubreddit({ path: { subreddit } }));
   const details = metadata.isSuccess && metadata.data.kind === "available" ? metadata.data : null;
   const iconUrl = details?.styles?.iconUrl || details?.styles?.legacyIconUrl;
   const header = (
@@ -24,7 +28,7 @@ export function SubredditMetadata({ subreddit }: { subreddit: string }) {
           <Link to={`/r/${encodeURIComponent(subreddit)}`}>r/{subreddit}</Link>
         </h2>
       </div>
-      <PaneMenu jsonHref={jsonHref} label="Subreddit actions" />
+      <PaneMenu jsonHref={jsonHref} fetchedAt={fetchedAt} label="Subreddit actions" />
       {details?.title && <p className="font-medium">{details.title}</p>}
     </div>
   );

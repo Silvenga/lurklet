@@ -31,12 +31,14 @@ export const handlers = [
             appliedSort: new URL(request.url).searchParams.get("sort") ?? "best",
           }
         : { appliedSort: new URL(request.url).searchParams.get("sort") ?? "best", items: [] },
-      { headers: { "Cache-Control": "no-store" } },
+      { headers: { "Cache-Control": "no-store", Age: "7200" } },
     ),
   ),
   http.get("*/api/comments/:id/thread", ({ params }) =>
     params.id === COMMENTS_RESPONSE.items[0]!.comment.id
-      ? HttpResponse.json(COMMENT_THREAD_RESPONSE, { headers: { "Cache-Control": "no-store" } })
+      ? HttpResponse.json(COMMENT_THREAD_RESPONSE, {
+          headers: { "Cache-Control": "no-store", Age: "86400" },
+        })
       : HttpResponse.json(
           { type: "about:blank", title: "Not Found", status: 404 } satisfies Problem,
           { status: 404 },
@@ -58,7 +60,7 @@ export const handlers = [
             descriptionMarkdown: null,
             styles: null,
           },
-      { headers: { "Cache-Control": "no-store" } },
+      { headers: { "Cache-Control": "no-store", Age: "0" } },
     ),
   ),
   http.get("*/api/subreddits/:subreddit/posts", ({ request }) => {
@@ -79,7 +81,7 @@ export const handlers = [
                 ? SUBREDDIT_PAGE_RESPONSE.posts.toSorted((a, b) => b.score - a.score)
                 : SUBREDDIT_PAGE_RESPONSE.posts,
         };
-    return HttpResponse.json(page, { headers: { "Cache-Control": "no-store" } });
+    return HttpResponse.json(page, { headers: { "Cache-Control": "no-store", Age: "600" } });
   }),
   http.get("*/api/posts/:id", ({ params }) => {
     if (params.id !== POST_RESPONSE.id) {
@@ -91,6 +93,8 @@ export const handlers = [
         },
       );
     }
-    return HttpResponse.json(POST_RESPONSE, { headers: { "Cache-Control": "no-store" } });
+    return HttpResponse.json(POST_RESPONSE, {
+      headers: { "Cache-Control": "no-store", Age: "3060" },
+    });
   }),
 ];

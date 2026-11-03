@@ -40,7 +40,7 @@ test("When paging then the old rows and pagination should remain mounted until t
       requests++;
       return new URL(request.url).searchParams.has("after")
         ? pending.promise
-        : HttpResponse.json(SUBREDDIT_PAGE_RESPONSE);
+        : HttpResponse.json(SUBREDDIT_PAGE_RESPONSE, { headers: { Age: "3060" } });
     }),
   );
   const queryClient = createQueryClient();
@@ -69,6 +69,9 @@ test("When paging then the old rows and pagination should remain mounted until t
   const next = screen.getByRole("link", { name: "Next" });
   expect(next).toHaveAttribute("aria-disabled", "true");
   expect(next).not.toHaveAttribute("href");
+  await user.click(screen.getByRole("button", { name: "Listing actions" }));
+  expect(screen.getByText("Fetched 51 minutes ago")).toBeVisible();
+  await user.keyboard("{Escape}");
   await expectJsonMenu("Listing actions", undefined, user);
   await expectJsonMenu(
     "Subreddit actions",
@@ -85,16 +88,19 @@ test("When paging then the old rows and pagination should remain mounted until t
     queryClient.getQueryData(
       listSubredditPostsQueryKey({ path: { subreddit: "rust" }, query: { sort: "hot" } }),
     ),
-  ).toEqual(SUBREDDIT_PAGE_RESPONSE);
+  ).toEqual({ data: SUBREDDIT_PAGE_RESPONSE, fetchedAt: expect.any(Number) });
 
   await act(async () => {
-    pending.resolve(HttpResponse.json(SUBREDDIT_NEXT_PAGE_RESPONSE));
+    pending.resolve(HttpResponse.json(SUBREDDIT_NEXT_PAGE_RESPONSE, { headers: { Age: "120" } }));
   });
 
   await screen.findByRole("link", { name: SUBREDDIT_NEXT_PAGE_RESPONSE.posts[0]!.title });
   expect(pendingRegion).toHaveAttribute("aria-busy", "false");
   expect(pendingRegion).not.toHaveClass("opacity-80");
   expect(screen.queryByRole("link", { name: "Next" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Listing actions" }));
+  expect(screen.getByText("Fetched 2 minutes ago")).toBeVisible();
+  await user.keyboard("{Escape}");
   await expectJsonMenu(
     "Listing actions",
     new URL(
@@ -113,6 +119,9 @@ test("When paging then the old rows and pagination should remain mounted until t
   expect(pendingRegion).toHaveAttribute("aria-busy", "false");
   expect(within(content).queryByRole("status")).toBeNull();
   expect(requests).toBe(2);
+  await user.click(screen.getByRole("button", { name: "Listing actions" }));
+  expect(screen.getByText("Fetched 51 minutes ago")).toBeVisible();
+  await user.keyboard("{Escape}");
   await expectJsonMenu(
     "Listing actions",
     new URL("/api/subreddits/rust/posts?sort=hot", location.origin).href,

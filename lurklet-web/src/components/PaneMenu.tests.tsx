@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, test } from "vitest";
+import { expect, onTestFinished, test, vi } from "vitest";
 import { PaneMenu } from "./PaneMenu";
 
 test("When a pane menu opens with the keyboard then its JSON item should be a new-tab link and Escape should restore focus", async () => {
@@ -27,11 +27,89 @@ test("When a pane menu opens with the keyboard then its JSON item should be a ne
   expect(link).not.toHaveAttribute("aria-disabled");
   expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   expect(screen.queryByRole("menuitem", { name: "Open on Reddit" })).not.toBeInTheDocument();
+  expect(screen.queryByText(/^Fetched /)).toBeNull();
+  expect(screen.queryByRole("separator")).toBeNull();
 
   await user.keyboard("{Escape}");
 
   expect(screen.queryByRole("menu")).toBeNull();
   await waitFor(() => expect(trigger).toHaveFocus());
+});
+
+test("When a menu has response age then its footer should describe the menu without becoming a keyboard stop", async () => {
+  const user = userEvent.setup();
+  const now = Date.now();
+  const { rerender } = render(
+    <PaneMenu
+      jsonHref="/api/posts/example"
+      redditHref="https://reddit.com"
+      fetchedAt={now - 51 * 60_000}
+      label="Post actions"
+    />,
+  );
+  const trigger = screen.getByRole("button", { name: "Post actions" });
+
+  await user.tab();
+  await user.keyboard("{ArrowDown}");
+
+  const menu = await screen.findByRole("menu");
+  const footer = screen.getByText("Fetched 51 minutes ago");
+  expect(menu).toHaveAccessibleDescription("Fetched 51 minutes ago");
+  expect(menu).not.toContainElement(footer);
+  expect(menu.parentElement).toContainElement(footer);
+  expect(footer).not.toHaveAttribute("tabindex");
+  expect(screen.getByRole("separator")).toBeVisible();
+  expect(screen.getAllByRole("menuitem")).toHaveLength(2);
+  await user.tab();
+  await waitFor(() =>
+    expect(screen.getByRole("menuitem", { name: "Open on Reddit" })).toHaveFocus(),
+  );
+
+  await user.keyboard("{ArrowDown}");
+
+  expect(screen.getByRole("menuitem", { name: "JSON" })).toHaveFocus();
+
+  await user.keyboard("{ArrowDown}");
+
+  expect(screen.getByRole("menuitem", { name: "Open on Reddit" })).toHaveFocus();
+
+  rerender(
+    <PaneMenu jsonHref="/api/posts/example" redditHref="https://reddit.com" label="Post actions" />,
+  );
+
+  expect(menu).not.toHaveAttribute("aria-describedby");
+  expect(screen.queryByText(/^Fetched /)).toBeNull();
+  expect(screen.queryByRole("separator")).toBeNull();
+
+  await user.keyboard("{Escape}");
+
+  await waitFor(() => expect(trigger).toHaveFocus());
+});
+
+test("When a response ages while its menu is open or closed then the footer should show the current age", async () => {
+  vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+  const user = userEvent.setup();
+  const now = Date.now();
+  render(<PaneMenu jsonHref="/api/posts/example" fetchedAt={now} label="Post actions" />);
+  const trigger = screen.getByRole("button", { name: "Post actions" });
+
+  await user.click(trigger);
+
+  expect(screen.getByText("Fetched just now")).toBeVisible();
+
+  act(() => vi.advanceTimersByTime(60_000));
+
+  expect(screen.getByText("Fetched 1 minute ago")).toBeVisible();
+
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+  act(() => vi.advanceTimersByTime(60_000));
+  await user.click(trigger);
+
+  expect(screen.getByText("Fetched 2 minutes ago")).toBeVisible();
 });
 
 test("When JSON is unavailable then the Reddit item should remain a keyboard-accessible new-tab link", async () => {

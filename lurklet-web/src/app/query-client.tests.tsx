@@ -4,10 +4,7 @@ import { http, HttpResponse } from "msw/http";
 import { expect, onTestFinished, test, vi } from "vitest";
 import { POST_RESPONSE, SUBREDDIT_PAGE_RESPONSE } from "@/_tests/mocks/fixtures";
 import { server } from "@/_tests/mocks/server";
-import {
-  getPostOptions,
-  listSubredditPostsOptions,
-} from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
+import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
 import { createQueryClient } from "./query-client";
 
 test("When unrelated queries are mounted then each should finish without waiting for the other", async () => {
@@ -28,9 +25,9 @@ test("When unrelated queries are mounted then each should finish without waiting
   const queryClient = createQueryClient();
   const { result, unmount } = renderHook(
     () => ({
-      post: useQuery(getPostOptions({ path: { id: POST_RESPONSE.id } })),
+      post: useQuery(apiQueryOptions.getPost({ path: { id: POST_RESPONSE.id } })),
       posts: useQuery(
-        listSubredditPostsOptions({ path: { subreddit: "rust" }, query: { sort: "hot" } }),
+        apiQueryOptions.listSubredditPosts({ path: { subreddit: "rust" }, query: { sort: "hot" } }),
       ),
     }),
     {
@@ -72,8 +69,8 @@ test("When multiple regions request the same query then they should share one re
   const queryClient = createQueryClient();
   const { result, unmount } = renderHook(
     () => [
-      useQuery(getPostOptions({ path: { id: POST_RESPONSE.id } })),
-      useQuery(getPostOptions({ path: { id: POST_RESPONSE.id } })),
+      useQuery(apiQueryOptions.getPost({ path: { id: POST_RESPONSE.id } })),
+      useQuery(apiQueryOptions.getPost({ path: { id: POST_RESPONSE.id } })),
     ],
     {
       wrapper: ({ children }) => (
@@ -104,7 +101,9 @@ test("When a query fails then it should expose the error without automatic retri
   const queryClient = createQueryClient();
   onTestFinished(() => queryClient.clear());
 
-  const result = queryClient.fetchQuery(getPostOptions({ path: { id: POST_RESPONSE.id } }));
+  const result = queryClient.fetchQuery(
+    apiQueryOptions.getPost({ path: { id: POST_RESPONSE.id } }),
+  );
 
   await expect(result).rejects.toEqual(problem);
   expect(requests).toBe(1);
@@ -119,7 +118,7 @@ test("When focus or connectivity returns then even a stale query should not refe
     }),
   );
   const queryClient = createQueryClient();
-  const options = getPostOptions({ path: { id: POST_RESPONSE.id } });
+  const options = apiQueryOptions.getPost({ path: { id: POST_RESPONSE.id } });
   const { result, unmount } = renderHook(() => useQuery(options), {
     wrapper: ({ children }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

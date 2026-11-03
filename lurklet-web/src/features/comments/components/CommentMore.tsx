@@ -1,9 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import {
-  getPostCommentsOptions,
-  getPostCommentsQueryKey,
-} from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
+import { getPostCommentsQueryKey } from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
+import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { CommentContext } from "@/features/comments/types";
@@ -21,7 +19,7 @@ export function CommentMore({
   const [isRequested, setIsRequested] = useState(false);
   const queryClient = useQueryClient();
   const expansion = useQuery({
-    ...getPostCommentsOptions({
+    ...apiQueryOptions.getPostComments({
       path: { id: context.postId },
       query: { sort: context.sort, cursor },
     }),

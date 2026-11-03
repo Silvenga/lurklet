@@ -11,7 +11,10 @@ import { SubredditMetadata } from "./SubredditMetadata";
 
 function renderMetadata(value: Subreddit) {
   const queryClient = createQueryClient();
-  queryClient.setQueryData(getSubredditQueryKey({ path: { subreddit: "rust" } }), value);
+  queryClient.setQueryData(getSubredditQueryKey({ path: { subreddit: "rust" } }), {
+    data: value,
+    fetchedAt: undefined,
+  });
   const result = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
