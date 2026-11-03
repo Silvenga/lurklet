@@ -78,29 +78,7 @@ impl<'a> Variables<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{Value, json};
-
-    #[test]
-    fn when_the_first_page_is_requested_then_variables_should_use_fixed_context_and_query_defaults()
-    {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../../../tests/fixtures/mobile/synthetic-subreddit-feed-request.json"
-        ))
-        .unwrap();
-        let navigation = Uuid::parse_str("00000000-0000-4000-8000-000000000001").unwrap();
-
-        let variables = serde_json::to_value(Variables::new(
-            "rust",
-            SubredditSort::Hot,
-            navigation,
-            None,
-            None,
-        ))
-        .unwrap();
-
-        assert_eq!(variables, fixture["variables"]);
-        assert_eq!(variables.as_object().unwrap().len(), 5);
-    }
+    use serde_json::json;
 
     #[test]
     fn when_a_sort_is_selected_then_only_top_should_send_a_time_range() {

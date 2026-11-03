@@ -202,7 +202,18 @@ mod tests {
     #[tokio::test]
     async fn when_an_origin_is_supported_then_media_should_use_an_unauthenticated_get_without_accessing_storage()
      {
-        for host in HOSTS {
+        for host in [
+            "emoji.redditmedia.com",
+            "i.redd.it",
+            "preview.redd.it",
+            "external-preview.redd.it",
+            "a.thumbs.redditmedia.com",
+            "b.thumbs.redditmedia.com",
+            "styles.redditmedia.com",
+            "www.redditstatic.com",
+            "packaged-media.redd.it",
+            "v.redd.it",
+        ] {
             let server = MockServer::start().await;
             Mock::given(method("GET"))
                 .and(path("/asset.jpg"))

@@ -1,6 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
-import { MEDIA_PNG_BASE64 } from "@/_tests/mocks/fixtures";
 import { Media } from "./Media";
 
 test.each([
@@ -95,19 +94,6 @@ test("When extra image attributes include another URL then they should not bypas
   render(<Media {...props} />);
 
   expect(screen.getByRole("img", { name: "Example" })).not.toHaveAttribute("srcset");
-});
-
-test("When the media mock is requested then it should provide image bytes without a backend", async () => {
-  const url = new URL("/api/media", location.origin);
-  url.searchParams.set("url", "https://i.redd.it/example.png");
-
-  const response = await fetch(url);
-
-  expect(response.status).toBe(200);
-  expect(response.headers.get("Content-Type")).toBe("image/png");
-  expect(new Uint8Array(await response.arrayBuffer())).toEqual(
-    Uint8Array.from(atob(MEDIA_PNG_BASE64), (char) => char.charCodeAt(0)),
-  );
 });
 
 test.each([

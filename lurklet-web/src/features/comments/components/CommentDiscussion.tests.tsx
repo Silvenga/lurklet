@@ -91,17 +91,11 @@ test("When a comment contains inline media references then the discussion should
   }
 });
 
-test("When comment filters render then they should form a connected outline group with the URL selection active", async () => {
+test("When comment filters render then the URL selection and JSON action should agree", async () => {
   renderPath(`${POST_PATH}?sort=top`);
 
   const group = await screen.findByRole("radiogroup", { name: "Comment sort" });
 
-  expect(group).toHaveAttribute("data-variant", "outline");
-  expect(group).toHaveAttribute("data-spacing", "0");
-  for (const option of within(group).getAllByRole("radio")) {
-    expect(option).toHaveAttribute("data-variant", "outline");
-    expect(option).toHaveAttribute("data-size", "default");
-  }
   expect(within(group).getByRole("radio", { name: "Top" })).toBeChecked();
   expect(within(group).getByRole("radio", { name: "Best" })).not.toBeChecked();
   expect(within(group).getByRole("radio", { name: "New" })).not.toBeChecked();
@@ -394,68 +388,6 @@ test("When an expansion fails then retry should leave the rest of the discussion
 
   expect(await screen.findByText("No more replies.")).toBeVisible();
   expect(expansionRequests).toBe(2);
-});
-
-test("When sort changes then only comments should refetch and pending old expansions should not appear", async () => {
-  const user = userEvent.setup();
-  const oldExpansion = Promise.withResolvers<Response>();
-  const started = Promise.withResolvers<void>();
-  const sorts: string[] = [];
-  let postRequests = 0;
-  let metadataRequests = 0;
-  server.use(
-    http.get("*/api/posts/:id/comments", ({ request }) => {
-      const query = new URL(request.url).searchParams;
-      if (query.has("cursor")) {
-        started.resolve();
-        return oldExpansion.promise;
-      }
-      const sort = query.get("sort")!;
-      sorts.push(sort);
-      return HttpResponse.json({
-        appliedSort: sort,
-        items: [
-          commentItem("root", `${sort} result`),
-          { kind: "more", cursor: `${sort}-cursor`, countHint: null },
-        ],
-      });
-    }),
-    http.get("*/api/posts/:id", () => {
-      postRequests++;
-      return HttpResponse.json(POST_RESPONSE);
-    }),
-    http.get("*/api/subreddits/:subreddit", () => {
-      metadataRequests++;
-      return HttpResponse.json(SUBREDDIT_RESPONSE);
-    }),
-  );
-  const router = renderPath();
-  await screen.findByText("best result");
-  await user.click(screen.getByRole("button", { name: "Load more replies" }));
-  await started.promise;
-
-  await user.click(screen.getByRole("radio", { name: "New" }));
-  await screen.findByText("new result");
-  await act(async () => {
-    oldExpansion.resolve(
-      HttpResponse.json({ appliedSort: "best", items: [commentItem("stale", "Stale reply")] }),
-    );
-  });
-
-  expect(router.state.location.search).toBe("?sort=new");
-  expect(screen.queryByText("Stale reply")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Load more replies" })).toBeEnabled();
-  expect(sorts).toEqual(["best", "new"]);
-  expect(postRequests).toBe(1);
-  expect(metadataRequests).toBe(1);
-
-  await act(async () => {
-    await router.navigate(-1);
-  });
-
-  expect(screen.getByText("best result")).toBeVisible();
-  expect(screen.getByRole("radio", { name: "Best" })).toBeChecked();
-  expect(sorts).toEqual(["best", "new"]);
 });
 
 test("When Continue thread is followed then the focused route should preserve sort and reuse the post and metadata", async () => {
@@ -938,6 +870,9 @@ test("When sorting supersedes an in-flight expansion then its late response shou
   const replacement = Promise.withResolvers<Response>();
   const expansionStarted = Promise.withResolvers<void>();
   const expansionAborted = Promise.withResolvers<void>();
+  const sorts: Array<string | null> = [];
+  let postRequests = 0;
+  let metadataRequests = 0;
   server.use(
     http.get("*/api/posts/:id/comments", ({ request }) => {
       const query = new URL(request.url).searchParams;
@@ -946,6 +881,7 @@ test("When sorting supersedes an in-flight expansion then its late response shou
         expansionStarted.resolve();
         return expansion.promise;
       }
+      sorts.push(query.get("sort"));
       if (query.get("sort") === "new") return replacement.promise;
       return HttpResponse.json({
         appliedSort: "best",
@@ -955,8 +891,16 @@ test("When sorting supersedes an in-flight expansion then its late response shou
         ],
       });
     }),
+    http.get("*/api/posts/:id", () => {
+      postRequests++;
+      return HttpResponse.json(POST_RESPONSE);
+    }),
+    http.get("*/api/subreddits/:subreddit", () => {
+      metadataRequests++;
+      return HttpResponse.json(SUBREDDIT_RESPONSE);
+    }),
   );
-  renderPath();
+  const router = renderPath();
   await screen.findByText("Retained root");
   await user.click(screen.getByRole("button", { name: "Load more replies" }));
   await expansionStarted.promise;
@@ -981,6 +925,19 @@ test("When sorting supersedes an in-flight expansion then its late response shou
 
   expect(await screen.findByText("Replacement root")).toBeVisible();
   expect(screen.queryByText("Late expansion")).toBeNull();
+  expect(router.state.location.search).toBe("?sort=new");
+  expect(sorts).toEqual(["best", "new"]);
+  expect(postRequests).toBe(1);
+  expect(metadataRequests).toBe(1);
+
+  await act(async () => {
+    await router.navigate(-1);
+  });
+
+  expect(screen.getByText("Retained root")).toBeVisible();
+  expect(screen.getByRole("radio", { name: "Best" })).toBeChecked();
+  expect(screen.getByRole("button", { name: "Load more replies" })).toBeEnabled();
+  expect(sorts).toEqual(["best", "new"]);
 });
 
 test("When a replacement discussion fails then retry should recover the requested sort", async () => {

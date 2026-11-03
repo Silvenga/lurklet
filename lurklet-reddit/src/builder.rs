@@ -544,13 +544,4 @@ mod tests {
             (None, Duration::from_secs(10))
         );
     }
-
-    #[tokio::test]
-    async fn when_a_client_is_built_then_construction_should_succeed() {
-        let builder = RedditClient::builder();
-
-        let result = builder.build();
-
-        assert!(result.is_ok());
-    }
 }

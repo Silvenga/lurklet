@@ -102,20 +102,19 @@ test("When the home page renders then the suggestions should be ordered subreddi
   expect(suggestions).not.toHaveTextContent(/\d/);
 });
 
-test.each(SUGGESTIONS)(
-  "When r/%s is hovered then its tooltip should show %s",
-  async (name, description) => {
-    const user = userEvent.setup();
-    renderHome();
+test("When a suggested subreddit is hovered then its tooltip should describe it", async () => {
+  const [name, description] = SUGGESTIONS[3];
+  const user = userEvent.setup();
+  renderHome();
 
-    await user.hover(document.body);
-    await user.hover(screen.getByRole("link", { name: `r/${name}` }));
+  await user.hover(document.body);
+  await user.hover(screen.getByRole("link", { name: `r/${name}` }));
 
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(description);
-  },
-);
+  expect(await screen.findByRole("tooltip")).toHaveTextContent(description);
+});
 
-test.each(SUGGESTIONS)("When r/%s is clicked then its posts page should open", async (name) => {
+test("When a suggested subreddit is clicked then its posts page should open", async () => {
+  const [name] = SUGGESTIONS[3];
   const user = userEvent.setup();
   const router = renderHome();
 

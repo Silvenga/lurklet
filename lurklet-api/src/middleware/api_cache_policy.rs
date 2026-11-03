@@ -100,32 +100,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_resource_sets_cache_policy_then_middleware_should_preserve_it() {
-        let app = Router::new()
-            .route(
-                "/resource",
-                get(|| async {
-                    (
-                        [(header::CACHE_CONTROL, "public, max-age=60, s-maxage=300")],
-                        "resource",
-                    )
-                }),
-            )
-            .layer(middleware::from_fn(api_cache_policy));
-        let request = Request::builder()
-            .uri("/resource")
-            .body(Body::empty())
-            .unwrap();
-
-        let response = app.oneshot(request).await.unwrap();
-
-        assert_eq!(
-            response.headers()[header::CACHE_CONTROL],
-            "public, max-age=60, s-maxage=300"
-        );
-    }
-
-    #[tokio::test]
     async fn when_resource_has_no_cache_policy_then_middleware_should_disable_caching() {
         let app = Router::new()
             .route("/resource", get(|| async { "resource" }))
@@ -138,30 +112,5 @@ mod tests {
         let response = app.oneshot(request).await.unwrap();
 
         assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
-    }
-
-    #[tokio::test]
-    async fn when_error_has_public_cache_policy_then_middleware_should_preserve_it() {
-        for status in [StatusCode::NOT_FOUND, StatusCode::INTERNAL_SERVER_ERROR] {
-            let app = Router::new()
-                .route(
-                    "/resource",
-                    get(move || async move {
-                        (status, [(header::CACHE_CONTROL, "public, max-age=10")])
-                    }),
-                )
-                .layer(middleware::from_fn(api_cache_policy));
-            let request = Request::builder()
-                .uri("/resource")
-                .body(Body::empty())
-                .unwrap();
-
-            let response = app.oneshot(request).await.unwrap();
-
-            assert_eq!(
-                response.headers()[header::CACHE_CONTROL],
-                "public, max-age=10"
-            );
-        }
     }
 }

@@ -48,7 +48,7 @@ mod tests {
     use lurklet_reddit::BuildError;
 
     #[test]
-    fn when_builder_overrides_are_supplied_then_the_cli_should_parse_and_apply_them() {
+    fn when_diagnostic_overrides_are_supplied_then_argument_parsing_should_accept_them() {
         let flags = "cli bootstrap
             --auth-endpoint https://auth.invalid/token --graphql-endpoint https://content.invalid/
             --client-id custom-client --scope one --scope two

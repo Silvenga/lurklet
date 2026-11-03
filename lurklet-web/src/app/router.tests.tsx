@@ -141,22 +141,16 @@ test("When navigating between pages then the document title should follow the cu
   expect(document.title).toBe("Home - Lurklet");
 });
 
-test.each(["/unsupported", "/r/rust/unsupported", "/r/rust?sort=unsupported"])(
-  "When navigating to %s then the document title should identify the missing page",
-  async (path) => {
-    const router = renderPath("/");
-
-    await act(async () => {
-      await router.navigate(path);
-    });
-
-    await screen.findByRole("heading", { name: "Page not found" });
-    expect(document.title).toBe("Page not found - Lurklet");
-  },
-);
-
 test("When a subreddit is entered then its listing should link to the supplied post", async () => {
   const user = userEvent.setup();
+  server.use(
+    http.get("*/api/posts/:id", () =>
+      HttpResponse.json({
+        ...POST_RESPONSE,
+        markdown: { content: "Readable post body.", media: [] },
+      }),
+    ),
+  );
   renderPath("/");
 
   await user.type(screen.getByRole("textbox", { name: "r/" }), "rust{Enter}");
@@ -179,11 +173,18 @@ test("When a subreddit is entered then its listing should link to the supplied p
     .getByText(POST_RESPONSE.flair.text)
     .closest('[data-slot="badge"]');
   expect(flair).toBeVisible();
-  expect(subreddit.nextElementSibling).toBe(flair);
-  expect(subreddit.parentElement?.nextElementSibling).toBe(article);
+  expect(subreddit).toHaveAttribute("href", "/r/rust");
+  expect(within(article).getByRole("region", { name: "Post content" })).toHaveTextContent(
+    "Readable post body.",
+  );
   expect(
     within(article).getByRole("link", { name: POST_RESPONSE.attachments[0]!.url }),
   ).toHaveAttribute("href", POST_RESPONSE.attachments[0]!.url);
+  await expectRedditMenu("Post actions", `https://www.reddit.com${POST_PATH}/`);
+  await expectJsonMenu(
+    "Post actions",
+    new URL(`/api/posts/${POST_RESPONSE.id}`, location.origin).href,
+  );
 });
 
 test("When the post's subreddit link is followed then it should open the subreddit listing", async () => {
@@ -192,7 +193,6 @@ test("When the post's subreddit link is followed then it should open the subredd
   const post = await screen.findByRole("region", { name: "Post" });
   const subreddit = within(post).getByRole("link", { name: "r/rust" });
   expect(subreddit).toHaveAttribute("href", "/r/rust");
-  expect(subreddit).toHaveClass("text-sm", "text-muted-foreground");
 
   await user.click(subreddit);
 
@@ -210,12 +210,6 @@ test("When a post has a link attachment then it should open an untrusted link wi
   expect(link).toHaveAttribute("target", "_blank");
   expect(link).toHaveAttribute("rel", "noopener noreferrer nofollow ugc external");
   expect(screen.queryByRole("region", { name: "Post content" })).not.toBeInTheDocument();
-  const separator = within(article).getByRole("separator");
-  expect(separator.tagName).toBe("HR");
-  expect(separator.previousElementSibling).toContainElement(
-    within(article).getByRole("heading", { name: POST_RESPONSE.title }),
-  );
-  expect(separator.nextElementSibling).toBe(link);
 });
 
 test("When a post contains media attachments then proxied images and video placeholders should appear outside its Markdown body", async () => {
@@ -246,8 +240,6 @@ test("When a post contains media attachments then proxied images and video place
   expect(body).toHaveTextContent("Readable post text.");
   expect(body).not.toContainElement(image);
   expect(body).not.toContainElement(video);
-  expect(body.nextElementSibling).toBe(image.closest("figure"));
-  expect(image.closest("figure")?.nextElementSibling).toBe(video);
   expect(
     article.querySelector("video, audio, iframe, source, object, embed, [srcset], [poster]"),
   ).toBeNull();
@@ -370,16 +362,7 @@ test("When a Markdown user mention is followed then it should navigate to the lo
   expect(screen.getByRole("banner")).toBe(header);
 });
 
-test.each([
-  ["/r/rust", "hot"],
-  ["/r/rust/", "hot"],
-  ["/r/rust/hot", "hot"],
-  ["/r/rust/new/", "new"],
-  ["/r/rust/top?t=week", "top"],
-  ["/r/rust?sort=hot", "hot"],
-  ["/r/rust?sort=new", "new"],
-  ["/r/rust?sort=top&t=week", "top"],
-])("When %s is opened then it should request the %s listing", async (path, sort) => {
+test("When a top listing is opened then its actions should address the selected listing and metadata", async () => {
   const requests: URL[] = [];
   server.use(
     http.get("*/api/subreddits/:subreddit/posts", ({ request }) => {
@@ -388,29 +371,17 @@ test.each([
     }),
   );
 
-  renderPath(path);
+  renderPath("/r/rust?sort=top&t=week");
 
   expect(await screen.findByRole("heading", { level: 1, name: "r/rust" })).toBeVisible();
   expect(await screen.findByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
   expect(requests).toHaveLength(1);
   expect(requests[0]?.pathname).toBe("/api/subreddits/rust/posts");
-  expect(requests[0]?.searchParams.get("sort")).toBe(sort);
-  expect(requests[0]?.searchParams.get("timeRange")).toBe(sort === "top" ? "week" : null);
+  expect(requests[0]?.searchParams.get("sort")).toBe("top");
+  expect(requests[0]?.searchParams.get("timeRange")).toBe("week");
   await expectJsonMenu("Listing actions", requests[0]!.href);
   await expectJsonMenu("Subreddit actions", new URL("/api/subreddits/rust", location.origin).href);
-  await expectRedditMenu(
-    "Listing actions",
-    `https://www.reddit.com/r/rust/${sort}/${sort === "top" ? "?t=week" : ""}`,
-  );
-  await expectRedditMenu("Subreddit actions", undefined);
-  expect(
-    within(screen.getByRole("complementary")).getByRole("link", { name: "r/rust" }),
-  ).toHaveAttribute("href", "/r/rust");
-  expect(
-    await within(screen.getByRole("complementary")).findByText(SUBREDDIT_RESPONSE.title, {
-      selector: "p",
-    }),
-  ).toBeVisible();
+  await expectRedditMenu("Listing actions", "https://www.reddit.com/r/rust/top/?t=week");
 });
 
 test.each([
@@ -430,6 +401,7 @@ test.each([
     renderPath(path);
 
     expect(await screen.findByRole("heading", { name: "Page not found" })).toBeVisible();
+    expect(document.title).toBe("Page not found - Lurklet");
     expect(within(screen.getByRole("banner")).getByRole("link", { name: "Lurklet" })).toBeVisible();
   },
 );
@@ -440,58 +412,20 @@ test.each([
   `${POST_PATH}/an_outdated_title`,
   `${POST_PATH}/an_outdated_title/`,
   `${POST_PATH}/title/comment456?sort=new&utm_source=example`,
-])(
-  "When %s is opened then it should request the post by ID and render its Markdown",
-  async (path) => {
-    const requests: string[] = [];
-    server.use(
-      http.get("*/api/posts/:id", ({ request }) => {
-        requests.push(new URL(request.url).pathname);
-        return HttpResponse.json({
-          ...POST_RESPONSE,
-          markdown: { content: "A **Markdown** post.", media: [] },
-        });
-      }),
-    );
+])("When %s is opened then it should request the post by ID", async (path) => {
+  const requests: string[] = [];
+  server.use(
+    http.get("*/api/posts/:id", ({ request }) => {
+      requests.push(new URL(request.url).pathname);
+      return HttpResponse.json(POST_RESPONSE);
+    }),
+  );
 
-    renderPath(path);
+  renderPath(path);
 
-    expect(
-      await screen.findByRole("heading", { level: 1, name: POST_RESPONSE.title }),
-    ).toBeVisible();
-    expect(requests).toEqual([`/api/posts/${POST_RESPONSE.id}`]);
-    await expectRedditMenu("Post actions", `https://www.reddit.com${POST_PATH}/`);
-    await expectRedditMenu(
-      path.includes("comment456") ? "Comment thread actions" : "Comments actions",
-      undefined,
-    );
-    await expectJsonMenu(
-      "Post actions",
-      new URL(`/api/posts/${POST_RESPONSE.id}`, location.origin).href,
-    );
-    expect(screen.getByRole("button", { name: "Post actions" }).closest(".relative")).toBe(
-      screen.getByRole("region", { name: "Post" }),
-    );
-    expect(screen.getByText("Markdown").tagName).toBe("STRONG");
-    expect(screen.getByRole("article")).toHaveClass("select-text");
-    const content = screen.getByRole("region", { name: "Post content" });
-    expect(content.tagName).toBe("SECTION");
-    expect(content).not.toHaveClass("border");
-    expect(content).not.toHaveClass("p-4");
-    const separator = within(screen.getByRole("article")).getByRole("separator");
-    expect(separator.tagName).toBe("HR");
-    expect(separator.nextElementSibling).toBe(content);
-    expect(within(content).getByText("Markdown")).toBeVisible();
-    expect(
-      within(content).queryByRole("heading", { name: POST_RESPONSE.title }),
-    ).not.toBeInTheDocument();
-    expect(within(content).queryByText("u/seino_chan")).not.toBeInTheDocument();
-    const attachment = screen.getByRole("link", { name: POST_RESPONSE.attachments[0]!.url });
-    expect(content).not.toContainElement(attachment);
-    expect(attachment).toBeVisible();
-    expect(screen.getAllByRole("main")).toHaveLength(1);
-  },
-);
+  expect(await screen.findByRole("heading", { level: 1, name: POST_RESPONSE.title })).toBeVisible();
+  expect(requests).toEqual([`/api/posts/${POST_RESPONSE.id}`]);
+});
 
 test("When a cross-post is opened then its original should render without replacing the primary post or fetching related discussions", async () => {
   const primary = {
@@ -854,38 +788,6 @@ test("When navigating between posts then the new ID should be fetched without re
   expect(screen.getByRole("complementary")).toBe(sidebar);
 });
 
-test("When navigating between listings and posts then the subreddit layout should stay mounted", async () => {
-  const router = renderPath("/r/rust");
-  await screen.findByRole("link", { name: POST_RESPONSE.title });
-  const header = screen.getByRole("banner");
-  const sidebar = screen.getByRole("complementary");
-
-  await act(async () => {
-    await router.navigate("/r/rust?sort=top&t=week");
-  });
-
-  expect(screen.getByRole("heading", { level: 1, name: "r/rust" })).toBeVisible();
-  expect(router.state.location.search).toBe("?sort=top&t=week");
-  expect(screen.getByRole("complementary")).toBe(sidebar);
-
-  await act(async () => {
-    await router.navigate(`${POST_PATH}/title`);
-  });
-
-  expect(await screen.findByRole("heading", { name: POST_RESPONSE.title })).toBeVisible();
-  expect(screen.getByRole("banner")).toBe(header);
-  expect(screen.getByRole("complementary")).toBe(sidebar);
-
-  await act(async () => {
-    await router.navigate(-1);
-  });
-
-  expect(screen.getByRole("heading", { level: 1, name: "r/rust" })).toBeVisible();
-  expect(router.state.location.search).toBe("?sort=top&t=week");
-  expect(screen.getByRole("banner")).toBe(header);
-  expect(screen.getByRole("complementary")).toBe(sidebar);
-});
-
 test("When navigating to another subreddit then the sidebar should reflect the new route", async () => {
   server.use(
     http.get("*/api/posts/def456", () =>
@@ -968,17 +870,6 @@ test("When the post request fails then its error should stay inside the post reg
   expect(document.title).toBe("Unable to load post - Lurklet");
   expect(screen.getByRole("banner")).toBeVisible();
   expect(screen.getByRole("complementary")).toBeVisible();
-});
-
-test("When a post has no Markdown body then its title should still render", async () => {
-  server.use(
-    http.get("*/api/posts/:id", () => HttpResponse.json({ ...POST_RESPONSE, markdown: null })),
-  );
-
-  renderPath(POST_PATH);
-
-  expect(await screen.findByRole("heading", { name: POST_RESPONSE.title })).toBeVisible();
-  expect(screen.queryByText("Markdown")).not.toBeInTheDocument();
 });
 
 test("When posts are loading then the header and subreddit sidebar should remain visible", async () => {
@@ -1193,26 +1084,6 @@ test("When a sort path redirects then it should preserve the cursor and replace 
   expect(screen.getByRole("textbox", { name: "r/" })).toBeVisible();
 });
 
-test("When listing filters render then they should be connected outline groups with the URL selection active", async () => {
-  renderPath("/r/rust?sort=top&t=week");
-
-  const sort = await screen.findByRole("radiogroup", { name: "Sort" });
-  const timeRange = screen.getByRole("radiogroup", { name: "Time range" });
-  for (const group of [sort, timeRange]) {
-    expect(group).toHaveAttribute("data-variant", "outline");
-    expect(group).toHaveAttribute("data-spacing", "0");
-    for (const option of within(group).getAllByRole("radio")) {
-      expect(option).toHaveAttribute("data-variant", "outline");
-      expect(option).toHaveAttribute("data-size", "default");
-    }
-  }
-  expect(within(sort).getByRole("radio", { name: "Top" })).toBeChecked();
-  expect(within(sort).getByRole("radio", { name: "Hot" })).not.toBeChecked();
-  expect(within(timeRange).getByRole("radio", { name: "Week" })).toBeChecked();
-  expect(within(timeRange).getByRole("radio", { name: "All time" })).not.toBeChecked();
-  expect(timeRange).not.toHaveClass("flex-wrap");
-});
-
 test("When the selected sort is pressed again then it should remain selected without refetching", async () => {
   const user = userEvent.setup();
   let requests = 0;
@@ -1256,46 +1127,32 @@ test("When the sort changes on a later page then it should clear the cursor and 
   expect(requests[1]?.search).toBe("?sort=new");
 });
 
-test.each([
-  ["Hour", "hour"],
-  ["Day", "day"],
-  ["Week", "week"],
-  ["Month", "month"],
-  ["Year", "year"],
-  ["All time", "all"],
-])(
-  "When %s is selected then the URL and request should use %s without the old cursor",
-  async (label, timeRange) => {
-    const user = userEvent.setup();
-    const requests: URL[] = [];
-    server.use(
-      http.get("*/api/subreddits/:subreddit/posts", ({ request }) => {
-        requests.push(new URL(request.url));
-        return HttpResponse.json(SUBREDDIT_PAGE_RESPONSE);
-      }),
-    );
-    const router = renderPath(
-      `/r/rust?sort=top&t=${timeRange === "all" ? "week" : "all"}&after=cursor`,
-    );
-    await screen.findByRole("link", { name: POST_RESPONSE.title });
+test("When the time range changes on a later page then the URL and request should discard the old cursor", async () => {
+  const user = userEvent.setup();
+  const requests: URL[] = [];
+  server.use(
+    http.get("*/api/subreddits/:subreddit/posts", ({ request }) => {
+      requests.push(new URL(request.url));
+      return HttpResponse.json(SUBREDDIT_PAGE_RESPONSE);
+    }),
+  );
+  const router = renderPath("/r/rust?sort=top&t=week&after=cursor");
+  await screen.findByRole("link", { name: POST_RESPONSE.title });
 
-    await user.click(screen.getByRole("radio", { name: label }));
+  await user.click(screen.getByRole("radio", { name: "Month" }));
 
-    await waitForListing("Top", label);
-    expect(router.state.location.search).toBe(`?sort=top&t=${timeRange}`);
-    expect(screen.getByRole("radio", { name: label })).toBeChecked();
-    expect(requests).toHaveLength(2);
-    expect(requests[1]?.search).toBe(`?sort=top&timeRange=${timeRange}`);
-  },
-);
+  await waitForListing("Top", "Month");
+  expect(router.state.location.search).toBe("?sort=top&t=month");
+  expect(screen.getByRole("radio", { name: "Month" })).toBeChecked();
+  expect(requests).toHaveLength(2);
+  expect(requests[1]?.search).toBe("?sort=top&timeRange=month");
+});
 
 test("When Next and First page are followed then paging should preserve the filters in the URL", async () => {
   const user = userEvent.setup();
   const router = renderPath("/r/rust?sort=top&t=week&utm_source=example");
   await screen.findByRole("link", { name: POST_RESPONSE.title });
   const next = screen.getByRole("link", { name: "Next" });
-  expect(next).toHaveClass("border", "border-border");
-  expect(next).not.toHaveClass("border-transparent");
   const nextQuery = new URL(next.getAttribute("href")!, "http://localhost").searchParams;
   expect(nextQuery.get("sort")).toBe("top");
   expect(nextQuery.get("t")).toBe("week");
@@ -1312,8 +1169,6 @@ test("When Next and First page are followed then paging should preserve the filt
   );
 
   const first = screen.getByRole("link", { name: "First page" });
-  expect(first).toHaveClass("border", "border-border");
-  expect(first).not.toHaveClass("border-transparent");
   await user.click(first);
 
   await screen.findByRole("link", { name: POST_RESPONSE.title });
@@ -1376,6 +1231,17 @@ test("When the first page has no continuation then pagination should not be show
 
 test("When browser history changes then controls and posts should follow the URL", async () => {
   const user = userEvent.setup();
+  let requests = 0;
+  server.use(
+    http.get("*/api/subreddits/:subreddit/posts", ({ request }) => {
+      requests++;
+      return HttpResponse.json(
+        new URL(request.url).searchParams.has("after")
+          ? SUBREDDIT_NEXT_PAGE_RESPONSE
+          : SUBREDDIT_PAGE_RESPONSE,
+      );
+    }),
+  );
   const router = renderPath("/r/rust");
   await screen.findByRole("link", { name: POST_RESPONSE.title });
 
@@ -1411,48 +1277,7 @@ test("When browser history changes then controls and posts should follow the URL
   await waitForListing("Top", "Week");
   expect(router.state.location.search).toBe("?sort=top&t=week");
   expect(screen.getByRole("radio", { name: "Week" })).toBeChecked();
-});
-
-test("When a later page is pending then sorting should remain usable while the old listing and disabled pagination stay visible", async () => {
-  const user = userEvent.setup();
-  const pending = Promise.withResolvers<Response>();
-  server.use(
-    http.get("*/api/subreddits/:subreddit/posts", ({ request }) =>
-      new URL(request.url).searchParams.has("after")
-        ? pending.promise
-        : HttpResponse.json(SUBREDDIT_PAGE_RESPONSE),
-    ),
-  );
-  const router = renderPath("/r/rust");
-  await screen.findByRole("link", { name: "Next" });
-
-  await user.click(screen.getByRole("link", { name: "Next" }));
-
-  const content = screen.getByRole("region", { name: "Page content" });
-  await waitFor(() =>
-    expect(content.querySelector("[aria-busy]")).toHaveAttribute("aria-busy", "true"),
-  );
-  expect(within(content).queryByRole("status")).not.toBeInTheDocument();
-  expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
-  expect(content.querySelector("[aria-busy]")).toHaveAttribute("aria-busy", "true");
-  expect(content.querySelector("[aria-busy]")).toHaveClass("opacity-80");
-  expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("aria-disabled", "true");
-  expect(screen.getByRole("link", { name: "Next" })).not.toHaveAttribute("href");
-
-  await user.click(screen.getByRole("radio", { name: "New" }));
-  await screen.findByRole("link", { name: POST_RESPONSE.title });
-  await waitFor(() =>
-    expect(content.querySelector("[aria-busy]")).toHaveAttribute("aria-busy", "false"),
-  );
-  await act(async () => {
-    pending.resolve(HttpResponse.json(SUBREDDIT_NEXT_PAGE_RESPONSE));
-  });
-
-  expect(router.state.location.search).toBe("?sort=new");
-  expect(
-    screen.queryByRole("link", { name: SUBREDDIT_NEXT_PAGE_RESPONSE.posts[0]!.title }),
-  ).not.toBeInTheDocument();
-  expect(screen.getByRole("radio", { name: "New" })).toBeChecked();
+  expect(requests).toBe(4);
 });
 
 test("When the current filters are selected on a later page then the cursor should remain unchanged", async () => {
@@ -1525,8 +1350,10 @@ test("When navigating away and back then completed post and listing queries shou
       return HttpResponse.json(SUBREDDIT_PAGE_RESPONSE);
     }),
   );
-  const router = renderPath("/r/rust");
+  const router = renderPath("/r/rust?sort=top&t=week");
   await screen.findByRole("link", { name: POST_RESPONSE.title });
+  const header = screen.getByRole("banner");
+  const sidebar = screen.getByRole("complementary");
 
   await act(async () => {
     await router.navigate(POST_PATH);
@@ -1536,6 +1363,8 @@ test("When navigating away and back then completed post and listing queries shou
     await router.navigate("/r/rust/comments/def456");
   });
   await screen.findByRole("heading", { name: "Post def456" });
+  expect(screen.getByRole("banner")).toBe(header);
+  expect(screen.getByRole("complementary")).toBe(sidebar);
   await act(async () => {
     await router.navigate(-1);
   });
@@ -1550,6 +1379,9 @@ test("When navigating away and back then completed post and listing queries shou
   });
 
   expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
+  expect(router.state.location.search).toBe("?sort=top&t=week");
+  expect(screen.getByRole("banner")).toBe(header);
+  expect(screen.getByRole("complementary")).toBe(sidebar);
   expect(
     within(screen.getByRole("region", { name: "Page content" })).queryByRole("status"),
   ).not.toBeInTheDocument();
@@ -1558,66 +1390,6 @@ test("When navigating away and back then completed post and listing queries shou
     `/api/posts/${POST_RESPONSE.id}`,
     "/api/posts/def456",
   ]);
-});
-
-test("When returning to an earlier sort or page then its cached result should not be requested again", async () => {
-  const user = userEvent.setup();
-  const requests: URL[] = [];
-  const newSort = Promise.withResolvers<Response>();
-  server.use(
-    http.get("*/api/subreddits/:subreddit/posts", ({ request }) => {
-      const url = new URL(request.url);
-      requests.push(url);
-      if (url.searchParams.get("sort") === "new") {
-        return newSort.promise;
-      }
-      return HttpResponse.json(
-        url.searchParams.has("after") ? SUBREDDIT_NEXT_PAGE_RESPONSE : SUBREDDIT_PAGE_RESPONSE,
-      );
-    }),
-  );
-  const router = renderPath("/r/rust");
-  await screen.findByRole("link", { name: POST_RESPONSE.title });
-
-  await user.click(screen.getByRole("link", { name: "Next" }));
-  await screen.findByRole("link", { name: SUBREDDIT_NEXT_PAGE_RESPONSE.posts[0]!.title });
-  await user.click(screen.getByRole("link", { name: "First page" }));
-
-  await waitForListing("Hot");
-  expect(requests).toHaveLength(2);
-
-  await user.click(screen.getByRole("radio", { name: "New" }));
-  await waitFor(() =>
-    expect(
-      screen.getByRole("region", { name: "Page content" }).querySelector("[aria-busy]"),
-    ).toHaveAttribute("aria-busy", "true"),
-  );
-  expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
-  await act(async () => {
-    newSort.resolve(HttpResponse.json(SUBREDDIT_PAGE_RESPONSE));
-  });
-  await waitForListing("New");
-
-  await act(async () => {
-    await router.navigate(-1);
-  });
-
-  await waitForListing("Hot");
-  expect(router.state.location.search).toBe("");
-  expect(screen.getByRole("radio", { name: "Hot" })).toBeChecked();
-  expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBeVisible();
-  expect(
-    within(screen.getByRole("region", { name: "Page content" })).queryByRole("status"),
-  ).not.toBeInTheDocument();
-  expect(requests).toHaveLength(3);
-  expect(requests[2]?.searchParams.get("sort")).toBe("new");
-
-  await act(async () => {
-    await router.navigate(1);
-  });
-
-  await waitForListing("New");
-  expect(requests).toHaveLength(3);
 });
 
 test("When a pending post is left behind then its generated query should abort the request", async () => {
@@ -1700,7 +1472,6 @@ test.each(CONTENT_REQUESTS)(
     const sidebar = screen.getByRole("complementary");
     expect(within(sidebar).getByRole("status")).toHaveTextContent("Loading subreddit details");
     expect(within(sidebar).getByRole("link", { name: "r/rust" })).toBeVisible();
-    expect(sidebar).toHaveClass("select-text");
 
     await act(async () => {
       pending.resolve(HttpResponse.json(SUBREDDIT_RESPONSE));

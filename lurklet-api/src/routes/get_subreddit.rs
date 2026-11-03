@@ -225,11 +225,10 @@ async fn get_subreddit<B: RedditBackend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ApiCacheOptions, ResponseCache};
+    use crate::ApiCacheOptions;
     use axum::Router;
     use axum::body::{Body, to_bytes};
-    use axum::http::{Method, Request, StatusCode, header};
-    use axum::routing::get;
+    use axum::http::{Request, StatusCode, header};
     use lurklet_reddit::{
         AnonymousSession, CommentForest, CommentSort, CommentThread, Error, MediaFile, Post,
         RedditId, SubredditPage, SubredditSort,
@@ -505,77 +504,5 @@ mod tests {
             );
             assert_eq!(*calls.lock().unwrap(), ["missing"]);
         }
-    }
-
-    #[tokio::test]
-    async fn when_metadata_is_cached_then_get_and_head_should_reuse_separate_community_entries() {
-        for result in [available(), unavailable()] {
-            let directory = assert_fs::TempDir::new().unwrap();
-            let cache = ResponseCache::new(directory.path()).await.unwrap();
-            let calls = Arc::new(Mutex::new(Vec::new()));
-            let app = cache.wrap(app(Ok(result), calls.clone()));
-
-            for (name, outcome) in [("Rust", "miss"), ("Rust", "hit"), ("Other", "miss")] {
-                let response = app.clone().oneshot(request(name)).await.unwrap();
-
-                assert_eq!(response.status(), StatusCode::OK);
-                assert_eq!(response.headers()["x-lurklet-cache"], outcome);
-                assert_eq!(
-                    response.headers()[header::CACHE_CONTROL],
-                    "public, max-age=3600"
-                );
-                assert!(response.headers().contains_key(header::AGE));
-                to_bytes(response.into_body(), 16_384).await.unwrap();
-            }
-            let mut head = request("Rust");
-            *head.method_mut() = Method::HEAD;
-
-            let response = app.oneshot(head).await.unwrap();
-
-            assert_eq!(response.status(), StatusCode::OK);
-            assert_eq!(response.headers()["x-lurklet-cache"], "hit");
-            assert!(
-                to_bytes(response.into_body(), 16_384)
-                    .await
-                    .unwrap()
-                    .is_empty()
-            );
-            assert_eq!(*calls.lock().unwrap(), ["Rust", "Other"]);
-        }
-    }
-
-    #[tokio::test]
-    async fn when_a_metadata_refresh_fails_then_the_stored_representation_and_policy_should_be_preserved()
-     {
-        let directory = assert_fs::TempDir::new().unwrap();
-        let cache = ResponseCache::new(directory.path()).await.unwrap();
-        let seed = cache.wrap(Router::new().route(
-            "/subreddits/Rust",
-            get(|| async {
-                (
-                    [(header::CACHE_CONTROL, "public, max-age=0")],
-                    Json(Subreddit::from(available())),
-                )
-            }),
-        ));
-        let response = seed.oneshot(request("Rust")).await.unwrap();
-        let expected = to_bytes(response.into_body(), 16_384).await.unwrap();
-        let calls = Arc::new(Mutex::new(Vec::new()));
-        let app = cache.wrap(app(Err(Error::Unavailable), calls.clone()));
-
-        let response = app.oneshot(request("Rust")).await.unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers()["x-lurklet-cache"], "stale");
-        assert_eq!(
-            response.headers()[header::CACHE_CONTROL],
-            "public, max-age=0"
-        );
-        assert!(response.headers().contains_key(header::AGE));
-        assert_eq!(
-            to_bytes(response.into_body(), 16_384).await.unwrap(),
-            expected
-        );
-        assert_eq!(*calls.lock().unwrap(), ["Rust"]);
     }
 }

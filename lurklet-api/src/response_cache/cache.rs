@@ -614,6 +614,7 @@ mod tests {
             response.headers()[header::CACHE_CONTROL],
             "public, max-age=10"
         );
+        to_bytes(response.into_body(), 4096).await.unwrap();
         assert!(
             cache
                 .store
@@ -742,30 +743,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_a_response_is_not_shared_cacheable_then_it_should_not_be_stored() {
-        for policy in [
-            "",
-            "no-store",
-            "private, max-age=60",
-            "public",
-            "max-age=invalid",
+    async fn when_a_response_finishes_then_only_shared_cacheable_content_should_be_stored() {
+        for (policy, stored) in [
+            ("", false),
+            ("no-store", false),
+            ("private, max-age=60", false),
+            ("public", false),
+            ("max-age=invalid", false),
+            ("public, max-age=60", true),
         ] {
             let directory = TempDir::new().unwrap();
             let cache = ResponseCache::new(directory.path()).await.unwrap();
             let app = cache.wrap(Router::new().route(
                 "/resource",
-                get(move || async move { ([(header::CACHE_CONTROL, policy)], "uncached") }),
+                get(move || async move { ([(header::CACHE_CONTROL, policy)], "content") }),
             ));
 
             let response = app.oneshot(request("/resource")).await.unwrap();
 
             assert_eq!(response.headers()["x-lurklet-cache"], "miss", "{policy}");
-            assert!(
+            assert_eq!(
+                to_bytes(response.into_body(), 4096).await.unwrap(),
+                b"content".as_slice()
+            );
+            assert_eq!(
                 cache
                     .store
                     .read(&CacheKey::new(&"/resource".parse().unwrap()))
                     .await
-                    .is_none(),
+                    .is_some(),
+                stored,
                 "{policy}"
             );
         }

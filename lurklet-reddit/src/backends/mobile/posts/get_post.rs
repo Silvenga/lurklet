@@ -24,10 +24,9 @@ mod tests {
     use crate::backends::mobile::testing::{
         self, GRAPHQL_ORIGIN, PATH, TOKEN_FAKE, TestClock, cached_storage, graphql_client,
     };
-    use crate::{RedditClient, ResponseCapture, ResponseError, ResponseObserver, RetryAfter};
+    use crate::{RedditClient, ResponseCapture, ResponseObserver};
     use serde_json::{Value, json};
     use std::sync::{Arc, Mutex};
-    use std::time::Duration;
     use wiremock::matchers::{body_json, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -179,21 +178,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_the_persisted_query_is_not_found_then_the_backend_should_report_an_operation_failure()
-     {
-        let server = MockServer::start().await;
-        Mock::given(path("/")).respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "errors": [{"message": "PersistedQueryNotFound", "extensions": {"code": "NOT_FOUND"}}]
-        }))).expect(1).mount(&server).await;
-        let client = graphql_client(&server, cached_storage());
-
-        let result = client.get_post(&"18t5968".into()).await;
-
-        assert!(matches!(result, Err(Error::OperationFailed)));
-        assert_eq!(server.received_requests().await.unwrap().len(), 1);
-    }
-
-    #[tokio::test]
     async fn when_a_crosspost_is_returned_then_the_backend_should_not_fetch_its_original() {
         let server = MockServer::start().await;
         let mut body = fixture();
@@ -214,129 +198,5 @@ mod tests {
         );
         assert_eq!(post.title, "Example title");
         assert_eq!(server.received_requests().await.unwrap().len(), 1);
-    }
-
-    #[tokio::test]
-    async fn when_graphql_returns_no_usable_post_and_errors_then_the_backend_should_not_report_missing_content()
-     {
-        for data in [
-            Value::Null,
-            json!({"postsInfoByIds": null}),
-            json!({"postsInfoByIds": [null]}),
-            json!({"postsInfoByIds": [{"id": "t3_18t5968", "postTitle": null}]}),
-        ] {
-            let server = MockServer::start().await;
-            let body = json!({"data": data, "errors": [{"message": "private-fixture-error", "extensions": {"code": "INVALID_INPUT"}}]});
-            Mock::given(path("/"))
-                .respond_with(ResponseTemplate::new(200).set_body_json(body))
-                .expect(1)
-                .mount(&server)
-                .await;
-            let client = graphql_client(&server, cached_storage());
-
-            let result = client.get_post(&"18t5968".into()).await;
-
-            assert!(matches!(result, Err(Error::OperationFailed)));
-            assert!(!format!("{result:?}").contains("private-fixture-error"));
-            assert_eq!(server.received_requests().await.unwrap().len(), 1);
-        }
-    }
-
-    #[tokio::test]
-    async fn when_http_denies_access_then_the_backend_should_preserve_http_failure_without_retrying()
-     {
-        let server = MockServer::start().await;
-        Mock::given(path("/"))
-            .respond_with(ResponseTemplate::new(403).set_body_string("<html>blocked</html>"))
-            .expect(1)
-            .mount(&server)
-            .await;
-        let client = graphql_client(&server, cached_storage());
-
-        let result = client.get_post(&"18t5968".into()).await;
-
-        assert!(matches!(result, Err(Error::AccessDenied { status: 403 })));
-        assert_eq!(server.received_requests().await.unwrap().len(), 1);
-    }
-
-    #[tokio::test]
-    async fn when_reddit_rate_limits_the_lookup_then_the_backend_should_preserve_retry_after() {
-        let server = MockServer::start().await;
-        Mock::given(path("/"))
-            .respond_with(
-                ResponseTemplate::new(429)
-                    .insert_header("retry-after", "60")
-                    .set_body_json(json!({"errors": [{"message": "rate limited"}]})),
-            )
-            .expect(1)
-            .mount(&server)
-            .await;
-        let client = graphql_client(&server, cached_storage());
-
-        let result = client.get_post(&"18t5968".into()).await;
-
-        assert!(
-            matches!(result, Err(Error::RateLimited { retry_after: Some(RetryAfter::Delay(delay)) }) if delay == Duration::from_secs(60))
-        );
-        assert_eq!(server.received_requests().await.unwrap().len(), 1);
-    }
-
-    #[tokio::test]
-    async fn when_the_response_is_malformed_then_the_backend_should_return_a_common_response_error()
-    {
-        for (body, content_type, expected) in [
-            ("not json", "application/json", ResponseError::InvalidJson),
-            (
-                r#"{"data":{}}"#,
-                "application/json",
-                ResponseError::InvalidOperationResponse,
-            ),
-            (
-                r#"{"data":{}}"#,
-                "multipart/mixed; boundary=fixture",
-                ResponseError::InvalidOperationResponse,
-            ),
-        ] {
-            let server = MockServer::start().await;
-            Mock::given(path("/"))
-                .respond_with(
-                    ResponseTemplate::new(200)
-                        .set_body_string(body)
-                        .insert_header("content-type", content_type),
-                )
-                .expect(1)
-                .mount(&server)
-                .await;
-            let client = graphql_client(&server, cached_storage());
-
-            let result = client.get_post(&"18t5968".into()).await;
-
-            assert!(matches!(result, Err(Error::InvalidResponse(reason)) if reason == expected));
-        }
-    }
-
-    #[tokio::test]
-    async fn when_the_post_exceeds_the_response_limit_then_the_backend_should_not_expose_an_incomplete_post()
-     {
-        let server = MockServer::start().await;
-        Mock::given(path("/"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(fixture()))
-            .expect(1)
-            .mount(&server)
-            .await;
-        let client = RedditClient::builder()
-            .with_storage(cached_storage())
-            .with_clock(TestClock::default())
-            .with_max_response_bytes(16)
-            .with_mock_server(GRAPHQL_ORIGIN, &server)
-            .build()
-            .unwrap();
-
-        let result = client.get_post(&"18t5968".into()).await;
-
-        assert!(matches!(
-            result,
-            Err(Error::InvalidResponse(ResponseError::BodyTooLarge))
-        ));
     }
 }

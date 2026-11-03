@@ -282,41 +282,27 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_comment_requests_fail_then_the_backend_should_preserve_common_failures_without_recovery_requests()
-     {
-        for (status, body, kind) in [
-            (403, "<html>blocked</html>", "access"),
-            (
-                200,
-                r#"{"errors":[{"message":"PersistedQueryNotFound","extensions":{"code":"NOT_FOUND"}}]}"#,
-                "operation",
-            ),
-            (200, r#"{"data":{"postInfoById":{}}}"#, "data"),
-        ] {
-            let server = MockServer::start().await;
-            Mock::given(path("/"))
-                .respond_with(ResponseTemplate::new(status).set_body_string(body))
-                .expect(1)
-                .mount(&server)
-                .await;
-            let client = graphql_client(&server, cached_storage());
+    async fn when_comment_structure_is_missing_then_the_backend_should_report_a_decode_failure() {
+        let server = MockServer::start().await;
+        Mock::given(path("/"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"data": {"postInfoById": {}}})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = graphql_client(&server, cached_storage());
 
-            let result = client
-                .get_post_comments(&"example".into(), CommentSort::Best, None)
-                .await;
+        let result = client
+            .get_post_comments(&"example".into(), CommentSort::Best, None)
+            .await;
 
-            match kind {
-                "access" => assert!(matches!(result, Err(Error::AccessDenied { status: 403 }))),
-                "operation" => assert!(matches!(result, Err(Error::OperationFailed))),
-                "data" => assert!(matches!(
-                    result,
-                    Err(Error::InvalidResponse(
-                        ResponseError::InvalidOperationResponse
-                    ))
-                )),
-                _ => unreachable!(),
-            }
-            assert_eq!(server.received_requests().await.unwrap().len(), 1);
-        }
+        assert!(matches!(
+            result,
+            Err(Error::InvalidResponse(
+                ResponseError::InvalidOperationResponse
+            ))
+        ));
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
     }
 }

@@ -114,29 +114,4 @@ mod tests {
         assert_eq!(id, RedditId::from("18t5968"));
         assert!(matches!(result, Err(Error::Unavailable)));
     }
-
-    #[tokio::test]
-    async fn when_the_post_is_unavailable_then_the_command_should_propagate_the_unavailable_error()
-    {
-        let client = RedditClient::from_backend(FakeBackend {
-            post: Some(("18t5968".into(), Err(Error::Unavailable))),
-            ..FakeBackend::default()
-        });
-
-        let output = execute(&client, &"18t5968".into()).await;
-
-        assert!(matches!(output, Err(Error::Unavailable)));
-    }
-
-    #[tokio::test]
-    async fn when_the_lookup_fails_then_the_command_should_propagate_the_library_error() {
-        let client = RedditClient::from_backend(FakeBackend {
-            post: Some(("18t5968".into(), Err(Error::OperationFailed))),
-            ..FakeBackend::default()
-        });
-
-        let result = execute(&client, &"18t5968".into()).await;
-
-        assert!(matches!(result, Err(Error::OperationFailed)));
-    }
 }

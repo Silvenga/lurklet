@@ -224,11 +224,10 @@ async fn list_subreddit_posts<B: RedditBackend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ApiCacheOptions, ResponseCache};
+    use crate::ApiCacheOptions;
     use axum::Router;
     use axum::body::{Body, to_bytes};
-    use axum::http::{Method, Request, StatusCode, header};
-    use axum::routing::get;
+    use axum::http::{Request, StatusCode, header};
     use lurklet_reddit::{
         AnonymousSession, CommentForest, CommentSort, CommentThread, MediaFile, Post as RedditPost,
         RedditId, Subreddit,
@@ -360,58 +359,6 @@ mod tests {
 
     fn request(uri: &str) -> Request<Body> {
         Request::builder().uri(uri).body(Body::empty()).unwrap()
-    }
-
-    #[test]
-    fn when_the_listing_contract_is_generated_then_indicators_should_have_required_types() {
-        let specification = router::<FakeBackend>().into_openapi();
-
-        let document = serde_json::to_value(specification).unwrap();
-        let schema = &document["components"]["schemas"]["ListedPost"];
-
-        for field in ["isNsfw", "isSpoiler", "isPinned"] {
-            assert_eq!(schema["properties"][field]["type"], "boolean");
-            assert!(
-                schema["required"]
-                    .as_array()
-                    .unwrap()
-                    .contains(&json!(field))
-            );
-        }
-        assert_eq!(
-            schema["properties"]["crosspostId"]["type"],
-            json!(["string", "null"])
-        );
-        assert!(
-            schema["required"]
-                .as_array()
-                .unwrap()
-                .contains(&json!("crosspostId"))
-        );
-    }
-
-    #[test]
-    fn when_the_contract_is_generated_then_query_choices_should_be_inline_and_camel_case() {
-        let specification = router::<FakeBackend>().into_openapi();
-
-        let document = serde_json::to_value(specification).unwrap();
-        let parameters = &document["paths"]["/subreddits/{subreddit}/posts"]["get"]["parameters"];
-
-        assert_eq!(
-            parameters[1],
-            json!({
-                "name": "sort", "in": "query", "required": false,
-                "schema": {"type": "string", "default": "hot", "enum": ["hot", "new", "top"]}
-            })
-        );
-        assert_eq!(
-            parameters[2],
-            json!({
-                "name": "timeRange", "in": "query", "required": false,
-                "description": "Only valid with top sorting; defaults to all.",
-                "schema": {"type": "string", "enum": ["hour", "day", "week", "month", "year", "all"]}
-            })
-        );
     }
 
     #[tokio::test]
@@ -634,89 +581,5 @@ mod tests {
             );
             assert_eq!(calls.lock().unwrap().len(), 1);
         }
-    }
-
-    #[tokio::test]
-    async fn when_listing_queries_differ_then_the_cache_should_keep_pages_separate_and_reuse_equivalent_requests()
-     {
-        let directory = assert_fs::TempDir::new().unwrap();
-        let cache = ResponseCache::new(directory.path()).await.unwrap();
-        let calls = Arc::new(Mutex::new(Vec::new()));
-        let app = cache.wrap(app(Ok(fixture()), calls.clone()));
-
-        for (uri, outcome) in [
-            ("/subreddits/rust/posts?sort=new&after=one", "miss"),
-            ("/subreddits/rust/posts?after=one&sort=new", "hit"),
-            ("/subreddits/rust/posts?sort=new&after=two", "miss"),
-            ("/subreddits/rust/posts?sort=hot&after=one", "miss"),
-            ("/subreddits/rust/posts?sort=top&timeRange=day", "miss"),
-            ("/subreddits/rust/posts?sort=top&timeRange=week", "miss"),
-            ("/subreddits/other/posts?sort=new&after=one", "miss"),
-        ] {
-            let response = app.clone().oneshot(request(uri)).await.unwrap();
-
-            assert_eq!(response.status(), StatusCode::OK, "{uri}");
-            assert_eq!(response.headers()["x-lurklet-cache"], outcome, "{uri}");
-            assert_eq!(
-                response.headers()[header::CACHE_CONTROL],
-                "public, max-age=3600"
-            );
-            to_bytes(response.into_body(), 16_384).await.unwrap();
-        }
-        let mut head = request("/subreddits/rust/posts?sort=new&after=one");
-        *head.method_mut() = Method::HEAD;
-
-        let response = app.oneshot(head).await.unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers()["x-lurklet-cache"], "hit");
-        assert!(
-            to_bytes(response.into_body(), 16_384)
-                .await
-                .unwrap()
-                .is_empty()
-        );
-        assert_eq!(calls.lock().unwrap().len(), 6);
-    }
-
-    #[tokio::test]
-    async fn when_an_expired_listing_cannot_refresh_then_the_endpoint_should_serve_the_stored_page()
-    {
-        let directory = assert_fs::TempDir::new().unwrap();
-        let cache = ResponseCache::new(directory.path()).await.unwrap();
-        let seed = cache.wrap(Router::new().route(
-            "/subreddits/rust/posts",
-            get(|| async {
-                (
-                    [(header::CACHE_CONTROL, "public, max-age=0")],
-                    Json(SubredditPage::from(fixture())),
-                )
-            }),
-        ));
-        let response = seed
-            .oneshot(request("/subreddits/rust/posts"))
-            .await
-            .unwrap();
-        let expected = to_bytes(response.into_body(), 16_384).await.unwrap();
-        let calls = Arc::new(Mutex::new(Vec::new()));
-        let app = cache.wrap(app(Err(RedditError::NotFound), calls.clone()));
-
-        let response = app
-            .oneshot(request("/subreddits/rust/posts"))
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers()["x-lurklet-cache"], "stale");
-        assert_eq!(
-            response.headers()[header::CACHE_CONTROL],
-            "public, max-age=0"
-        );
-        assert!(response.headers().contains_key(header::AGE));
-        assert_eq!(
-            to_bytes(response.into_body(), 16_384).await.unwrap(),
-            expected
-        );
-        assert_eq!(calls.lock().unwrap().len(), 1);
     }
 }

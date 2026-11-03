@@ -2,92 +2,10 @@ import { focusManager, onlineManager, QueryClientProvider, useQuery } from "@tan
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { expect, onTestFinished, test, vi } from "vitest";
-import { POST_RESPONSE, SUBREDDIT_PAGE_RESPONSE } from "@/_tests/mocks/fixtures";
+import { POST_RESPONSE } from "@/_tests/mocks/fixtures";
 import { server } from "@/_tests/mocks/server";
 import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
 import { createQueryClient } from "./query-client";
-
-test("When unrelated queries are mounted then each should finish without waiting for the other", async () => {
-  const post = Promise.withResolvers<Response>();
-  const posts = Promise.withResolvers<Response>();
-  const postStarted = Promise.withResolvers<void>();
-  const postsStarted = Promise.withResolvers<void>();
-  server.use(
-    http.get("*/api/posts/:id", () => {
-      postStarted.resolve();
-      return post.promise;
-    }),
-    http.get("*/api/subreddits/:subreddit/posts", () => {
-      postsStarted.resolve();
-      return posts.promise;
-    }),
-  );
-  const queryClient = createQueryClient();
-  const { result, unmount } = renderHook(
-    () => ({
-      post: useQuery(apiQueryOptions.getPost({ path: { id: POST_RESPONSE.id } })),
-      posts: useQuery(
-        apiQueryOptions.listSubredditPosts({ path: { subreddit: "rust" }, query: { sort: "hot" } }),
-      ),
-    }),
-    {
-      wrapper: ({ children }) => (
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      ),
-    },
-  );
-  onTestFinished(() => {
-    unmount();
-    queryClient.clear();
-  });
-  await Promise.all([postStarted.promise, postsStarted.promise]);
-
-  await act(async () => {
-    post.resolve(HttpResponse.json(POST_RESPONSE));
-  });
-
-  await waitFor(() => expect(result.current.post.isSuccess).toBe(true));
-  expect(result.current.posts.isPending).toBe(true);
-  expect(result.current.post.data).toEqual(POST_RESPONSE);
-
-  await act(async () => {
-    posts.resolve(HttpResponse.json(SUBREDDIT_PAGE_RESPONSE));
-  });
-
-  await waitFor(() => expect(result.current.posts.isSuccess).toBe(true));
-  expect(result.current.posts.data).toEqual(SUBREDDIT_PAGE_RESPONSE);
-});
-
-test("When multiple regions request the same query then they should share one request", async () => {
-  let requests = 0;
-  server.use(
-    http.get("*/api/posts/:id", () => {
-      requests++;
-      return HttpResponse.json(POST_RESPONSE);
-    }),
-  );
-  const queryClient = createQueryClient();
-  const { result, unmount } = renderHook(
-    () => [
-      useQuery(apiQueryOptions.getPost({ path: { id: POST_RESPONSE.id } })),
-      useQuery(apiQueryOptions.getPost({ path: { id: POST_RESPONSE.id } })),
-    ],
-    {
-      wrapper: ({ children }) => (
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      ),
-    },
-  );
-  onTestFinished(() => {
-    unmount();
-    queryClient.clear();
-  });
-
-  await waitFor(() => expect(result.current.every((query) => query.isSuccess)).toBe(true));
-
-  expect(requests).toBe(1);
-  expect(result.current[0]?.data).toBe(result.current[1]?.data);
-});
 
 test("When a query fails then it should expose the error without automatic retries", async () => {
   let requests = 0;

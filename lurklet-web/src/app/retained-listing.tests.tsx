@@ -191,35 +191,35 @@ test("When switching subreddits then the old community's posts should not be ret
   expect(await within(content).findByText("No posts")).toBeVisible();
 });
 
-test("When filters change rapidly then only the latest response should replace the retained listing", async () => {
+test("When a filter supersedes pending pagination then only the latest response should replace the retained listing", async () => {
   const user = userEvent.setup();
-  const newPage = Promise.withResolvers<Response>();
+  const nextPage = Promise.withResolvers<Response>();
   const topPage = Promise.withResolvers<Response>();
-  const newStarted = Promise.withResolvers<void>();
+  const nextStarted = Promise.withResolvers<void>();
   const topStarted = Promise.withResolvers<void>();
   server.use(
     http.get("*/api/subreddits/:subreddit/posts", ({ request }) => {
-      const sort = new URL(request.url).searchParams.get("sort");
-      if (sort === "new") {
-        newStarted.resolve();
-        return newPage.promise;
+      const query = new URL(request.url).searchParams;
+      if (query.has("after")) {
+        nextStarted.resolve();
+        return nextPage.promise;
       }
-      if (sort === "top") {
+      if (query.get("sort") === "top") {
         topStarted.resolve();
         return topPage.promise;
       }
       return HttpResponse.json(SUBREDDIT_PAGE_RESPONSE);
     }),
   );
-  renderPath("/r/rust");
+  const router = renderPath("/r/rust");
   const oldPost = await screen.findByRole("link", { name: POST_RESPONSE.title });
 
-  await user.click(screen.getByRole("radio", { name: "New" }));
-  await newStarted.promise;
+  await user.click(screen.getByRole("link", { name: "Next" }));
+  await nextStarted.promise;
   await user.click(screen.getByRole("radio", { name: "Top" }));
   await topStarted.promise;
   await act(async () => {
-    newPage.resolve(
+    nextPage.resolve(
       HttpResponse.json({
         ...SUBREDDIT_PAGE_RESPONSE,
         posts: [{ ...SUBREDDIT_PAGE_RESPONSE.posts[0]!, title: "Outdated result" }],
@@ -230,6 +230,8 @@ test("When filters change rapidly then only the latest response should replace t
   expect(screen.getByRole("link", { name: POST_RESPONSE.title })).toBe(oldPost);
   expect(screen.queryByRole("link", { name: "Outdated result" })).toBeNull();
   expect(oldPost.closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
+  expect(router.state.location.search).toBe("?sort=top");
+  expect(screen.getByRole("radio", { name: "Top" })).toBeChecked();
 
   await act(async () => {
     topPage.resolve(

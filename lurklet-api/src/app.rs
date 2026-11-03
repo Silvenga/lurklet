@@ -195,7 +195,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_api_freshness_is_configured_then_response_headers_and_disk_expiration_should_agree()
+    async fn when_api_freshness_is_configured_then_headers_should_match_and_only_positive_values_should_allow_hits()
      {
         for seconds in [0, 42, 3600] {
             for caching in [false, true] {

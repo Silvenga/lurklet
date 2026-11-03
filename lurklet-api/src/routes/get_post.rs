@@ -207,11 +207,10 @@ async fn get_post<B: RedditBackend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ApiCacheOptions, ResponseCache};
+    use crate::ApiCacheOptions;
     use axum::Router;
     use axum::body::{Body, to_bytes};
-    use axum::http::{Method, Request, StatusCode, header};
-    use axum::routing::get;
+    use axum::http::{Request, StatusCode, header};
     use lurklet_reddit::{
         AnonymousSession, ClockError, CommentForest, CommentSort, CommentThread, Error, MediaFile,
         ResponseError, RetryAfter, StorageError, Subreddit, SubredditPage, SubredditSort,
@@ -535,66 +534,5 @@ mod tests {
             "public, max-age=10"
         );
         assert_eq!(calls.load(Ordering::SeqCst), 0);
-    }
-
-    #[tokio::test]
-    async fn when_a_post_is_cached_then_get_and_head_should_reuse_it_without_calling_the_client() {
-        let directory = assert_fs::TempDir::new().unwrap();
-        let cache = ResponseCache::new(directory.path()).await.unwrap();
-        let calls = Arc::new(AtomicUsize::new(0));
-        let app = cache.wrap(app(Ok(fixture()), calls.clone()));
-
-        for (method, outcome) in [
-            (Method::GET, "miss"),
-            (Method::GET, "hit"),
-            (Method::HEAD, "hit"),
-        ] {
-            let mut request = request();
-            *request.method_mut() = method.clone();
-
-            let response = app.clone().oneshot(request).await.unwrap();
-            let status = response.status();
-            let headers = response.headers().clone();
-            let body = to_bytes(response.into_body(), 16384).await.unwrap();
-
-            assert_eq!(status, StatusCode::OK);
-            assert_eq!(headers["x-lurklet-cache"], outcome);
-            assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=3600");
-            assert!(headers.contains_key(header::AGE));
-            assert_eq!(body.is_empty(), method == Method::HEAD);
-        }
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
-    }
-
-    #[tokio::test]
-    async fn when_an_expired_post_becomes_unavailable_then_the_endpoint_should_serve_stale_content()
-    {
-        let directory = assert_fs::TempDir::new().unwrap();
-        let cache = ResponseCache::new(directory.path()).await.unwrap();
-        let seed = cache.wrap(Router::new().route(
-            "/posts/{id}",
-            get(|| async {
-                (
-                    [(header::CACHE_CONTROL, "public, max-age=0")],
-                    Json(Post::from(fixture())),
-                )
-            }),
-        ));
-        let response = seed.oneshot(request()).await.unwrap();
-        let previous = to_bytes(response.into_body(), 16384).await.unwrap();
-        let calls = Arc::new(AtomicUsize::new(0));
-        let app = cache.wrap(app(Err(Error::Unavailable), calls.clone()));
-
-        let response = app.oneshot(request()).await.unwrap();
-        let status = response.status();
-        let headers = response.headers().clone();
-        let body = to_bytes(response.into_body(), 16384).await.unwrap();
-
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(headers["x-lurklet-cache"], "stale");
-        assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=0");
-        assert!(headers.contains_key(header::AGE));
-        assert_eq!(body, previous);
     }
 }

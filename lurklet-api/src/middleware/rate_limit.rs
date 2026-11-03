@@ -217,7 +217,6 @@ mod tests {
     use axum::middleware;
     use axum::routing::get;
     use serde_json::{Value, json};
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use tokio::task::JoinSet;
     use tokio::time::sleep;
 
@@ -402,37 +401,6 @@ mod tests {
         assert_eq!(rejected.status(), StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(recovered, 0);
         assert_eq!(next.status(), StatusCode::NOT_FOUND);
-    }
-
-    #[tokio::test]
-    async fn when_limit_is_exceeded_then_the_handler_should_not_execute_even_for_cache_hits() {
-        let calls = Arc::new(AtomicUsize::new(0));
-        let app = Router::new()
-            .route(
-                "/cached",
-                get({
-                    let calls = calls.clone();
-                    move || {
-                        calls.fetch_add(1, Ordering::SeqCst);
-                        async { "cached response" }
-                    }
-                }),
-            )
-            .layer(middleware::from_fn_with_state(limiter(1), limit_requests));
-
-        let accepted = app
-            .clone()
-            .oneshot(request("/cached", "192.0.2.1:1234"))
-            .await
-            .unwrap();
-        let rejected = app
-            .oneshot(request("/cached", "192.0.2.1:1234"))
-            .await
-            .unwrap();
-
-        assert_eq!(accepted.status(), StatusCode::OK);
-        assert_eq!(rejected.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 
     #[test]

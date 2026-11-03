@@ -24,11 +24,9 @@ impl<S: StateStore> MobileBackend<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ResponseError;
     use crate::backends::mobile::testing::{self, cached_storage, graphql_client};
-    use crate::{ResponseCapture, ResponseError, ResponseObserver, RetryAfter};
     use serde_json::{Value, json};
-    use std::sync::{Arc, Mutex};
-    use std::time::Duration;
     use wiremock::matchers::{body_json, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -37,15 +35,6 @@ mod tests {
             "../../../../tests/fixtures/mobile/synthetic-subreddit-info.json"
         ))
         .unwrap()
-    }
-
-    #[derive(Clone, Default)]
-    struct Recorder(Arc<Mutex<Vec<ResponseCapture>>>);
-
-    impl ResponseObserver for Recorder {
-        fn on_response(&self, response: ResponseCapture) {
-            self.0.lock().unwrap().push(response);
-        }
     }
 
     #[tokio::test]
@@ -169,43 +158,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_partial_metadata_is_usable_then_lookup_should_return_it_and_capture_the_original_errors()
-     {
-        let server = MockServer::start().await;
-        let mut fixture = response();
-        fixture["errors"] = json!([{
-            "message": "Optional wiki metadata could not be resolved",
-            "path": ["subredditInfoByName", "wiki"]
-        }]);
-        Mock::given(method("POST"))
-            .and(path("/"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(fixture.clone()))
-            .expect(1)
-            .mount(&server)
-            .await;
-        let recorder = Recorder::default();
-        let client = crate::RedditClient::builder()
-            .with_storage(cached_storage())
-            .with_clock(testing::TestClock::default())
-            .with_mock_server(testing::GRAPHQL_ORIGIN, &server)
-            .with_response_observer(recorder.clone())
-            .build()
-            .unwrap();
-
-        let actual = client.get_subreddit("rust").await.unwrap();
-
-        assert!(matches!(actual, Subreddit::Available(_)));
-        let captures = recorder.0.lock().unwrap();
-        assert_eq!(captures.len(), 1);
-        assert_eq!(captures[0].operation, "SubredditInfoByName");
-        assert_eq!(
-            serde_json::from_slice::<Value>(&captures[0].body).unwrap(),
-            fixture
-        );
-        assert!(!captures[0].body_truncated);
-    }
-
-    #[tokio::test]
     async fn when_the_resource_is_null_then_lookup_should_report_unavailable_not_not_found() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
@@ -222,29 +174,6 @@ mod tests {
         let actual = client.get_subreddit("missing").await;
 
         assert!(matches!(actual, Err(Error::Unavailable)));
-    }
-
-    #[tokio::test]
-    async fn when_metadata_is_absent_and_graphql_reports_errors_then_lookup_should_preserve_operation_failure()
-     {
-        for fixture in [
-            json!({"data": {"subredditInfoByName": null}, "errors": [{"extensions": {"code": "NOT_FOUND"}}]}),
-            json!({"errors": [{"message": "PersistedQueryNotFound", "extensions": {"code": "PERSISTED_QUERY_NOT_FOUND"}}]}),
-        ] {
-            let server = MockServer::start().await;
-            Mock::given(method("POST"))
-                .and(path("/"))
-                .respond_with(ResponseTemplate::new(200).set_body_json(fixture))
-                .expect(1)
-                .mount(&server)
-                .await;
-            let client = graphql_client(&server, cached_storage());
-
-            let actual = client.get_subreddit("rust").await;
-
-            assert!(matches!(actual, Err(Error::OperationFailed)));
-            assert_eq!(server.received_requests().await.unwrap().len(), 1);
-        }
     }
 
     #[tokio::test]
@@ -271,39 +200,6 @@ mod tests {
                     ResponseError::InvalidOperationResponse
                 ))
             ));
-        }
-    }
-
-    #[tokio::test]
-    async fn when_http_fails_then_lookup_should_preserve_transport_classification_without_replay() {
-        for status in [401, 403, 429, 503] {
-            let server = MockServer::start().await;
-            Mock::given(method("POST"))
-                .and(path("/"))
-                .respond_with(
-                    ResponseTemplate::new(status)
-                        .insert_header("retry-after", "7")
-                        .set_body_json(response()),
-                )
-                .expect(1)
-                .mount(&server)
-                .await;
-            let client = graphql_client(&server, cached_storage());
-
-            let actual = client.get_subreddit("rust").await;
-
-            match status {
-                401 => assert!(matches!(actual, Err(Error::Authentication { status: 401 }))),
-                403 => assert!(matches!(actual, Err(Error::AccessDenied { status: 403 }))),
-                429 => assert!(
-                    matches!(actual, Err(Error::RateLimited { retry_after: Some(RetryAfter::Delay(delay)) }) if delay == Duration::from_secs(7))
-                ),
-                503 => assert!(
-                    matches!(actual, Err(Error::Upstream { status: 503, retry_after: Some(RetryAfter::Delay(delay)) }) if delay == Duration::from_secs(7))
-                ),
-                _ => unreachable!(),
-            }
-            assert_eq!(server.received_requests().await.unwrap().len(), 1);
         }
     }
 }

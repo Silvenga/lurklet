@@ -7,7 +7,6 @@ use std::sync::Mutex;
 #[derive(Default)]
 pub struct FakeBackend {
     pub media: Option<MediaCall>,
-    pub session: Option<AnonymousSession>,
     pub post: Option<(RedditId, Result<Post, Error>)>,
     pub subreddit: Option<(String, Result<Subreddit, Error>)>,
     pub listing: Option<ListingCall>,
@@ -86,11 +85,7 @@ impl RedditBackend for FakeBackend {
     }
 
     async fn bootstrap(&self) -> Result<AnonymousSession, Error> {
-        Ok(self
-            .session
-            .as_ref()
-            .expect("unexpected bootstrap call")
-            .clone())
+        panic!("unexpected bootstrap call")
     }
 
     async fn get_post(&self, id: &RedditId) -> Result<Post, Error> {

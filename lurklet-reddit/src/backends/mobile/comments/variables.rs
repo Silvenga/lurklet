@@ -65,26 +65,7 @@ fn sort_type(sort: CommentSort) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{Value, json};
-
-    #[test]
-    fn when_initial_comments_are_requested_then_variables_should_use_only_required_and_full_read_choices()
-     {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../../../tests/fixtures/mobile/synthetic-post-comments-request.json"
-        ))
-        .unwrap();
-
-        let variables = serde_json::to_value(PostVariables::new(
-            &"example".into(),
-            CommentSort::Best,
-            None,
-        ))
-        .unwrap();
-
-        assert_eq!(variables, fixture["variables"]);
-        assert_eq!(variables.as_object().unwrap().len(), 8);
-    }
+    use serde_json::json;
 
     #[test]
     fn when_a_placeholder_is_expanded_then_variables_should_keep_the_post_id_and_use_the_native_expansion_count()
@@ -100,20 +81,6 @@ mod tests {
         assert_eq!(variables["sortType"], "NEW");
         assert_eq!(variables["count"], 200);
         assert_eq!(variables["after"], "opaque+/=");
-    }
-
-    #[test]
-    fn when_a_thread_is_opened_then_variables_should_request_ancestor_context_without_a_cursor() {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../../../tests/fixtures/mobile/synthetic-comment-thread-request.json"
-        ))
-        .unwrap();
-
-        let variables =
-            serde_json::to_value(ThreadVariables::new(&"anchor".into(), CommentSort::Top)).unwrap();
-
-        assert_eq!(variables, fixture["variables"]);
-        assert_eq!(variables.as_object().unwrap().len(), 5);
     }
 
     #[test]

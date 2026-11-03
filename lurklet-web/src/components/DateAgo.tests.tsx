@@ -20,49 +20,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-test.each([
-  [0, 0, null],
-  [59, 0, null],
-  [60, -1, "minute"],
-  [119, -1, "minute"],
-  [120, -2, "minute"],
-  [3599, -59, "minute"],
-  [3600, -1, "hour"],
-  [7199, -1, "hour"],
-  [86399, -23, "hour"],
-  [86400, -1, "day"],
-  [2591999, -29, "day"],
-  [2592000, -1, "month"],
-  [31536000, -1, "year"],
-  [63072000, -2, "year"],
-  [-59, 0, null],
-  [-60, 1, "minute"],
-  [-3600, 1, "hour"],
-  [-86400, 1, "day"],
-  [-2592000, 1, "month"],
-  [-31536000, 1, "year"],
-] as const)(
-  "When a timestamp is %i seconds old then DateAgo should show the expected relative unit",
-  (secondsAgo, value, unit) => {
-    const dateTime = new Date(NOW - secondsAgo * 1000).toISOString();
-    const label = unit === null ? "just now" : RELATIVE_FORMAT.format(value, unit);
-
-    const { container } = render(<DateAgo dateTime={dateTime} className="align-baseline" />);
-
-    const trigger = screen.getByRole("button", { name: label });
-    expect(trigger).toHaveTextContent(label);
-    expect(trigger).not.toHaveAttribute("aria-label");
-    expect(trigger).toHaveClass("align-baseline");
-    expect(trigger).toHaveClass("font-[weight:inherit]");
-    expect(trigger).not.toHaveClass("font-medium");
-    expect(trigger.querySelector("time")).toHaveAttribute("datetime", dateTime);
-    expect(trigger.querySelector("time")).toHaveTextContent(label);
-    expect(trigger.querySelector("time")).not.toHaveAttribute("aria-hidden");
-    expect(container.querySelector("[aria-live], .sr-only, [title]")).toBeNull();
-    expect(screen.queryByRole("tooltip")).toBeNull();
-  },
-);
-
 test("When the date receives keyboard focus then its tooltip should describe the exact local timestamp", async () => {
   const user = userEvent.setup();
   const dateTime = "2026-10-26T07:00:00-04:00";

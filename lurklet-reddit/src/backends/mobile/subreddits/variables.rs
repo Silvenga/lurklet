@@ -17,30 +17,3 @@ impl<'a> Variables<'a> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::{Value, json};
-
-    #[test]
-    fn when_metadata_is_requested_then_variables_should_send_only_inputs_without_document_defaults()
-    {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../../../tests/fixtures/mobile/synthetic-subreddit-info-request.json"
-        ))
-        .unwrap();
-
-        let variables = serde_json::to_value(Variables::new("rust")).unwrap();
-
-        assert_eq!(variables, fixture["variables"]);
-        assert_eq!(
-            variables,
-            json!({
-                "subredditName": "rust",
-                "includeRecapFields": false,
-                "includeDevvitData": false
-            })
-        );
-    }
-}

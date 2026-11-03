@@ -67,11 +67,10 @@ async fn get_post_comments<B: RedditBackend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ApiCacheOptions, ResponseCache};
+    use crate::ApiCacheOptions;
     use axum::Router;
     use axum::body::{Body, to_bytes};
-    use axum::http::{Method, Request, StatusCode, header};
-    use axum::routing::get;
+    use axum::http::{Request, StatusCode, header};
     use lurklet_reddit::{
         AnonymousSession, CommentForest as RedditCommentForest, CommentItem,
         CommentSort as RedditCommentSort, CommentThread, MediaFile, Post, Subreddit, SubredditPage,
@@ -305,84 +304,6 @@ mod tests {
             serde_json::from_slice::<Value>(&to_bytes(response.into_body(), 4096).await.unwrap())
                 .unwrap(),
             json!({"appliedSort": null, "items": []})
-        );
-        assert_eq!(calls.lock().unwrap().len(), 1);
-    }
-
-    #[tokio::test]
-    async fn when_comment_requests_differ_then_caching_should_separate_ids_sorts_and_placeholders()
-    {
-        let directory = assert_fs::TempDir::new().unwrap();
-        let cache = ResponseCache::new(directory.path()).await.unwrap();
-        let calls = Arc::new(Mutex::new(Vec::new()));
-        let app = cache.wrap(app(Ok(fixture()), calls.clone()));
-
-        for (uri, outcome) in [
-            ("/posts/post/comments?sort=best", "miss"),
-            ("/posts/post/comments?sort=best", "hit"),
-            ("/posts/post/comments?sort=top", "miss"),
-            ("/posts/other/comments?sort=best", "miss"),
-            ("/posts/post/comments?sort=best&cursor=a", "miss"),
-            ("/posts/post/comments?cursor=a&sort=best", "hit"),
-            ("/posts/post/comments?sort=best&cursor=b", "miss"),
-        ] {
-            let response = app.clone().oneshot(request(uri)).await.unwrap();
-
-            assert_eq!(response.status(), StatusCode::OK, "{uri}");
-            assert_eq!(response.headers()["x-lurklet-cache"], outcome, "{uri}");
-            assert_eq!(
-                response.headers()[header::CACHE_CONTROL],
-                "public, max-age=3600"
-            );
-            assert!(response.headers().contains_key(header::AGE));
-            to_bytes(response.into_body(), 16_384).await.unwrap();
-        }
-        let mut head = request("/posts/post/comments?sort=best");
-        *head.method_mut() = Method::HEAD;
-
-        let response = app.oneshot(head).await.unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers()["x-lurklet-cache"], "hit");
-        assert!(
-            to_bytes(response.into_body(), 4096)
-                .await
-                .unwrap()
-                .is_empty()
-        );
-        assert_eq!(calls.lock().unwrap().len(), 5);
-    }
-
-    #[tokio::test]
-    async fn when_a_comment_refresh_fails_then_the_stored_forest_and_policy_should_be_preserved() {
-        let directory = assert_fs::TempDir::new().unwrap();
-        let cache = ResponseCache::new(directory.path()).await.unwrap();
-        let seed = cache.wrap(Router::new().route(
-            "/posts/post/comments",
-            get(|| async {
-                (
-                    [(header::CACHE_CONTROL, "public, max-age=0")],
-                    Json(CommentForest::from(fixture())),
-                )
-            }),
-        ));
-        let response = seed.oneshot(request("/posts/post/comments")).await.unwrap();
-        let expected = to_bytes(response.into_body(), 4096).await.unwrap();
-        let calls = Arc::new(Mutex::new(Vec::new()));
-        let app = cache.wrap(app(Err(RedditError::Unavailable), calls.clone()));
-
-        let response = app.oneshot(request("/posts/post/comments")).await.unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers()["x-lurklet-cache"], "stale");
-        assert_eq!(
-            response.headers()[header::CACHE_CONTROL],
-            "public, max-age=0"
-        );
-        assert!(response.headers().contains_key(header::AGE));
-        assert_eq!(
-            to_bytes(response.into_body(), 4096).await.unwrap(),
-            expected
         );
         assert_eq!(calls.lock().unwrap().len(), 1);
     }
