@@ -202,6 +202,7 @@ Most links here will now take you to a search page listing posts with the releva
 export const POST_RESPONSE = {
   id: "1xc54av",
   title: "This Week in Rust #674",
+  permalink: "/r/rust/comments/1xc54av/this_week_in_rust_674/",
   flair: {
     text: "📅 this week in rust",
     backgroundColor: "#DFFFD2",
@@ -225,6 +226,7 @@ export const POST_RESPONSE = {
 export const ORIGINAL_POST_RESPONSE = {
   id: "1xlyoom",
   title: "What are some common Rust misconceptions?",
+  permalink: "/r/learnrust/comments/1xlyoom/what_are_some_common_rust_misconceptions/",
   flair: null,
   author: { id: "229wfzxiyi", name: "lyuhdev" },
   community: { id: "3amtr", name: "learnrust" },
@@ -245,6 +247,7 @@ export const ORIGINAL_POST_RESPONSE = {
 export const CROSSPOST_RESPONSE = {
   ...ORIGINAL_POST_RESPONSE,
   id: "1xlyp3g",
+  permalink: "/r/rust/comments/1xlyp3g/what_are_some_common_rust_misconceptions/",
   community: { id: "2s7lj", name: "rust" },
   createdAt: "2026-11-02T14:29:56.948Z",
   score: 0,

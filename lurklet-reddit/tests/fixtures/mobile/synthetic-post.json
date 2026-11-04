@@ -5,6 +5,7 @@
         "__typename": "SubredditPost",
         "id": "t3_18t5968",
         "postTitle": "Example title",
+        "permalink": "/r/example/comments/18t5968/example/",
         "createdAt": "2023-12-28T21:35:27.507000+0000",
         "score": 42,
         "commentCount": 3,

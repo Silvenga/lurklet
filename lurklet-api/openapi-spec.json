@@ -1268,6 +1268,7 @@
         "required": [
           "id",
           "title",
+          "permalink",
           "flair",
           "author",
           "community",
@@ -1348,6 +1349,9 @@
                 "type": "null"
               }
             ]
+          },
+          "permalink": {
+            "type": ["string", "null"]
           },
           "score": {
             "type": ["integer", "null"],

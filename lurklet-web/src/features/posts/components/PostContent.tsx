@@ -29,12 +29,21 @@ export function PostContent({ postId }: { postId: string }) {
         : post.data.title,
   );
 
+  const permalink = post.data?.permalink
+    ? URL.parse(post.data.permalink, "https://reddit.com")
+    : null;
+  const redditHref =
+    permalink?.protocol === "https:" &&
+    (permalink.hostname === "reddit.com" || permalink.hostname.endsWith(".reddit.com"))
+      ? permalink.href
+      : `https://www.reddit.com/r/${encodeURIComponent(subreddit!)}/comments/${encodeURIComponent(postId)}/`;
+
   const header = (
     <>
       <PaneMenu
         jsonHref={jsonHref}
         fetchedAt={fetchedAt}
-        redditHref={`https://www.reddit.com/r/${encodeURIComponent(subreddit!)}/comments/${encodeURIComponent(postId)}/`}
+        redditHref={redditHref}
         label="Post actions"
       />
       <div className="flex min-w-0 flex-wrap items-center gap-2 pr-10">

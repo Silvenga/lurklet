@@ -179,7 +179,7 @@ test("When a subreddit is entered then its listing should link to the supplied p
   expect(
     within(article).getByRole("link", { name: POST_RESPONSE.attachments[0]!.url }),
   ).toHaveAttribute("href", POST_RESPONSE.attachments[0]!.url);
-  await expectRedditMenu("Post actions", `https://www.reddit.com${POST_PATH}/`);
+  await expectRedditMenu("Post actions", `https://reddit.com${POST_RESPONSE.permalink}`);
   await expectJsonMenu(
     "Post actions",
     new URL(`/api/posts/${POST_RESPONSE.id}`, location.origin).href,
@@ -487,7 +487,7 @@ test("When a cross-post is opened then its original should render without replac
   expect(
     within(screen.getByRole("complementary")).getByRole("heading", { name: "r/rust" }),
   ).toBeVisible();
-  await expectRedditMenu("Post actions", `https://www.reddit.com${CROSSPOST_PATH}/`);
+  await expectRedditMenu("Post actions", `https://reddit.com${primary.permalink}`);
   await expectJsonMenu("Post actions", new URL(`/api/posts/${primary.id}`, location.origin).href);
   expect(requests.filter((path) => path !== "/api/media").toSorted()).toEqual(
     [
@@ -783,6 +783,7 @@ test("When navigating to another subreddit then the sidebar should reflect the n
         ...POST_RESPONSE,
         id: "def456",
         title: "A TypeScript post",
+        permalink: "/r/typescript/comments/def456/a_typescript_post/",
         community: { id: "community2", name: "typescript" },
       }),
     ),
@@ -794,7 +795,10 @@ test("When navigating to another subreddit then the sidebar should reflect the n
   });
 
   expect(await screen.findByRole("heading", { name: "A TypeScript post" })).toBeVisible();
-  await expectRedditMenu("Post actions", "https://www.reddit.com/r/typescript/comments/def456/");
+  await expectRedditMenu(
+    "Post actions",
+    "https://reddit.com/r/typescript/comments/def456/a_typescript_post/",
+  );
   expect(
     within(screen.getByRole("complementary")).getByRole("link", { name: "r/typescript" }),
   ).toHaveAttribute("href", "/r/typescript");

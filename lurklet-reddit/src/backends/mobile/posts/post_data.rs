@@ -31,6 +31,7 @@ struct PostFields {
     id: RedditId,
     #[serde(rename = "postTitle")]
     title: String,
+    permalink: Option<String>,
     flair: Option<Flair>,
     created_at: DateTime<Utc>,
     is_nsfw: bool,
@@ -81,6 +82,7 @@ impl From<PostFields> for Post {
         Self {
             id: fields.id,
             title: fields.title,
+            permalink: fields.permalink,
             flair: fields.flair.and_then(Flair::into_flair),
             author: fields.author,
             community: fields.community,
@@ -122,6 +124,7 @@ mod tests {
         Post {
             id: "18t5968".into(),
             title: "Example title".into(),
+            permalink: Some("/r/example/comments/18t5968/example/".into()),
             flair: None,
             author: Some(NamedReference {
                 id: Some("author".into()),
@@ -153,6 +156,7 @@ mod tests {
         {
           "id": "18t5968",
           "title": "Example title",
+          "permalink": "/r/example/comments/18t5968/example/",
           "flair": null,
           "author": {
             "id": "author",
@@ -208,6 +212,7 @@ mod tests {
         let mut data = data();
         let fields = data["postsInfoByIds"][0].as_object_mut().unwrap();
         for field in [
+            "permalink",
             "authorInfo",
             "subreddit",
             "score",
@@ -217,11 +222,24 @@ mod tests {
             fields.remove(field);
         }
         let mut expected = expected();
+        expected.permalink = None;
         expected.author = None;
         expected.community = None;
         expected.score = None;
         expected.comment_count = None;
         expected.markdown = None;
+
+        let post = decode_post(&data).unwrap().unwrap();
+
+        assert_eq!(post, expected);
+    }
+
+    #[test]
+    fn when_a_permalink_is_null_then_the_post_should_remain_readable() {
+        let mut data = data();
+        data["postsInfoByIds"][0]["permalink"] = Value::Null;
+        let mut expected = expected();
+        expected.permalink = None;
 
         let post = decode_post(&data).unwrap().unwrap();
 

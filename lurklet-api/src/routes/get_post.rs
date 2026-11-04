@@ -30,6 +30,8 @@ struct Post {
     id: String,
     title: String,
     #[schema(required)]
+    permalink: Option<String>,
+    #[schema(required)]
     flair: Option<PostFlair>,
     #[schema(required)]
     author: Option<NamedReference>,
@@ -101,6 +103,7 @@ impl From<RedditPost> for Post {
         let RedditPost {
             id,
             title,
+            permalink,
             flair,
             author,
             community,
@@ -116,6 +119,7 @@ impl From<RedditPost> for Post {
         Self {
             id: id.as_str().to_owned(),
             title,
+            permalink,
             flair: flair.map(Into::into),
             author: author.map(Into::into),
             community: community.map(Into::into),
@@ -221,6 +225,7 @@ mod tests {
         RedditPost {
             id: "18t5968".into(),
             title: "Example post".into(),
+            permalink: Some("/r/rust/comments/18t5968/example_post/".into()),
             flair: Some(lurklet_reddit::PostFlair {
                 text: Some(":example: News".into()),
                 background_color: Some("#228822".into()),
@@ -318,6 +323,7 @@ mod tests {
             json!({
                 "id": "18t5968",
                 "title": "Example post",
+                "permalink": "/r/rust/comments/18t5968/example_post/",
                 "flair": {"text": ":example: News", "backgroundColor": "#228822", "textColor": "light", "parts": [
                     {"kind": "emoji", "url": "https://emoji.redditmedia.com/example/news", "alt": ":example:"},
                     {"kind": "text", "text": " News"}

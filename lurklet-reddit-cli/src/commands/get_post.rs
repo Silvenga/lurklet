@@ -31,6 +31,7 @@ mod tests {
         let post = Post {
             id: "18t5968".into(),
             title: "Example".into(),
+            permalink: Some("/r/example/comments/18t5968/example/".into()),
             flair: None,
             author: None,
             community: None,

@@ -136,6 +136,7 @@
     },
     "id": "fixturepost",
     "title": "Sanitized post title",
+    "permalink": "/r/example/comments/fixturepost/example/",
     "author": { "id": "fixture", "name": "example_author" },
     "community": { "id": "fixture", "name": "example" },
     "created_at": "2023-12-28T21:35:27.507Z",

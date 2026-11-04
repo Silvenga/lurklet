@@ -7,6 +7,7 @@ use serde::Serialize;
 pub struct Post {
     pub id: RedditId,
     pub title: String,
+    pub permalink: Option<String>,
     pub flair: Option<PostFlair>,
     pub author: Option<NamedReference>,
     pub community: Option<NamedReference>,
