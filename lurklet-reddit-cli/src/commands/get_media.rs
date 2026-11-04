@@ -2,7 +2,7 @@ use crate::commands::CommandOutput;
 use crate::output::CliError;
 use clap::Args;
 use futures_util::StreamExt;
-use lurklet_reddit::{RedditBackend, RedditClient};
+use lurklet_reddit::{MediaOptions, MediaRange, RedditBackend, RedditClient};
 use serde_json::json;
 use std::fs;
 use std::io;
@@ -19,6 +19,12 @@ pub struct GetMedia {
     /// New destination file; its parent must exist. Existing destinations are never overwritten.
     #[arg(long)]
     output: PathBuf,
+    /// One HTTP byte range, for example bytes=0-1023 or bytes=-1024.
+    #[arg(long)]
+    range: Option<MediaRange>,
+    /// Upstream ETag or HTTP date for conditional range delivery.
+    #[arg(long, requires = "range")]
+    if_range: Option<String>,
 }
 
 impl GetMedia {
@@ -42,7 +48,15 @@ impl GetMedia {
         .await
         .map_err(|_| CliError::Worker)?
         .map_err(|error| CliError::io("create_media_file", error))?;
-        let mut media = client.get_media(&self.url).await?;
+        let mut media = client
+            .get_media_with_options(
+                &self.url,
+                MediaOptions {
+                    range: self.range.clone(),
+                    if_range: self.if_range.as_deref(),
+                },
+            )
+            .await?;
         let (file, temporary) = temporary.into_parts();
         let mut file = File::from_std(file);
         let mut bytes_written = 0_u64;
@@ -68,6 +82,10 @@ impl GetMedia {
                 "kind": media.kind,
                 "content_type": media.content_type,
                 "content_length": media.content_length,
+                "content_range": media.content_range,
+                "accept_ranges": media.accept_ranges,
+                "etag": media.etag,
+                "last_modified": media.last_modified,
                 "bytes_written": bytes_written,
                 "output": self.output,
             }),
@@ -102,6 +120,10 @@ mod tests {
             "https://preview.redd.it/file.gif?s=a%2Bb&width=320",
             "--output",
             output.to_str().unwrap(),
+            "--range",
+            "bytes=0-10",
+            "--if-range",
+            "\"fixture\"",
         ])
         .unwrap();
         let Command::GetMedia(arguments) = arguments.command else {
@@ -113,10 +135,18 @@ mod tests {
         let client = RedditClient::from_backend(FakeBackend {
             media: Some(MediaCall {
                 url: "https://preview.redd.it/file.gif?s=a%2Bb&width=320".into(),
+                options: MediaOptions {
+                    range: Some("bytes=0-10".parse().unwrap()),
+                    if_range: Some("\"fixture\""),
+                },
                 result: Mutex::new(Some(Ok(MediaFile {
                     content_type: "video/mp4".into(),
                     kind: MediaKind::Mp4,
                     content_length: Some(11),
+                    content_range: Some("bytes 0-10/99".into()),
+                    accept_ranges: Some("bytes".into()),
+                    etag: Some("\"fixture\"".into()),
+                    last_modified: None,
                     body: Box::pin(body),
                 }))),
             }),
@@ -129,7 +159,7 @@ mod tests {
         assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
         assert_eq!(
             result.result,
-            json!({"kind": "mp4", "content_type": "video/mp4", "content_length": 11, "bytes_written": 11, "output": output})
+            json!({"kind": "mp4", "content_type": "video/mp4", "content_length": 11, "content_range": "bytes 0-10/99", "accept_ranges": "bytes", "etag": "\"fixture\"", "last_modified": null, "bytes_written": 11, "output": output})
         );
         assert!(result.error.is_none());
     }
@@ -142,10 +172,13 @@ mod tests {
         let arguments = GetMedia {
             url: "https://i.redd.it/file".into(),
             output: output.clone(),
+            range: None,
+            if_range: None,
         };
         let client = RedditClient::from_backend(FakeBackend {
             media: Some(MediaCall {
                 url: arguments.url.clone(),
+                options: MediaOptions::default(),
                 result: Mutex::new(Some(Err(Error::MediaStatus {
                     status: 403,
                     retry_after: None,
@@ -172,14 +205,21 @@ mod tests {
         let arguments = GetMedia {
             url: "https://i.redd.it/file".into(),
             output: output.clone(),
+            range: None,
+            if_range: None,
         };
         let client = RedditClient::from_backend(FakeBackend {
             media: Some(MediaCall {
                 url: arguments.url.clone(),
+                options: MediaOptions::default(),
                 result: Mutex::new(Some(Ok(MediaFile {
                     content_type: "image/png".into(),
                     kind: MediaKind::Image,
                     content_length: None,
+                    content_range: None,
+                    accept_ranges: None,
+                    etag: None,
+                    last_modified: None,
                     body: Box::pin(stream::iter([
                         Ok(b"partial".to_vec().into()),
                         Err(Error::Unavailable),
@@ -205,6 +245,8 @@ mod tests {
         let arguments = GetMedia {
             url: "https://i.redd.it/file".into(),
             output: output.clone(),
+            range: None,
+            if_range: None,
         };
         let client = RedditClient::from_backend(FakeBackend::default());
 
@@ -229,6 +271,8 @@ mod tests {
         let arguments = GetMedia {
             url: "https://i.redd.it/file".into(),
             output: output.clone(),
+            range: None,
+            if_range: None,
         };
         let destination = output.clone();
         let body = stream::once(async move {
@@ -238,10 +282,15 @@ mod tests {
         let client = RedditClient::from_backend(FakeBackend {
             media: Some(MediaCall {
                 url: arguments.url.clone(),
+                options: MediaOptions::default(),
                 result: Mutex::new(Some(Ok(MediaFile {
                     content_type: "image/png".into(),
                     kind: MediaKind::Image,
                     content_length: None,
+                    content_range: None,
+                    accept_ranges: None,
+                    etag: None,
+                    last_modified: None,
                     body: Box::pin(body),
                 }))),
             }),
@@ -269,6 +318,8 @@ mod tests {
         let arguments = GetMedia {
             url: "https://i.redd.it/file".into(),
             output: output.clone(),
+            range: None,
+            if_range: None,
         };
         let reading = Arc::new(Notify::new());
         let signal = reading.clone();
@@ -280,10 +331,15 @@ mod tests {
         let client = RedditClient::from_backend(FakeBackend {
             media: Some(MediaCall {
                 url: arguments.url.clone(),
+                options: MediaOptions::default(),
                 result: Mutex::new(Some(Ok(MediaFile {
                     content_type: "video/mp4".into(),
                     kind: MediaKind::Mp4,
                     content_length: None,
+                    content_range: None,
+                    accept_ranges: None,
+                    etag: None,
+                    last_modified: None,
                     body: Box::pin(body),
                 }))),
             }),

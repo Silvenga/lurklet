@@ -1,6 +1,7 @@
 import type { PostAttachment } from "@/clients/lurklet-api/generated/types.gen";
 import { ContentLink } from "@/components/ContentLink";
 import { Media } from "@/features/media/components/Media";
+import { Video } from "@/features/media/components/Video";
 
 export function PostAttachments({ attachments }: { attachments: PostAttachment[] }) {
   return (
@@ -29,7 +30,9 @@ export function PostAttachments({ attachments }: { attachments: PostAttachment[]
               </figure>
             );
           case "video":
-            return <Media key={index} kind="video" />;
+            return (
+              <Video key={index} sources={attachment.sources} posterUrl={attachment.posterUrl} />
+            );
         }
       })}
     </>

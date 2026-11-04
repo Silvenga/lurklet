@@ -28,7 +28,7 @@ test("When attachments mix links images and videos then their order and link pol
   expect([...container.children].map((element) => element.tagName)).toEqual([
     "A",
     "FIGURE",
-    "SPAN",
+    "VIDEO",
     "A",
   ]);
   const image = screen.getByRole("img", { name: "A diagram" });
@@ -37,7 +37,7 @@ test("When attachments mix links images and videos then their order and link pol
     "https://images.example.com/image.png",
   );
   expect(screen.getByText("Diagram caption").tagName).toBe("FIGCAPTION");
-  expect(screen.getByRole("img", { name: "Video unavailable" })).toBeVisible();
+  expect(screen.getByLabelText("Video")).toBeVisible();
   expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
     "https://example.com/first",
     "https://example.com/last",
@@ -110,7 +110,6 @@ test.each([
   { sources: [] },
   {
     sources: [
-      { format: "mp4", url: "https://videos.example.com/video.mp4" },
       { format: "hls", url: "https://videos.example.com/video.m3u8" },
       { format: "dash", url: "https://videos.example.com/video.mpd" },
     ],

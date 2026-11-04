@@ -1,7 +1,7 @@
 use crate::{
     AnonymousSession, CommentForest, CommentSort, CommentThread, Error, GraphQlResponse, MediaFile,
-    MobileBackend, Post, RedditBackend, RedditClientBuilder, RedditId, RequestAllowlist,
-    StateStore, Subreddit, SubredditPage, SubredditSort,
+    MediaOptions, MobileBackend, Post, RedditBackend, RedditClientBuilder, RedditId,
+    RequestAllowlist, StateStore, Subreddit, SubredditPage, SubredditSort,
 };
 use std::sync::Arc;
 
@@ -29,7 +29,17 @@ impl<B: RedditBackend> RedditClient<B> {
     /// Opens one media URL unchanged, without authentication, redirects, or related requests.
     /// The body streams independently of the client; consume it to EOF to establish completion.
     pub async fn get_media(&self, url: &str) -> Result<MediaFile, Error> {
-        self.backend.get_media(url).await
+        self.get_media_with_options(url, MediaOptions::default())
+            .await
+    }
+
+    /// Opens a media file with optional range selection and an upstream If-Range validator.
+    pub async fn get_media_with_options(
+        &self,
+        url: &str,
+        options: MediaOptions<'_>,
+    ) -> Result<MediaFile, Error> {
+        self.backend.get_media(url, options).await
     }
 
     /// Reads a bare name's community metadata without fetching its feed or assets.

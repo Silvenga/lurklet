@@ -1,8 +1,8 @@
 use crate::backends::mobile::Config;
 use crate::{
     AnonymousSession, Clock, CommentForest, CommentSort, CommentThread, Error, InMemoryStore,
-    MediaFile, Post, RedditBackend, RedditId, ResponseObserver, StateStore, Storage, Subreddit,
-    SubredditPage, SubredditSort,
+    MediaFile, MediaOptions, Post, RedditBackend, RedditId, ResponseObserver, StateStore, Storage,
+    Subreddit, SubredditPage, SubredditSort,
 };
 use std::sync::Arc;
 
@@ -16,8 +16,8 @@ pub struct MobileBackend<S: StateStore = InMemoryStore> {
 }
 
 impl<S: StateStore> RedditBackend for MobileBackend<S> {
-    async fn get_media(&self, url: &str) -> Result<MediaFile, Error> {
-        MobileBackend::get_media(self, url).await
+    async fn get_media(&self, url: &str, options: MediaOptions<'_>) -> Result<MediaFile, Error> {
+        MobileBackend::get_media(self, url, options).await
     }
 
     async fn get_subreddit(&self, name: &str) -> Result<Subreddit, Error> {

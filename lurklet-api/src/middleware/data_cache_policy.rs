@@ -38,7 +38,10 @@ impl ApiCacheOptions {
 
     async fn apply(State(policy): State<HeaderValue>, request: Request, next: Next) -> Response {
         let mut response = next.run(request).await;
-        if response.status() == StatusCode::OK {
+        if matches!(
+            response.status(),
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT
+        ) {
             response.headers_mut().insert(header::CACHE_CONTROL, policy);
         }
         response

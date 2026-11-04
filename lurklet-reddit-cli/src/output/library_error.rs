@@ -30,6 +30,9 @@ pub fn to_json(error: &Error) -> Value {
         } => {
             json!({"kind": "media_status", "status": status, "retry_after": retry_after_json(retry_after)})
         }
+        Error::MediaRangeNotSatisfiable { content_length } => {
+            json!({"kind": "media_range_not_satisfiable", "status": 416, "content_length": content_length})
+        }
         Error::InvalidResponse(reason) => {
             let reason = match reason {
                 ResponseError::BodyTooLarge => "body_too_large",
@@ -44,6 +47,7 @@ pub fn to_json(error: &Error) -> Value {
                 ResponseError::UnsupportedData => "unsupported_data",
                 ResponseError::UnsupportedMediaType => "unsupported_media_type",
                 ResponseError::UnsupportedMediaEncoding => "unsupported_media_encoding",
+                ResponseError::InvalidMediaRange => "invalid_media_range",
                 _ => "unknown",
             };
             json!({"kind": "invalid_response", "reason": reason})

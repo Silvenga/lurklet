@@ -1,6 +1,7 @@
 mod cache;
 mod entry;
 mod key;
+mod policy;
 mod store;
 mod streaming_body;
 

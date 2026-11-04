@@ -1,11 +1,12 @@
 use crate::response_cache::entry::Entry;
 use crate::response_cache::key::CacheKey;
+use crate::response_cache::policy::is_persistable;
 use crate::response_cache::store::Store;
 use crate::response_cache::streaming_body::streaming_body;
 use axum::Router;
 use axum::body::HttpBody;
 use axum::extract::{OriginalUri, Request, State};
-use axum::http::{HeaderValue, Method, StatusCode};
+use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::Response;
 use headers::{Age, CacheControl, ContentLength, HeaderMapExt};
@@ -39,7 +40,9 @@ impl ResponseCache {
     }
 
     async fn serve(State(cache): State<Self>, request: Request, next: Next) -> Response {
-        if !matches!(*request.method(), Method::GET | Method::HEAD) {
+        if !matches!(*request.method(), Method::GET | Method::HEAD)
+            || request.headers().contains_key(header::RANGE)
+        {
             return next.run(request).await;
         }
         let original = request
@@ -49,7 +52,13 @@ impl ResponseCache {
         let key = CacheKey::new(original);
         let head = request.method() == Method::HEAD;
 
-        if let Some(entry) = cache.store.read(&key).await.filter(Entry::is_fresh) {
+        if let Some(entry) = cache
+            .store
+            .read(&key)
+            .await
+            .filter(|entry| is_persistable(&entry.metadata.headers))
+            .filter(Entry::is_fresh)
+        {
             return finish(entry.into_response(), "hit");
         }
 
@@ -60,12 +69,20 @@ impl ResponseCache {
                 .or_insert_with(|| Arc::new(AsyncMutex::new(())))
         };
         let guard = lock.lock_owned().await;
-        let previous = match cache.store.read(&key).await {
+        let previous = match cache
+            .store
+            .read(&key)
+            .await
+            .filter(|entry| is_persistable(&entry.metadata.headers))
+        {
             Some(entry) if entry.is_fresh() => return finish(entry.into_response(), "hit"),
             previous => previous,
         };
 
         let response = next.run(request).await;
+        if response.status() == StatusCode::PARTIAL_CONTENT || !is_persistable(response.headers()) {
+            return response;
+        }
         if response.status() != StatusCode::OK {
             return match previous {
                 Some(entry) => finish(entry.into_response(), "stale"),

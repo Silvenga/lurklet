@@ -535,7 +535,7 @@ mod tests {
             get(move || async move {
                 (
                     [
-                        (header::CONTENT_TYPE, "video/mp4"),
+                        (header::CONTENT_TYPE, "image/png"),
                         (header::CACHE_CONTROL, "public, max-age=300"),
                     ],
                     media,
@@ -588,7 +588,7 @@ mod tests {
                 assert_browser_policy(response.headers());
                 assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
                 if status == StatusCode::OK {
-                    assert_eq!(response.headers()[header::CONTENT_TYPE], "video/mp4");
+                    assert_eq!(response.headers()[header::CONTENT_TYPE], "image/png");
                     assert_eq!(response.headers()["x-lurklet-cache"], "hit");
                     assert_eq!(
                         to_bytes(response.into_body(), 4096).await.unwrap(),

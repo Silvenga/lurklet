@@ -1,11 +1,15 @@
 use crate::backends::mobile::MobileBackend;
 use crate::backends::mobile::media::MediaStream;
 use crate::backends::mobile::requests::retry_after;
-use crate::{Error, MediaFile, MediaKind, ResponseError, StateStore, TransportError};
+use crate::{Error, MediaFile, MediaKind, MediaOptions, ResponseError, StateStore, TransportError};
+use headers::{ContentRange, HeaderMapExt};
 use mediatype::{MediaType, names};
 use std::time::Instant;
 use wreq::Uri;
-use wreq::header::{ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE, USER_AGENT};
+use wreq::header::{
+    ACCEPT_ENCODING, ACCEPT_RANGES, CONTENT_ENCODING, CONTENT_RANGE, CONTENT_TYPE, ETAG, IF_RANGE,
+    LAST_MODIFIED, RANGE, USER_AGENT,
+};
 
 const HOSTS: [&str; 10] = [
     "emoji.redditmedia.com",
@@ -24,6 +28,7 @@ impl<S: StateStore> MobileBackend<S> {
     pub(in crate::backends::mobile) async fn get_media(
         &self,
         url: &str,
+        options: MediaOptions<'_>,
     ) -> Result<MediaFile, Error> {
         let uri: Uri = url
             .parse()
@@ -43,17 +48,24 @@ impl<S: StateStore> MobileBackend<S> {
 
         tracing::trace!("Fetching a public media file without session headers");
         let started = Instant::now();
-        let response = self
+        let mut request = self
             .http
             .get(uri)
             .header(ACCEPT_ENCODING, "identity")
             .header(
                 USER_AGENT,
                 self.config.user_agent.as_deref().unwrap_or_default(),
-            )
-            .send()
-            .await
-            .map_err(TransportError::from)?;
+            );
+        if let Some(range) = &options.range {
+            request = request
+                .header(RANGE, range.to_string())
+                .gzip(false)
+                .brotli(false);
+            if let Some(validator) = options.if_range {
+                request = request.header(IF_RANGE, validator);
+            }
+        }
+        let response = request.send().await.map_err(TransportError::from)?;
         let status = response.status().as_u16();
         let content_type = response
             .headers()
@@ -72,11 +84,35 @@ impl<S: StateStore> MobileBackend<S> {
                 None
             }
         });
-        let error = if status != 200 {
+        let content_range = response.headers().typed_get::<ContentRange>();
+        let error = if status == 416 && options.range.is_some() {
+            Some(Error::MediaRangeNotSatisfiable {
+                content_length: content_range
+                    .as_ref()
+                    .filter(|range| range.bytes_range().is_none())
+                    .and_then(ContentRange::bytes_len),
+            })
+        } else if status != 200 && !(status == 206 && options.range.is_some()) {
             Some(Error::MediaStatus {
                 status,
                 retry_after: retry_after(response.headers()),
             })
+        } else if status == 206
+            && (response.headers().get_all(CONTENT_RANGE).iter().count() != 1
+                || !content_range.as_ref().is_some_and(|range| {
+                    range.bytes_range().is_some_and(|(start, end)| {
+                        end.checked_sub(start)
+                            .and_then(|size| size.checked_add(1))
+                            .is_some_and(|size| {
+                                response
+                                    .content_length()
+                                    .is_none_or(|length| length == size)
+                            })
+                            && range.bytes_len().is_none_or(|length| end < length)
+                    })
+                }))
+        {
+            Some(ResponseError::InvalidMediaRange.into())
         } else if kind.is_none() || response.headers().get_all(CONTENT_TYPE).iter().count() != 1 {
             Some(ResponseError::UnsupportedMediaType.into())
         } else if response
@@ -102,6 +138,20 @@ impl<S: StateStore> MobileBackend<S> {
 
         let content_type = content_type.to_owned();
         let content_length = response.content_length();
+        let content_range = (status == 206).then(|| {
+            response.headers()[CONTENT_RANGE]
+                .to_str()
+                .unwrap()
+                .to_owned()
+        });
+        let [accept_ranges, etag, last_modified] =
+            [ACCEPT_RANGES, ETAG, LAST_MODIFIED].map(|name| {
+                response
+                    .headers()
+                    .get(name)
+                    .and_then(|value| value.to_str().ok())
+                    .map(str::to_owned)
+            });
         let kind = kind.expect("supported media type was checked");
         let body = Box::pin(MediaStream::new(
             response,
@@ -114,6 +164,10 @@ impl<S: StateStore> MobileBackend<S> {
             content_type,
             kind,
             content_length,
+            content_range,
+            accept_ranges,
+            etag,
+            last_modified,
             body,
         })
     }
@@ -138,6 +192,216 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     struct UnusedStore;
+
+    #[tokio::test]
+    async fn when_a_single_range_is_requested_then_partial_metadata_and_validators_should_be_preserved_without_session_headers()
+     {
+        for (range, content_range, validator) in [
+            ("bytes=0-3", "bytes 0-3/11", None),
+            ("bytes=7-", "bytes 7-10/11", Some("\"fixture\"")),
+            (
+                "bytes=-4",
+                "bytes 7-10/11",
+                Some("Wed, 21 Oct 2015 07:28:00 GMT"),
+            ),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(header("range", range))
+                .respond_with(
+                    ResponseTemplate::new(206)
+                        .set_body_raw(b"file".to_vec(), "video/mp4")
+                        .insert_header("content-range", content_range)
+                        .insert_header("accept-ranges", "bytes")
+                        .insert_header("etag", "\"fixture\"")
+                        .insert_header("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT"),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+            let client = RedditClient::builder()
+                .with_storage(Storage::new(UnusedStore))
+                .with_mock_server("https://packaged-media.redd.it", &server)
+                .build()
+                .unwrap();
+
+            let mut file = client
+                .get_media_with_options(
+                    "https://packaged-media.redd.it/file?s=a%2Bb&tag=2&tag=1",
+                    MediaOptions {
+                        range: Some(range.parse().unwrap()),
+                        if_range: validator,
+                    },
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(file.content_range.as_deref(), Some(content_range));
+            assert_eq!(file.content_length, Some(4));
+            assert_eq!(file.accept_ranges.as_deref(), Some("bytes"));
+            assert_eq!(file.etag.as_deref(), Some("\"fixture\""));
+            assert_eq!(
+                file.last_modified.as_deref(),
+                Some("Wed, 21 Oct 2015 07:28:00 GMT")
+            );
+            assert_eq!(file.body.next().await.unwrap().unwrap(), b"file".as_slice());
+            assert!(file.body.next().await.is_none());
+            let requests = server.received_requests().await.unwrap();
+            assert_eq!(
+                requests[0]
+                    .headers
+                    .get(IF_RANGE)
+                    .map(|value| value.to_str().unwrap()),
+                validator
+            );
+            assert_eq!(requests[0].headers[ACCEPT_ENCODING], "identity");
+            assert_eq!(requests[0].url.query(), Some("s=a%2Bb&tag=2&tag=1"));
+            for name in [
+                "authorization",
+                "cookie",
+                "referer",
+                "x-reddit-loid",
+                "x-reddit-session",
+            ] {
+                assert!(!requests[0].headers.contains_key(name));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn when_a_range_is_ignored_or_unsatisfiable_then_the_result_should_preserve_the_upstream_outcome()
+     {
+        for (status, content_range, expected_length) in [
+            (200, None, None),
+            (416, Some("bytes */11"), Some(11)),
+            (416, None, None),
+        ] {
+            let server = MockServer::start().await;
+            let mut reply =
+                ResponseTemplate::new(status).set_body_raw(b"complete".to_vec(), "video/mp4");
+            if let Some(value) = content_range {
+                reply = reply.insert_header("content-range", value);
+            }
+            Mock::given(method("GET"))
+                .respond_with(reply)
+                .expect(1)
+                .mount(&server)
+                .await;
+            let client = RedditClient::builder()
+                .with_mock_server("https://v.redd.it", &server)
+                .build()
+                .unwrap();
+
+            let result = client
+                .get_media_with_options(
+                    "https://v.redd.it/file",
+                    MediaOptions {
+                        range: Some("bytes=11-".parse().unwrap()),
+                        if_range: Some("\"old\""),
+                    },
+                )
+                .await;
+
+            if status == 200 {
+                let file = result.unwrap();
+                assert_eq!(file.content_range, None);
+                assert_eq!(file.content_length, Some(8));
+            } else {
+                assert!(
+                    matches!(result, Err(Error::MediaRangeNotSatisfiable { content_length }) if content_length == expected_length)
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn when_partial_metadata_is_invalid_then_the_response_should_not_be_exposed_as_playable_media()
+     {
+        for range in [
+            None,
+            Some("bytes 4-3/11"),
+            Some("bytes 0-3/3"),
+            Some("bytes 0-2/11"),
+            Some("bytes */11"),
+            Some("bytes 0-18446744073709551615/*"),
+        ] {
+            let server = MockServer::start().await;
+            let mut reply = ResponseTemplate::new(206).set_body_raw(b"file".to_vec(), "video/mp4");
+            if let Some(value) = range {
+                reply = reply.insert_header("content-range", value);
+            }
+            Mock::given(method("GET"))
+                .respond_with(reply)
+                .expect(1)
+                .mount(&server)
+                .await;
+            let client = RedditClient::builder()
+                .with_mock_server("https://v.redd.it", &server)
+                .build()
+                .unwrap();
+
+            let result = client
+                .get_media_with_options(
+                    "https://v.redd.it/file",
+                    MediaOptions {
+                        range: Some("bytes=0-3".parse().unwrap()),
+                        ..MediaOptions::default()
+                    },
+                )
+                .await;
+
+            assert!(
+                matches!(
+                    result,
+                    Err(Error::InvalidResponse(ResponseError::InvalidMediaRange))
+                ),
+                "{range:?}: {result:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn when_a_range_response_is_compressed_then_it_should_be_rejected_without_automatic_decompression()
+     {
+        let server = MockServer::start().await;
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(b"file").unwrap();
+        let encoded = encoder.finish().unwrap();
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(206)
+                    .insert_header(
+                        "content-range",
+                        format!("bytes 0-{0}/{1}", encoded.len() - 1, encoded.len()),
+                    )
+                    .insert_header("content-encoding", "gzip")
+                    .set_body_raw(encoded, "video/mp4"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = RedditClient::builder()
+            .with_mock_server("https://v.redd.it", &server)
+            .build()
+            .unwrap();
+
+        let result = client
+            .get_media_with_options(
+                "https://v.redd.it/file",
+                MediaOptions {
+                    range: Some("bytes=0-".parse().unwrap()),
+                    ..MediaOptions::default()
+                },
+            )
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(Error::InvalidResponse(
+                ResponseError::UnsupportedMediaEncoding
+            ))
+        ));
+    }
 
     #[tokio::test]
     async fn when_the_total_timeout_is_disabled_then_media_should_outlive_a_previously_configured_deadline()

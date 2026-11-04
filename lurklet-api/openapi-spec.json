@@ -202,7 +202,8 @@
     },
     "/api/media": {
       "get": {
-        "summary": "Stream a complete image or MP4 file without range support",
+        "summary": "Stream an image or MP4 file, optionally selecting one byte range",
+        "description": "Single byte ranges are supported. Invalid, unsupported, and multipart Range headers are ignored. HEAD ignores Range. MP4s and ranged requests bypass persistent caching, while successful responses remain cacheable by clients and CDNs.",
         "operationId": "get_media",
         "parameters": [
           {
@@ -213,11 +214,90 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "description": "One byte range, such as bytes=0-1023, bytes=1024-, or bytes=-1024",
+            "required": false,
+            "schema": {
+              "type": ["string", "null"]
+            }
+          },
+          {
+            "name": "If-Range",
+            "in": "header",
+            "description": "Upstream entity tag or HTTP date. Sent only with a supported Range",
+            "required": false,
+            "schema": {
+              "type": ["string", "null"]
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Binary file content",
+            "description": "Complete binary file content",
+            "headers": {
+              "Accept-Ranges": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Range support advertised by the upstream"
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Upstream representation validator, when supplied"
+              },
+              "Last-Modified": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Upstream modification date, when supplied"
+              }
+            },
+            "content": {
+              "image/*": {},
+              "video/mp4": {}
+            }
+          },
+          "206": {
+            "description": "Single byte range",
+            "headers": {
+              "Accept-Ranges": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Range support advertised by the upstream"
+              },
+              "Content-Length": {
+                "schema": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                },
+                "description": "Length of this partial response, when supplied"
+              },
+              "Content-Range": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Inclusive byte offsets and complete representation length"
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Upstream representation validator, when supplied"
+              },
+              "Last-Modified": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Upstream modification date, when supplied"
+              }
+            },
             "content": {
               "image/*": {},
               "video/mp4": {}
@@ -268,6 +348,17 @@
                 "schema": {
                   "$ref": "#/components/schemas/Problem"
                 }
+              }
+            }
+          },
+          "416": {
+            "description": "Range not satisfiable",
+            "headers": {
+              "Content-Range": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "bytes */length, when the upstream supplies a complete length"
               }
             }
           },

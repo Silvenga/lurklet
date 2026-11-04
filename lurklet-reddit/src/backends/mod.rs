@@ -9,8 +9,9 @@ pub use mobile::{
 };
 pub use models::{
     Comment, CommentForest, CommentItem, CommentSort, CommentState, CommentThread, FlairPart,
-    FlairTextColor, ListedPost, Markdown, MarkdownMedia, MediaBody, MediaFile, MediaKind, Post,
-    PostAttachment, PostFlair, Subreddit, SubredditDetails, SubredditPage, SubredditSort,
-    SubredditStyles, Thumbnail, TimeRange, UnavailableSubreddit, VideoFormat, VideoSource,
+    FlairTextColor, ListedPost, Markdown, MarkdownMedia, MediaBody, MediaFile, MediaKind,
+    MediaOptions, MediaRange, Post, PostAttachment, PostFlair, Subreddit, SubredditDetails,
+    SubredditPage, SubredditSort, SubredditStyles, Thumbnail, TimeRange, UnavailableSubreddit,
+    VideoFormat, VideoSource,
 };
 pub use reddit_backend::RedditBackend;

@@ -12,6 +12,8 @@ export const HEALTH_RESPONSE = { health: "ok" } satisfies Health;
 export const MEDIA_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAADklEQVR4nGP4z8AAQv8BD/kD/YURmXYAAAAASUVORK5CYII=";
 
+export const VIDEO_SOURCE_URL = "https://packaged-media.redd.it/fixture/video.mp4?s=offline";
+
 export const COMMENTS_RESPONSE = {
   appliedSort: "best",
   items: [
@@ -221,6 +223,25 @@ export const POST_RESPONSE = {
     { kind: "link", url: "https://this-week-in-rust.org/blog/2026/10/21/this-week-in-rust-674/" },
   ],
   crosspostId: null,
+} satisfies Post;
+
+export const VIDEO_POST_RESPONSE = {
+  ...POST_RESPONSE,
+  id: "video1",
+  title: "Offline MP4 playback fixture",
+  flair: null,
+  commentCount: 0,
+  attachments: [
+    {
+      kind: "video",
+      sources: [
+        { format: "mp4", url: VIDEO_SOURCE_URL },
+        { format: "mp4", url: VIDEO_SOURCE_URL },
+        { format: "hls", url: "https://v.redd.it/fixture/HLSPlaylist.m3u8" },
+      ],
+      posterUrl: "https://preview.redd.it/fixture.png?s=offline",
+    },
+  ],
 } satisfies Post;
 
 export const ORIGINAL_POST_RESPONSE = {

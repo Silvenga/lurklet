@@ -14,6 +14,11 @@ pub struct MediaFile {
     pub kind: MediaKind,
     /// Length of the delivered representation when known, not a compressed transfer length.
     pub content_length: Option<u64>,
+    /// Present only for a partial response. Offsets refer to the unchanged upstream bytes.
+    pub content_range: Option<String>,
+    pub accept_ranges: Option<String>,
+    pub etag: Option<String>,
+    pub last_modified: Option<String>,
     /// Reading can fail after the response metadata has been returned.
     pub body: MediaBody,
 }
@@ -24,6 +29,7 @@ impl fmt::Debug for MediaFile {
             .field("content_type", &self.content_type)
             .field("kind", &self.kind)
             .field("content_length", &self.content_length)
+            .field("content_range", &self.content_range)
             .finish_non_exhaustive()
     }
 }

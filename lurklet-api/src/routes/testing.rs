@@ -91,7 +91,11 @@ impl RedditBackend for FakeBackend {
         self.thread.clone().expect("unexpected thread request")
     }
 
-    async fn get_media(&self, _: &str) -> Result<MediaFile, Error> {
+    async fn get_media(
+        &self,
+        _: &str,
+        _: lurklet_reddit::MediaOptions<'_>,
+    ) -> Result<MediaFile, Error> {
         panic!("data routes must not fetch media")
     }
 

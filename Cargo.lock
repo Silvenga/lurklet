@@ -1457,6 +1457,7 @@ dependencies = [
  "chrono",
  "flate2",
  "futures-util",
+ "headers",
  "http",
  "httpdate",
  "insta",
