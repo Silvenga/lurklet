@@ -200,16 +200,25 @@
         }
       }
     },
-    "/api/media": {
+    "/api/media/{origin}/{path}": {
       "get": {
         "summary": "Stream an image or MP4 file, optionally selecting one byte range",
-        "description": "Single byte ranges are supported. Invalid, unsupported, and multipart Range headers are ignored. HEAD ignores Range. MP4s and ranged requests bypass persistent caching, while successful responses remain cacheable by clients and CDNs.",
+        "description": "The upstream URL uses HTTPS and an allowed origin. The path can contain multiple segments. Encoded path characters and the entire query string are forwarded unchanged, including signatures. CDNs can exclude signature parameters from their cache keys while retaining all other query parameters. Single byte ranges are supported. Invalid, unsupported, and multipart Range headers are ignored. HEAD ignores Range. MP4s and ranged requests bypass persistent caching, while successful responses remain cacheable by clients and CDNs.",
         "operationId": "get_media",
         "parameters": [
           {
-            "name": "url",
-            "in": "query",
-            "description": "Complete media URL, encoded as a query parameter; its path and query are forwarded unchanged.",
+            "name": "origin",
+            "in": "path",
+            "description": "Allowed upstream authority, such as i.redd.it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "description": "Upstream media path, including nested segments and existing percent escapes",
             "required": true,
             "schema": {
               "type": "string"

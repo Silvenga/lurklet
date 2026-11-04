@@ -312,7 +312,7 @@ mod tests {
             &ApiCacheOptions::default(),
         );
         let request = Request::builder()
-            .uri("/api/media")
+            .uri("/api/media/example.test/file")
             .body(Body::empty())
             .unwrap();
 
@@ -400,7 +400,11 @@ mod tests {
             assert_browser_policy(response.headers());
         }
         for attempt in 1..=2 {
-            let response = app.clone().oneshot(request("/api/media")).await.unwrap();
+            let response = app
+                .clone()
+                .oneshot(request("/api/media/example.test/file"))
+                .await
+                .unwrap();
 
             assert_eq!(
                 response.status(),
@@ -409,7 +413,11 @@ mod tests {
             );
             assert_browser_policy(response.headers());
         }
-        let response = app.clone().oneshot(request("/api/media")).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(request("/api/media/example.test/file"))
+            .await
+            .unwrap();
 
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(response.headers()["x-ratelimit-limit"], "2");
@@ -461,6 +469,10 @@ mod tests {
             "/api/health/",
             "/api/openapi.json",
             "/api/missing?secret=private",
+            "/api/media",
+            "/api/media?url=https%3A%2F%2Fi.redd.it%2Fimage.png",
+            "/api/media/i.redd.it",
+            "/api/media/i.redd.it/",
         ] {
             let app = application();
             let app = app.fallback(|| async { Html("SPA") });
@@ -531,7 +543,7 @@ mod tests {
         let cache = ResponseCache::new(cache_directory.path()).await.unwrap();
         let media = "A complete media fixture that is larger than the compression threshold.";
         let seed = cache.wrap(Router::new().route(
-            "/api/media",
+            "/api/media/example.test/file",
             get(move || async move {
                 (
                     [
@@ -545,7 +557,7 @@ mod tests {
         let response = seed
             .oneshot(
                 Request::builder()
-                    .uri("/api/media")
+                    .uri("/api/media/example.test/file")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -569,8 +581,11 @@ mod tests {
             "gzip;q=0, br;q=0, deflate;q=0, zstd;q=0, identity;q=0",
         ] {
             for (path, status) in [
-                ("/api/media", StatusCode::OK),
-                ("/api/media?missingUrl=true", StatusCode::BAD_REQUEST),
+                ("/api/media/example.test/file", StatusCode::OK),
+                (
+                    "/api/media/example.test/file?invalid=true",
+                    StatusCode::BAD_REQUEST,
+                ),
             ] {
                 let response = app
                     .clone()
@@ -709,7 +724,7 @@ mod tests {
             "/api/posts/%FF",
             "/api/subreddits/rust/posts?sort=invalid",
             "/api/subreddits/%FF",
-            "/api/media",
+            "/api/media/example.test/file",
             "/api/posts/post/comments?sort=invalid",
             "/api/comments/anchor/thread?sort=invalid",
         ] {
@@ -848,7 +863,7 @@ mod tests {
                 let directory = assert_fs::TempDir::new().unwrap();
                 let cache = ResponseCache::new(directory.path()).await.unwrap();
                 let seed = cache.wrap(Router::new().route(
-                    "/api/media",
+                    "/api/media/example.test/file",
                     get(move || async move {
                         let mut headers = HeaderMap::from_iter([
                             (
@@ -878,7 +893,7 @@ mod tests {
                     }),
                 ));
                 let request = Request::builder()
-                    .uri("/api/media")
+                    .uri("/api/media/example.test/file")
                     .body(Body::empty())
                     .unwrap();
                 let response = seed.oneshot(request).await.unwrap();
@@ -897,7 +912,7 @@ mod tests {
                 for method in [Method::GET, Method::HEAD] {
                     let request = Request::builder()
                         .method(method.clone())
-                        .uri("/api/media")
+                        .uri("/api/media/example.test/file")
                         .body(Body::empty())
                         .unwrap();
 
@@ -975,7 +990,11 @@ mod tests {
                 "/api/comments/anchor/thread",
                 StatusCode::METHOD_NOT_ALLOWED,
             ),
-            (Method::POST, "/api/media", StatusCode::METHOD_NOT_ALLOWED),
+            (
+                Method::POST,
+                "/api/media/example.test/file",
+                StatusCode::METHOD_NOT_ALLOWED,
+            ),
             (Method::GET, "/api/health", StatusCode::OK),
             (Method::HEAD, "/api/health", StatusCode::OK),
         ] {

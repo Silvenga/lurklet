@@ -2,8 +2,7 @@ import { expect, test } from "vitest";
 import { VIDEO_SOURCE_URL } from "./fixtures";
 
 test("When the offline MP4 is requested then full partial conditional and HEAD responses should describe the same bytes", async () => {
-  const url = new URL("/api/media", location.origin);
-  url.searchParams.set("url", VIDEO_SOURCE_URL);
+  const url = new URL(`/api/media/${VIDEO_SOURCE_URL.slice("https://".length)}`, location.origin);
   const response = await fetch(url);
   const bytes = new Uint8Array(await response.arrayBuffer());
 

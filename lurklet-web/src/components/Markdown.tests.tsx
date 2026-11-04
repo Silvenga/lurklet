@@ -69,8 +69,7 @@ test("When Markdown contains links and images then links should use their policy
   const image = screen.getByRole("img", { name: "Example image" });
   const url = new URL(image.getAttribute("src")!);
   expect(url.origin).toBe(location.origin);
-  expect(url.pathname).toBe("/api/media");
-  expect(url.searchParams.get("url")).toBe("https://images.example.test/example.png");
+  expect(url.pathname).toBe("/api/media/images.example.test/example.png");
   expect(image).toHaveAttribute("title", "Image title");
   expect(container.querySelector("video, audio, iframe, source")).toBeNull();
 });
@@ -272,7 +271,10 @@ test("When an image is inline inside a link then its proxied image and failure p
   expect(container.querySelector("p div, p figure, img")).toBeNull();
 });
 
-test.each(["https://i.redd.it/example.png", "/media/example.png"])(
+test.each([
+  "https://i.redd.it/example.png",
+  "https://preview.redd.it/example.png?width=640&s=a%2Bb",
+])(
   "When inline media uses %s without alt text then its source should only be passed to the media API",
   (src) => {
     const { container } = renderMarkdown(`![](${src})`);
@@ -281,20 +283,22 @@ test.each(["https://i.redd.it/example.png", "/media/example.png"])(
     expect(image).toHaveAttribute("alt", "");
     const url = new URL(image!.getAttribute("src")!);
     expect(url.origin).toBe(location.origin);
-    expect(url.pathname).toBe("/api/media");
-    expect(url.searchParams.get("url")).toBe(src);
+    expect(url.href).toBe(`${location.origin}/api/media/${src.slice("https://".length)}`);
     expect(
       container.querySelector("[srcset], video, audio, iframe, source, object, embed"),
     ).toBeNull();
   },
 );
 
-test("When the Markdown URL filter removes an unsafe image source then it should remain a non-fetching placeholder", () => {
-  const { container } = renderMarkdown("![](data:image/png;base64,example)");
+test.each(["data:image/png;base64,example", "/media/example.png"])(
+  "When an image source is %s then it should remain a non-fetching placeholder",
+  (src) => {
+    const { container } = renderMarkdown(`![](${src})`);
 
-  expect(screen.getByRole("img", { name: "Media unavailable" })).toBeVisible();
-  expect(container.querySelector("img, [src], [srcset]")).toBeNull();
-});
+    expect(screen.getByRole("img", { name: "Media unavailable" })).toBeVisible();
+    expect(container.querySelector("img, [src], [srcset]")).toBeNull();
+  },
+);
 
 test("When raw HTML contains media then it should remain text rather than create media or embeds", () => {
   const html =
@@ -343,8 +347,7 @@ test.each([
     const image = screen.getByRole("img", { name: "An image" });
     const url = new URL(image.getAttribute("src")!);
     expect(url.origin).toBe(location.origin);
-    expect(url.pathname).toBe("/api/media");
-    expect(url.searchParams.get("url")).toBe(media[0]!.url);
+    expect(url.href).toBe(`${location.origin}/api/media/${media[0]!.url.slice("https://".length)}`);
     expect(image).toHaveAttribute("width", "300");
     expect(image).toHaveAttribute("height", "200");
     expect(image).toHaveAttribute("title", "Caption");

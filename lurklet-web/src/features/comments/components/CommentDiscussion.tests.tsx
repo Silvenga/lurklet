@@ -73,8 +73,9 @@ test("When a comment contains an inline media reference then the discussion shou
 
   const discussion = await screen.findByRole("region", { name: "Comments" });
   const image = await within(discussion).findByRole("img", { name: "An image" });
-  expect(new URL(image.getAttribute("src")!).searchParams.get("url")).toBe(
-    item.comment.markdown!.media[0]!.url,
+  expect(image).toHaveAttribute(
+    "src",
+    `${location.origin}/api/media/${item.comment.markdown!.media[0]!.url.slice("https://".length)}`,
   );
 });
 

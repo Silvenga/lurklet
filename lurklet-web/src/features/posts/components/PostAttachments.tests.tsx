@@ -33,9 +33,7 @@ test("When attachments mix links images and videos then their order and link pol
   ]);
   const image = screen.getByRole("img", { name: "A diagram" });
   expect(image.tagName).toBe("IMG");
-  expect(new URL(image.getAttribute("src")!).searchParams.get("url")).toBe(
-    "https://images.example.com/image.png",
-  );
+  expect(image).toHaveAttribute("src", `${location.origin}/api/media/images.example.com/image.png`);
   expect(screen.getByText("Diagram caption").tagName).toBe("FIGCAPTION");
   expect(screen.getByLabelText("Video")).toBeVisible();
   expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([

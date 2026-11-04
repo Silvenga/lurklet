@@ -232,8 +232,7 @@ test("When a post contains media attachments then proxied images and video place
   ).toBeNull();
   const mediaUrl = new URL(image.getAttribute("src")!);
   expect(mediaUrl.origin).toBe(location.origin);
-  expect(mediaUrl.pathname).toBe("/api/media");
-  expect(mediaUrl.searchParams.get("url")).toBe("https://images.example.com/diagram.png");
+  expect(mediaUrl.pathname).toBe("/api/media/images.example.com/diagram.png");
 });
 
 test("When a listing is opened then it should not request individual post details", async () => {
@@ -477,7 +476,7 @@ test("When a cross-post is opened then its original should render without replac
   expect(preview.querySelector("time")).toHaveAttribute("datetime", original.createdAt);
   expect(within(preview).getByText(/Rust doesn't prevent memory leaks/)).toBeVisible();
   const image = within(preview).getByRole("img", { name: "Original diagram" });
-  expect(new URL(image.getAttribute("src")!).pathname).toBe("/api/media");
+  expect(new URL(image.getAttribute("src")!).pathname).toMatch(/^\/api\/media\//);
   expect(image.closest("a")).toBeNull();
   const comment = await within(screen.getByRole("region", { name: "Comments" })).findByText(
     /This mock comment belongs to/,
@@ -489,7 +488,7 @@ test("When a cross-post is opened then its original should render without replac
   ).toBeVisible();
   await expectRedditMenu("Post actions", `https://reddit.com${primary.permalink}`);
   await expectJsonMenu("Post actions", new URL(`/api/posts/${primary.id}`, location.origin).href);
-  expect(requests.filter((path) => path !== "/api/media").toSorted()).toEqual(
+  expect(requests.filter((path) => !path.startsWith("/api/media/")).toSorted()).toEqual(
     [
       `/api/posts/${primary.id}`,
       `/api/posts/${primary.id}/comments`,
@@ -1558,8 +1557,9 @@ test("When navigating within a subreddit and returning to it then metadata shoul
   const sidebar = await screen.findByRole("complementary");
   await within(sidebar).findByText("About r/rust");
   const icon = within(sidebar).getByRole("img", { name: "r/rust icon" });
-  expect(new URL(icon.getAttribute("src")!).searchParams.get("url")).toBe(
-    "https://styles.redditmedia.com/rust.png",
+  expect(icon).toHaveAttribute(
+    "src",
+    `${location.origin}/api/media/styles.redditmedia.com/rust.png`,
   );
 
   for (const path of [
@@ -1584,8 +1584,9 @@ test("When navigating within a subreddit and returning to it then metadata shoul
   });
   await within(sidebar).findByText("About r/typescript");
   const nextIcon = within(sidebar).getByRole("img", { name: "r/typescript icon" });
-  expect(new URL(nextIcon.getAttribute("src")!).searchParams.get("url")).toBe(
-    "https://styles.redditmedia.com/typescript.png",
+  expect(nextIcon).toHaveAttribute(
+    "src",
+    `${location.origin}/api/media/styles.redditmedia.com/typescript.png`,
   );
   expect(nextIcon).not.toBe(icon);
   await act(async () => {

@@ -1,8 +1,7 @@
 import { cn } from "cn";
 import { ImageOffIcon } from "lucide-react";
 import { useState, type ComponentProps } from "react";
-import { client } from "@/clients/lurklet-api/generated/client.gen";
-import type { GetMediaData } from "@/clients/lurklet-api/generated/types.gen";
+import { buildMediaUrl } from "../build-media-url";
 
 export function Media({
   src,
@@ -26,11 +25,12 @@ export function Media({
     variant === "icon" && "size-10 rounded-full",
   );
 
-  if (src && kind !== "video" && failedSource !== src) {
+  const proxyUrl = buildMediaUrl(src);
+  if (src && proxyUrl && kind !== "video" && failedSource !== src) {
     return (
       <img
         key={src}
-        src={client.buildUrl({ url: "/api/media", query: { url: src } } satisfies GetMediaData)}
+        src={proxyUrl}
         alt={alt ?? (kind === "image" ? "Image" : "")}
         title={title}
         width={width}

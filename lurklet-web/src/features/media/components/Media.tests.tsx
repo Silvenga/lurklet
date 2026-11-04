@@ -5,8 +5,9 @@ import { Media } from "./Media";
 test.each([
   "https://i.redd.it/example.png",
   "https://preview.redd.it/file%20name.png?width=640&x=2&x=1&s=a%2Bb+z&token=%252F",
-  "https://example.com/not-allowed.png#fragment",
-  "/relative/image.png",
+  "https://preview.redd.it/nested/file%2F%25%3F%23.png?width=640&auto=webp&s=a%2Bb",
+  "https://i.redd.it/file.png?",
+  "https://example.com/not-allowed.png",
 ])(
   "When an image source is %s then its complete value should only be sent through the media endpoint",
   (src) => {
@@ -16,9 +17,7 @@ test.each([
     const url = new URL(image.getAttribute("src")!);
     expect(image.tagName).toBe("IMG");
     expect(url.origin).toBe(location.origin);
-    expect(url.pathname).toBe("/api/media");
-    expect(url.searchParams.get("url")).toBe(src);
-    expect([...url.searchParams.keys()]).toEqual(["url"]);
+    expect(url.href).toBe(`${location.origin}/api/media/${src.slice("https://".length)}`);
     expect(url.hash).toBe("");
     expect(image).toHaveAttribute("title", "Image title");
     expect(image).toHaveAttribute("loading", "lazy");
@@ -51,7 +50,7 @@ test("When the source changes after failure then the new image should load and r
   rerender(<Media kind="image" src={second} alt="Example" />);
 
   const nextImage = screen.getByRole("img", { name: "Example" });
-  expect(new URL(nextImage.getAttribute("src")!).searchParams.get("url")).toBe(second);
+  expect(nextImage).toHaveAttribute("src", `${location.origin}/api/media/i.redd.it/second.png`);
   expect(nextImage).not.toBe(oldImage);
 
   fireEvent.error(oldImage);
@@ -60,22 +59,51 @@ test("When the source changes after failure then the new image should load and r
 
   rerender(<Media kind="image" src={first} alt="Example" />);
 
-  expect(
-    new URL(screen.getByRole("img", { name: "Example" }).getAttribute("src")!).searchParams.get(
-      "url",
-    ),
-  ).toBe(first);
+  expect(screen.getByRole("img", { name: "Example" })).toHaveAttribute(
+    "src",
+    `${location.origin}/api/media/i.redd.it/first.png`,
+  );
 });
 
-test.each([undefined, ""])(
-  "When the image source is %j then no request URL should be rendered",
-  (src) => {
-    const { container } = render(<Media kind="image" src={src} />);
+test.each([
+  undefined,
+  "",
+  "/relative/image.png",
+  "not a URL",
+  "https://i.redd.it/file.png#fragment",
+  "http://i.redd.it/file.png",
+  "https://user:pass@i.redd.it/file.png",
+])("When the image source is %j then no request URL should be rendered", (src) => {
+  const { container } = render(<Media kind="image" src={src} />);
 
-    expect(screen.getByRole("img", { name: "Image unavailable" })).toBeVisible();
-    expect(container.querySelector("[src], [srcset]")).toBeNull();
-  },
-);
+  expect(screen.getByRole("img", { name: "Image unavailable" })).toBeVisible();
+  expect(container.querySelector("[src], [srcset]")).toBeNull();
+});
+
+test("When a signature changes then the media path should remain stable and all query parameters should remain exposed", () => {
+  const { rerender } = render(
+    <Media src="https://preview.redd.it/file.png?width=640&auto=webp&s=first" alt="Example" />,
+  );
+  const first = new URL(screen.getByRole("img", { name: "Example" }).getAttribute("src")!);
+
+  rerender(
+    <Media src="https://preview.redd.it/file.png?width=640&auto=webp&s=second" alt="Example" />,
+  );
+
+  const second = new URL(screen.getByRole("img", { name: "Example" }).getAttribute("src")!);
+  expect(first.pathname).toBe("/api/media/preview.redd.it/file.png");
+  expect(second.pathname).toBe(first.pathname);
+  expect([...first.searchParams]).toEqual([
+    ["width", "640"],
+    ["auto", "webp"],
+    ["s", "first"],
+  ]);
+  expect([...second.searchParams]).toEqual([
+    ["width", "640"],
+    ["auto", "webp"],
+    ["s", "second"],
+  ]);
+});
 
 test("When media is a video then it should remain a non-fetching placeholder even if a source is supplied", () => {
   const { container } = render(<Media kind="video" src="https://v.redd.it/example.mp4" />);
@@ -107,8 +135,9 @@ test.each([
     const image = screen.getByRole("img", { name: "Preview" });
     const url = new URL(image.getAttribute("src")!);
     expect(url.origin).toBe(location.origin);
-    expect(url.pathname).toBe("/api/media");
-    expect(url.searchParams.get("url")).toBe(src);
+    expect(url.href).toBe(
+      `${location.origin}/api/media/styles.redditmedia.com/community.png?width=64&token=a%2Bb`,
+    );
     expect(image).toHaveClass(size, shape, "object-cover");
     expect(image).not.toHaveClass("h-auto");
     expect(image).toHaveAttribute("loading", "lazy");

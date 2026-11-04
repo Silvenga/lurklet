@@ -131,8 +131,7 @@ test("When a post has a thumbnail then it should use the original proxied image 
   const image = screen.getByRole("img", { name: `Thumbnail for ${post.title}` });
   const url = new URL(image.getAttribute("src")!);
   expect(url.origin).toBe(location.origin);
-  expect(url.pathname).toBe("/api/media");
-  expect(url.searchParams.get("url")).toBe(THUMBNAIL.url);
+  expect(url.href).toBe(`${location.origin}/api/media/${THUMBNAIL.url.slice("https://".length)}`);
   expect(image.parentElement).not.toHaveClass("[&_img]:blur-md");
   expect(screen.queryByRole("button", { name: /Reveal thumbnail/ })).toBeNull();
   expect(screen.getByRole("link", { name: post.title })).toHaveAttribute(
@@ -160,8 +159,9 @@ test.each(["NSFW", "spoiler", "obfuscated"])(
       </MemoryRouter>,
     );
     const hiddenImage = container.querySelector("img")!;
-    expect(new URL(hiddenImage.getAttribute("src")!).searchParams.get("url")).toBe(
-      THUMBNAIL.obfuscatedUrl,
+    expect(hiddenImage).toHaveAttribute(
+      "src",
+      `${location.origin}/api/media/${THUMBNAIL.obfuscatedUrl!.slice("https://".length)}`,
     );
     expect(hiddenImage.parentElement).toHaveClass("[&_img]:blur-md");
     expect(screen.queryByRole("img")).toBeNull();
@@ -171,8 +171,7 @@ test.each(["NSFW", "spoiler", "obfuscated"])(
     const image = screen.getByRole("img", { name: `Thumbnail for ${post.title}` });
     const url = new URL(image.getAttribute("src")!);
     expect(url.origin).toBe(location.origin);
-    expect(url.pathname).toBe("/api/media");
-    expect(url.searchParams.get("url")).toBe(THUMBNAIL.url);
+    expect(url.href).toBe(`${location.origin}/api/media/${THUMBNAIL.url.slice("https://".length)}`);
     expect(image.parentElement).not.toHaveClass("[&_img]:blur-md");
     expect(screen.queryByRole("button", { name: /Reveal thumbnail/ })).toBeNull();
     expect(screen.queryByText("Left listing")).toBeNull();
@@ -195,7 +194,10 @@ test.each(["{Enter}", " "])(
       </MemoryRouter>,
     );
     const image = container.querySelector("img")!;
-    expect(new URL(image.getAttribute("src")!).searchParams.get("url")).toBe(THUMBNAIL.url);
+    expect(image).toHaveAttribute(
+      "src",
+      `${location.origin}/api/media/${THUMBNAIL.url.slice("https://".length)}`,
+    );
     expect(image.parentElement).toHaveClass("[&_img]:blur-md");
 
     await user.tab();
@@ -237,7 +239,10 @@ test("When a concealed thumbnail fails then it should not request the original u
   await user.click(screen.getByRole("button", { name: /Reveal thumbnail/ }));
 
   const image = screen.getByRole("img", { name: `Thumbnail for ${post.title}` });
-  expect(new URL(image.getAttribute("src")!).searchParams.get("url")).toBe(THUMBNAIL.url);
+  expect(image).toHaveAttribute(
+    "src",
+    `${location.origin}/api/media/${THUMBNAIL.url.slice("https://".length)}`,
+  );
 
   fireEvent.error(image);
 

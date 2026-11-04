@@ -22,8 +22,7 @@ test("When MP4 sources and a poster are available then playback should use only 
   ]) {
     const proxy = new URL(value!);
     expect(proxy.origin).toBe(location.origin);
-    expect(proxy.pathname).toBe("/api/media");
-    expect(proxy.searchParams.get("url")).toBe(original);
+    expect(proxy.href).toBe(`${location.origin}/api/media/${original!.slice("https://".length)}`);
   }
   expect(video).toHaveAttribute("controls");
   expect(video).toHaveAttribute("playsinline");
@@ -41,9 +40,9 @@ test("When playback fails then distinct MP4 alternatives should be tried in orde
   );
   const original = screen.getByLabelText("Video");
   const candidates = original.querySelectorAll("source");
-  expect([...candidates].map((source) => new URL(source.src).searchParams.get("url"))).toEqual([
-    first.url,
-    second.url,
+  expect([...candidates].map((source) => source.src)).toEqual([
+    `${location.origin}/api/media/v.redd.it/first.mp4`,
+    `${location.origin}/api/media/v.redd.it/second.mp4`,
   ]);
 
   fireEvent.error(candidates[0]!);
@@ -61,15 +60,40 @@ test("When playback fails then distinct MP4 alternatives should be tried in orde
 
   rerender(<Video sources={[second]} posterUrl={null} />);
 
-  expect(
-    new URL(
-      screen.getByLabelText("Video").querySelector("source")!.getAttribute("src")!,
-    ).searchParams.get("url"),
-  ).toBe(second.url);
+  expect(screen.getByLabelText("Video").querySelector("source")).toHaveAttribute(
+    "src",
+    `${location.origin}/api/media/v.redd.it/second.mp4`,
+  );
   fireEvent.error(alternative);
   expect(screen.getByLabelText("Video")).toBeVisible();
 
   fireEvent.error(screen.getByLabelText("Video"));
 
   expect(screen.getByRole("img", { name: "Video unavailable" })).toBeVisible();
+});
+
+test("When video sources or posters are invalid then they should not create requests or prevent valid alternatives", () => {
+  const { container, rerender } = render(
+    <Video
+      sources={[
+        { format: "mp4", url: "/relative.mp4" },
+        { format: "mp4", url: "not a URL" },
+        { format: "mp4", url: "https://v.redd.it/nested/file.mp4?s=signature" },
+      ]}
+      posterUrl="/relative.png"
+    />,
+  );
+
+  const video = screen.getByLabelText("Video");
+  expect(video).not.toHaveAttribute("poster");
+  expect(video.querySelectorAll("source")).toHaveLength(1);
+  expect(video.querySelector("source")).toHaveAttribute(
+    "src",
+    `${location.origin}/api/media/v.redd.it/nested/file.mp4?s=signature`,
+  );
+
+  rerender(<Video sources={[{ format: "mp4", url: "/relative.mp4" }]} posterUrl={null} />);
+
+  expect(screen.getByRole("img", { name: "Video unavailable" })).toBeVisible();
+  expect(container.querySelector("video, [src], [poster]")).toBeNull();
 });

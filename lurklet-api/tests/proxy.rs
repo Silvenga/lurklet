@@ -156,9 +156,7 @@ async fn when_a_proxy_is_selected_then_api_requests_should_use_the_configured_pr
         let (response, headers) = timeout(Duration::from_secs(5), async {
             tokio::join!(
                 client
-                    .get(format!(
-                        "http://{address}/api/media?url=https%3A%2F%2Fi.redd.it%2Fimage.png"
-                    ))
+                    .get(format!("http://{address}/api/media/i.redd.it/image.png"))
                     .send(),
                 receive_connect,
             )

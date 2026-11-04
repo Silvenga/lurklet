@@ -20,17 +20,12 @@ import videoData from "./video.mp4?inline";
 const VIDEO_BYTES = Uint8Array.from(atob(videoData.split(",")[1]!), (char) => char.charCodeAt(0));
 
 export const handlers = [
-  http.all("*/api/media", ({ request }) => {
+  http.all("*/api/media/:origin/*", ({ request }) => {
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new HttpResponse(null, { status: 405, headers: { Allow: "GET, HEAD" } });
     }
-    const url = new URL(request.url).searchParams.get("url");
-    if (!url) {
-      return HttpResponse.json(
-        { type: "about:blank", title: "Bad Request", status: 400 } satisfies Problem,
-        { status: 400 },
-      );
-    }
+    const proxy = new URL(request.url);
+    const url = `https://${proxy.pathname.slice("/api/media/".length)}${proxy.search}`;
     if (url !== VIDEO_SOURCE_URL) {
       return HttpResponse.arrayBuffer(
         request.method === "HEAD"

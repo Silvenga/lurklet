@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { client } from "@/clients/lurklet-api/generated/client.gen";
-import type { GetMediaData, VideoSource } from "@/clients/lurklet-api/generated/types.gen";
+import type { VideoSource } from "@/clients/lurklet-api/generated/types.gen";
+import { buildMediaUrl } from "../build-media-url";
 import { Media } from "./Media";
 
 export function Video({
@@ -11,7 +11,12 @@ export function Video({
   posterUrl: string | null;
 }) {
   const urls = [
-    ...new Set(sources.filter((source) => source.format === "mp4").map((source) => source.url)),
+    ...new Set(
+      sources
+        .filter((source) => source.format === "mp4")
+        .map((source) => buildMediaUrl(source.url))
+        .filter((url) => url !== undefined),
+    ),
   ];
   const sourceKey = JSON.stringify(urls);
   const [failure, setFailure] = useState<{ sourceKey: string; urls: string[] }>({
@@ -33,11 +38,7 @@ export function Video({
     <video
       key={sourceKey}
       aria-label="Video"
-      poster={
-        posterUrl
-          ? client.buildUrl({ url: "/api/media", query: { url: posterUrl } } satisfies GetMediaData)
-          : undefined
-      }
+      poster={buildMediaUrl(posterUrl)}
       controls
       playsInline
       preload="none"
@@ -53,7 +54,7 @@ export function Video({
       {urls.map((url) => (
         <source
           key={url}
-          src={client.buildUrl({ url: "/api/media", query: { url } } satisfies GetMediaData)}
+          src={url}
           type="video/mp4"
           onError={() =>
             setFailure((current) =>

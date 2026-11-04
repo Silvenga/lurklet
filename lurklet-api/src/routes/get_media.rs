@@ -1,36 +1,32 @@
 use crate::error::ApiError;
 use axum::body::Body;
-use axum::extract::rejection::QueryRejection;
-use axum::extract::{Query, State};
-use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
+use axum::extract::State;
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
 use headers::{ContentLength, ContentRange, HeaderMapExt};
 use lurklet_reddit::{Error as RedditError, MediaOptions, RedditBackend, RedditClient};
-use serde::Deserialize;
-use utoipa::IntoParams;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
-#[derive(Deserialize, IntoParams)]
-#[serde(rename_all = "camelCase")]
-#[into_params(parameter_in = Query)]
-struct GetMediaInput {
-    /// Complete media URL, encoded as a query parameter; its path and query are forwarded unchanged.
-    url: String,
-}
-
 /// Builds the streaming media endpoint with single byte-range support.
 pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
-    OpenApiRouter::new().routes(routes!(get_media))
+    let (schemas, paths, method_router) = routes!(get_media);
+    let specification = OpenApiRouter::new()
+        .routes((schemas, paths, method_router.clone()))
+        .into_openapi();
+    // OpenAPI uses a regular parameter; Axum needs a catch-all for nested media paths.
+    OpenApiRouter::with_openapi(specification).route("/media/{origin}/{*path}", method_router)
 }
 
 #[utoipa::path(
     get,
-    path = "/media",
+    path = "/media/{origin}/{path}",
     operation_id = "get_media",
     summary = "Stream an image or MP4 file, optionally selecting one byte range",
-    description = "Single byte ranges are supported. Invalid, unsupported, and multipart Range headers are ignored. HEAD ignores Range. MP4s and ranged requests bypass persistent caching, while successful responses remain cacheable by clients and CDNs.",
-    params(GetMediaInput,
+    description = "The upstream URL uses HTTPS and an allowed origin. The path can contain multiple segments. Encoded path characters and the entire query string are forwarded unchanged, including signatures. CDNs can exclude signature parameters from their cache keys while retaining all other query parameters. Single byte ranges are supported. Invalid, unsupported, and multipart Range headers are ignored. HEAD ignores Range. MP4s and ranged requests bypass persistent caching, while successful responses remain cacheable by clients and CDNs.",
+    params(
+        ("origin" = String, Path, description = "Allowed upstream authority, such as i.redd.it"),
+        ("path" = String, Path, description = "Upstream media path, including nested segments and existing percent escapes"),
         ("Range" = Option<String>, Header, description = "One byte range, such as bytes=0-1023, bytes=1024-, or bytes=-1024"),
         ("If-Range" = Option<String>, Header, description = "Upstream entity tag or HTTP date. Sent only with a supported Range")
     ),
@@ -57,9 +53,13 @@ async fn get_media<B: RedditBackend>(
     State(reddit): State<RedditClient<B>>,
     method: Method,
     headers: HeaderMap,
-    input: Result<Query<GetMediaInput>, QueryRejection>,
+    uri: Uri,
 ) -> Result<Response, ApiError> {
-    let Query(input) = input.map_err(|_| ApiError::BadRequest)?;
+    let target = uri
+        .path_and_query()
+        .and_then(|value| value.as_str().strip_prefix("/media/"))
+        .ok_or(ApiError::BadRequest)?;
+    let url = format!("https://{target}");
     let range = (method == Method::GET && headers.get_all(header::RANGE).iter().count() == 1)
         .then(|| headers.get(header::RANGE)?.to_str().ok()?.parse().ok())
         .flatten();
@@ -70,7 +70,7 @@ async fn get_media<B: RedditBackend>(
             .and_then(|value| value.to_str().ok()),
         range,
     };
-    let media = match reddit.get_media_with_options(&input.url, options).await {
+    let media = match reddit.get_media_with_options(&url, options).await {
         Err(RedditError::MediaRangeNotSatisfiable { content_length }) => {
             let mut response = (
                 StatusCode::RANGE_NOT_SATISFIABLE,
@@ -255,11 +255,8 @@ mod tests {
     }
 
     fn request() -> Request<Body> {
-        let query = form_urlencoded::Serializer::new(String::new())
-            .append_pair("url", "https://preview.redd.it/file.png?x=2&x=1&s=a%2Bb")
-            .finish();
         Request::builder()
-            .uri(format!("/media?{query}"))
+            .uri("/media/preview.redd.it/file.png?x=2&x=1&s=a%2Bb")
             .body(Body::empty())
             .unwrap()
     }
@@ -267,22 +264,28 @@ mod tests {
     #[tokio::test]
     async fn when_media_is_requested_then_the_url_should_be_forwarded_unchanged_and_the_body_should_remain_lazy()
      {
-        for length in [None, Some(11)] {
+        for (length, target) in [
+            (None, "preview.redd.it/file.png?x=2&x=1&s=a%2Bb"),
+            (
+                Some(11),
+                "preview.redd.it/nested/file%20name%2F%25%3F%23.png?width=640&auto=webp&x=2&x=1&s=a%2Bb+z&token=%252F",
+            ),
+            (None, "i.redd.it/file.png"),
+            (Some(11), "i.redd.it/file.png?"),
+        ] {
             let calls = Arc::new(Mutex::new(Vec::new()));
             let chunks = Arc::new(AtomicUsize::new(0));
             let app = app(None, length, calls.clone(), chunks.clone());
+            let mut request = request();
+            *request.uri_mut() = format!("/media/{target}").parse().unwrap();
 
-            let response = app.oneshot(request()).await.unwrap();
+            let response = app.oneshot(request).await.unwrap();
 
             assert_eq!(response.status(), StatusCode::OK);
             assert_eq!(chunks.load(Ordering::SeqCst), 0);
             assert_eq!(
                 *calls.lock().unwrap(),
-                [(
-                    "https://preview.redd.it/file.png?x=2&x=1&s=a%2Bb".into(),
-                    None,
-                    None
-                )]
+                [(format!("https://{target}"), None, None)]
             );
             assert_eq!(response.headers()[header::CONTENT_TYPE], "video/mp4");
             assert_eq!(
@@ -346,7 +349,7 @@ mod tests {
             ] {
                 let request = Request::builder()
                     .method(method.clone())
-                    .uri("/api/media?url=https%3A%2F%2Fi.redd.it%2Ffixture.svg")
+                    .uri("/api/media/i.redd.it/fixture.svg")
                     .extension(ConnectInfo("192.0.2.1:1234".parse::<SocketAddr>().unwrap()))
                     .body(Body::empty())
                     .unwrap();
@@ -408,12 +411,49 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(
-            response.headers()[header::CACHE_CONTROL],
-            "public, max-age=10"
-        );
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
         assert!(calls.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn when_media_origins_are_invalid_then_the_mounted_route_should_reject_them() {
+        let app = application(
+            RedditClient::builder().build().unwrap(),
+            &RateLimits::default(),
+            None,
+            &ApiCacheOptions::default(),
+        );
+
+        for origin in [
+            "example.test",
+            "i.redd.it.evil.test",
+            "user@i.redd.it",
+            "user:pass@i.redd.it",
+            "i.redd.it@127.0.0.1",
+            "i.redd.it:8443",
+            "i.redd.it:0443",
+            "i.redd.it.",
+            "127.0.0.1",
+            "[::1]",
+            "i%2Eredd%2Eit",
+            "i.redd.it%2Fignored",
+            "i.redd.it%3Fignored",
+            "i.redd.it%23ignored",
+        ] {
+            let request = Request::builder()
+                .uri(format!("/api/media/{origin}/file.png?s=signature"))
+                .extension(ConnectInfo("192.0.2.1:1234".parse::<SocketAddr>().unwrap()))
+                .body(Body::empty())
+                .unwrap();
+
+            let response = app.clone().oneshot(request).await.unwrap();
+
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{origin}");
+            assert_eq!(
+                response.headers()[header::CONTENT_TYPE],
+                "application/problem+json"
+            );
+        }
     }
 
     #[tokio::test]
@@ -551,7 +591,7 @@ mod tests {
                     },
                 );
                 let request = Request::builder()
-                    .uri("/api/media?url=https%3A%2F%2Fv.redd.it%2Ffile")
+                    .uri("/api/media/v.redd.it/file")
                     .header(header::RANGE, range)
                     .header(header::IF_RANGE, "\"fixture\"")
                     .header(header::ACCEPT_ENCODING, "gzip, br, deflate, zstd")

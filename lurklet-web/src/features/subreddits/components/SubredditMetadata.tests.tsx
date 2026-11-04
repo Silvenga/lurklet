@@ -60,8 +60,9 @@ test("When metadata is available then it should show the summary and accurately 
   const icon = screen.getByRole("img", { name: "r/rust icon" });
   const iconUrl = new URL(icon.getAttribute("src")!);
   expect(iconUrl.origin).toBe(location.origin);
-  expect(iconUrl.pathname).toBe("/api/media");
-  expect(iconUrl.searchParams.get("url")).toBe(SUBREDDIT_RESPONSE.styles.iconUrl);
+  expect(iconUrl.href).toBe(
+    `${location.origin}/api/media/${SUBREDDIT_RESPONSE.styles.iconUrl!.slice("https://".length)}`,
+  );
   expect(screen.getByRole("link", { name: "r/rust" })).toHaveAttribute("href", "/r/rust");
   await expectJsonMenu("Subreddit actions", new URL("/api/subreddits/rust", location.origin).href);
 });
@@ -190,8 +191,9 @@ test.each([null, ""])(
 
     const icon = screen.getByRole("img", { name: "r/rust icon" });
 
-    expect(new URL(icon.getAttribute("src")!).searchParams.get("url")).toBe(
-      SUBREDDIT_RESPONSE.styles.legacyIconUrl,
+    expect(icon).toHaveAttribute(
+      "src",
+      `${location.origin}/api/media/${SUBREDDIT_RESPONSE.styles.legacyIconUrl!.slice("https://".length)}`,
     );
   },
 );

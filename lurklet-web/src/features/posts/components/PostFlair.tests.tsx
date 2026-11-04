@@ -53,9 +53,8 @@ test("When a flair emoji fails then its alias should replace it without losing s
   const image = screen.getByRole("img", { name: ":post-daily-discussion:" });
   const url = new URL(image.getAttribute("src")!);
   expect(url.origin).toBe(location.origin);
-  expect(url.pathname).toBe("/api/media");
-  expect(url.searchParams.get("url")).toBe(
-    "https://emoji.redditmedia.com/fixture_t5_fixture/post-daily-discussion",
+  expect(url.pathname).toBe(
+    "/api/media/emoji.redditmedia.com/fixture_t5_fixture/post-daily-discussion",
   );
   expect(image).toHaveAttribute("referrerpolicy", "no-referrer");
   expect(image.parentElement?.textContent).toBe(" Daily Discussion");
