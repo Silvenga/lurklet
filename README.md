@@ -2,6 +2,8 @@
 
 A private, read-only, lightweight, front-end for Reddit, built from scratch in Rust.
 
+[Demo (app.lurklet.com)](https://app.lurklet.com)
+
 ![Screenshot](docs/screenshot-dark-light.webp)
 
 ## Goals
@@ -15,8 +17,12 @@ A private, read-only, lightweight, front-end for Reddit, built from scratch in R
 
 - Mimics the Reddit URL style - just change the origin (use your favorite redirect extension).
 - Viewing subreddits, posts, and comments.
-- Mobile. (this is a feature these days?)
-- Proxies supported media through the server (images).
+  - Flair - basic and customized flair (emojis).
+  - Cross-posts.
+  - Thumbnails with NSFW blurring.
+  - Reddit markdown - spoilers, relaxed whitespace handling, double tilde, linking subreddits/users, inline media, and basic super support.
+- Mobile (this is a feature these days?).
+- Proxies supported media through the server (images and MP4 videos).
 - Built-in rate-limiting - with basic protections against flood attacks and scraping.
 - Search-indexing disallowed.
 - Sane caching by default - designed to operate behind a CDN/Caching proxy.
@@ -69,21 +75,22 @@ The lurklet API server
 Usage: lurklet-api [OPTIONS] [COMMAND]
 
 Commands:
-  export-openapi  Write the internal OpenAPI document to stdout without starting the server
-  health-check    Check the local API's HTTP status without reading its response body
-  help            Print this message or the help of the given subcommand(s)
+  export-openapi           Write the internal OpenAPI document to stdout
+  export-cache-query-keys  Write the allowed query keys per-endpoint
+  health-check             Check the local API's HTTP status without reading its response body
+  help                     Print this message or the help of the given subcommand(s)
 
 Options:
       --bind <BIND>
-          Address on which to serve HTTP [env: LURKLET_BIND=0.0.0.0:3000] [default: 127.0.0.1:3000]
+          Address on which to serve HTTP [env: LURKLET_BIND=] [default: 127.0.0.1:3000]
       --static-dir <STATIC_DIR>
-          Directory containing the built website [env: LURKLET_STATIC_DIR=/app/static] [default: lurklet-api/static]
+          Directory containing the built website [env: LURKLET_STATIC_DIR=] [default: lurklet-api/static]
       --cache-dir <CACHE_DIR>
-          Save a persistent API response cache (cache-on-error) [env: LURKLET_CACHE_DIR=/cache]
+          Save a persistent API response cache (cache-on-error) [env: LURKLET_CACHE_DIR=]
       --api-cache-max-age-seconds <API_CACHE_MAX_AGE_SECONDS>
           How long to cache successful API data and media responses [env: LURKLET_API_CACHE_MAX_AGE_SECONDS=] [default: 3600]
       --state-file <STATE_FILE>
-          Restore and save Reddit session state across restarts [env: LURKLET_STATE_FILE=/cache/state.json]
+          Restore and save Reddit session state across restarts [env: LURKLET_STATE_FILE=]
       --proxy <URL>
           Proxy for Reddit requests (http, https, socks5, or socks5h) [env: LURKLET_PROXY]
       --reddit-request-timeout-seconds <REDDIT_REQUEST_TIMEOUT_SECONDS>
@@ -108,9 +115,8 @@ Options:
 
 ## Planned Features
 
-- Proxying videos - both MP4 and DASH based streams.
+- Proxying DASH videos.
 - RSS Feeds.
-- Better support for Reddit markdown quirks (currently handles inline media and internal/external links).
 - Alternative transports e.g., authenticated, desktop emulation, etc.
 - Disk based perma caching (disabled by default).
 - Programmatic access (disabled by default).
