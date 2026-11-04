@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.0](https://github.com/Silvenga/lurklet/compare/v0.2.0...v0.3.0) (2026-11-04)
+
+
+### Features
+
+* added cache time display ([5796d01](https://github.com/Silvenga/lurklet/commit/5796d012c33a8e59e6788f8c63841d1840a85fbf))
+* added cross-post handling ([316be9b](https://github.com/Silvenga/lurklet/commit/316be9ba9a4ae7a1cc6c20d3b42624ed29276360))
+* added draft mp4 support ([35e1b9b](https://github.com/Silvenga/lurklet/commit/35e1b9b1cae7e6d971269b67facbb3ba164b4b76))
+* added flairs rendering ([70fd5b1](https://github.com/Silvenga/lurklet/commit/70fd5b1310a2eb6b7a55646603fce22e4e61d3f1))
+* added offline zstd compression support for static files ([484610b](https://github.com/Silvenga/lurklet/commit/484610b38e22b28099241dd09e1ea858ae31ef7e))
+* hardened allowed query keys, added export-cache-query-keys verb ([bfb7b93](https://github.com/Silvenga/lurklet/commit/bfb7b93bb12fbd960374d8608ec65bf50c5823dd))
+* improved cacheability of media ([9fc3fce](https://github.com/Silvenga/lurklet/commit/9fc3fcebb2640c9826bf1a7430b70d6af67701f0))
+* separated media rate limits ([addd6d7](https://github.com/Silvenga/lurklet/commit/addd6d7fd9431e8c703864e94e3ff80911313079))
+* switched "open in reddit" to use the upstream permalink ([bc25b28](https://github.com/Silvenga/lurklet/commit/bc25b28f70d31b973ce4fea984a0483df49ba28c))
+
 ## [0.2.0](https://github.com/Silvenga/lurklet/compare/v0.1.0...v0.2.0) (2026-11-01)
 
 
