@@ -39,17 +39,22 @@ impl ResponseCache {
         api.layer(middleware::from_fn_with_state(self.clone(), Self::serve))
     }
 
-    async fn serve(State(cache): State<Self>, request: Request, next: Next) -> Response {
+    async fn serve(State(cache): State<Self>, mut request: Request, next: Next) -> Response {
         if !matches!(*request.method(), Method::GET | Method::HEAD)
             || request.headers().contains_key(header::RANGE)
         {
             return next.run(request).await;
         }
-        let original = request
-            .extensions()
-            .get::<OriginalUri>()
-            .map_or(request.uri(), |uri| &uri.0);
-        let key = CacheKey::new(original);
+        let key = request
+            .extensions_mut()
+            .remove::<CacheKey>()
+            .unwrap_or_else(|| {
+                let original = request
+                    .extensions()
+                    .get::<OriginalUri>()
+                    .map_or(request.uri(), |uri| &uri.0);
+                CacheKey::new(original)
+            });
         let head = request.method() == Method::HEAD;
 
         if let Some(entry) = cache

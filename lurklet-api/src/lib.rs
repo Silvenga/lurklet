@@ -8,6 +8,8 @@ mod routes;
 mod static_host;
 
 pub use app::{application, specification};
-pub use middleware::{ApiCacheOptions, ClientIpSource, RateLimit, RateLimitOptions, RateLimits};
+pub use middleware::{
+    ApiCacheOptions, ClientIpSource, QueryPolicy, RateLimit, RateLimitOptions, RateLimits,
+};
 pub use response_cache::ResponseCache;
 pub use static_host::StaticHost;

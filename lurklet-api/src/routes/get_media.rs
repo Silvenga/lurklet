@@ -23,7 +23,7 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     path = "/media/{origin}/{path}",
     operation_id = "get_media",
     summary = "Stream an image or MP4 file, optionally selecting one byte range",
-    description = "The upstream URL uses HTTPS and an allowed origin. The path can contain multiple segments. Encoded path characters and the entire query string are forwarded unchanged, including signatures. CDNs can exclude signature parameters from their cache keys while retaining all other query parameters. Single byte ranges are supported. Invalid, unsupported, and multipart Range headers are ignored. HEAD ignores Range. MP4s and ranged requests bypass persistent caching, while successful responses remain cacheable by clients and CDNs.",
+    description = "The upstream URL uses HTTPS and an allowed origin. The path can contain multiple segments. Unknown query keys are stripped. Allowed parameters retain their original encoding and order when forwarded upstream. The s signature is forwarded but excluded from cache identity. Use export-cache-query-keys for the current per-route CDN allowlists. Single byte ranges are supported. Invalid, unsupported, and multipart Range headers are ignored. HEAD ignores Range. MP4s and ranged requests bypass persistent caching, while successful responses remain cacheable by clients and CDNs.",
     params(
         ("origin" = String, Path, description = "Allowed upstream authority, such as i.redd.it"),
         ("path" = String, Path, description = "Upstream media path, including nested segments and existing percent escapes"),
@@ -394,6 +394,81 @@ mod tests {
             assert_eq!(calls.lock().unwrap().len(), if caching { 2 } else { 4 });
             assert_eq!(chunks.load(Ordering::SeqCst), if caching { 2 } else { 4 });
         }
+    }
+
+    #[tokio::test]
+    async fn when_media_queries_vary_then_signatures_and_unknown_keys_should_share_cached_content()
+    {
+        let directory = assert_fs::TempDir::new().unwrap();
+        let cache = ResponseCache::new(directory.path()).await.unwrap();
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let reddit = RedditClient::from_backend(FakeBackend {
+            error: None,
+            content_type: "image/png",
+            kind: MediaKind::Image,
+            body: [b"hello", b" world"],
+            length: Some(11),
+            content_range: None,
+            calls: calls.clone(),
+            chunks: Arc::new(AtomicUsize::new(0)),
+        });
+        let app = application(
+            reddit,
+            &RateLimits::default(),
+            Some(&cache),
+            &ApiCacheOptions::default(),
+        );
+
+        for (method, query, outcome) in [
+            (Method::GET, "width=640&random=1&auto=webp&s=a%2Bb", "miss"),
+            (
+                Method::GET,
+                "auto=webp&%77idth=640&s=another&random=2",
+                "hit",
+            ),
+            (Method::HEAD, "auto=webp&width=640&new_key=3", "hit"),
+            (Method::GET, "width=320&auto=webp&s=third", "miss"),
+        ] {
+            let request = Request::builder()
+                .method(method.clone())
+                .uri(format!(
+                    "/api/media/preview.redd.it/nested/file%20name.png?{query}"
+                ))
+                .extension(ConnectInfo("192.0.2.1:1234".parse::<SocketAddr>().unwrap()))
+                .body(Body::empty())
+                .unwrap();
+
+            let response = app.clone().oneshot(request).await.unwrap();
+
+            assert_eq!(response.status(), StatusCode::OK, "{query}");
+            assert_eq!(response.headers()["x-lurklet-cache"], outcome, "{query}");
+            let body = to_bytes(response.into_body(), 4096).await.unwrap();
+            assert_eq!(
+                body.as_ref(),
+                if method == Method::HEAD {
+                    b"".as_slice()
+                } else {
+                    b"hello world".as_slice()
+                }
+            );
+        }
+        assert_eq!(
+            *calls.lock().unwrap(),
+            [
+                (
+                    "https://preview.redd.it/nested/file%20name.png?width=640&auto=webp&s=a%2Bb"
+                        .into(),
+                    None,
+                    None
+                ),
+                (
+                    "https://preview.redd.it/nested/file%20name.png?width=320&auto=webp&s=third"
+                        .into(),
+                    None,
+                    None
+                ),
+            ]
+        );
     }
 
     #[tokio::test]

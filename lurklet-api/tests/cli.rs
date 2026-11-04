@@ -19,38 +19,50 @@ fn command() -> Command {
 }
 
 #[test]
-fn when_openapi_export_is_requested_then_command_should_emit_only_the_contract() {
-    let directory = assert_fs::TempDir::new().unwrap();
-    let cache_dir = directory.path().join("cache");
-    let state_file = directory.path().join("session.json");
-    fs::write(&state_file, "private-invalid-state").unwrap();
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let mut command = command();
-    command
-        .arg("--bind")
-        .arg(listener.local_addr().unwrap().to_string())
-        .arg("export-openapi")
-        .env("LURKLET_STATIC_DIR", "/missing-static-directory")
-        .env("LURKLET_CACHE_DIR", &cache_dir)
-        .env("LURKLET_STATE_FILE", &state_file)
-        .env("LURKLET_PROXY", "invalid-private-proxy")
-        .timeout(Duration::from_secs(10))
-        .env_remove("RUST_LOG")
-        .env_remove("LURKLET_BIND");
+fn when_contract_exports_are_requested_then_commands_should_emit_only_the_contract_without_runtime_initialization()
+ {
+    for (subcommand, expected) in [
+        (
+            "export-openapi",
+            serde_json::to_value(lurklet_api::specification()).unwrap(),
+        ),
+        (
+            "export-cache-query-keys",
+            serde_json::to_value(lurklet_api::QueryPolicy::from_specification(
+                &lurklet_api::specification(),
+            ))
+            .unwrap(),
+        ),
+    ] {
+        let directory = assert_fs::TempDir::new().unwrap();
+        let cache_dir = directory.path().join("cache");
+        let state_file = directory.path().join("session.json");
+        fs::write(&state_file, "private-invalid-state").unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut command = command();
+        command
+            .arg("--bind")
+            .arg(listener.local_addr().unwrap().to_string())
+            .arg(subcommand)
+            .env("LURKLET_STATIC_DIR", "/missing-static-directory")
+            .env("LURKLET_CACHE_DIR", &cache_dir)
+            .env("LURKLET_STATE_FILE", &state_file)
+            .env("LURKLET_PROXY", "invalid-private-proxy")
+            .timeout(Duration::from_secs(10))
+            .env_remove("RUST_LOG")
+            .env_remove("LURKLET_BIND");
 
-    let output = command.assert().success().get_output().clone();
-    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let output = command.assert().success().get_output().clone();
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
 
-    assert!(output.stderr.is_empty());
-    assert!(!cache_dir.exists());
-    assert_eq!(
-        fs::read_to_string(state_file).unwrap(),
-        "private-invalid-state"
-    );
-    assert_eq!(
-        document,
-        serde_json::to_value(lurklet_api::specification()).unwrap()
-    );
+        assert!(output.stderr.is_empty());
+        assert!(!cache_dir.exists());
+        assert_eq!(
+            fs::read_to_string(state_file).unwrap(),
+            "private-invalid-state"
+        );
+        assert_eq!(document, expected);
+    }
 }
 
 #[test]

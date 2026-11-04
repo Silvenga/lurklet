@@ -1,16 +1,87 @@
 //! Isolate tracing callsite state from concurrent router tests.
 
 use assert_fs::prelude::*;
+use axum::Router;
 use axum::body::{Body, to_bytes};
 use axum::extract::ConnectInfo;
 use axum::http::{Method, Request, header};
-use lurklet_api::{ApiCacheOptions, RateLimitOptions, RateLimits, StaticHost, application};
+use axum::routing::get;
+use lurklet_api::{
+    ApiCacheOptions, QueryPolicy, RateLimitOptions, RateLimits, StaticHost, application,
+    specification,
+};
 use lurklet_reddit::RedditClient;
 use std::net::SocketAddr;
 use std::sync::Mutex;
 use tower::ServiceExt;
-use tracing::Level;
 use tracing::instrument::WithSubscriber;
+use tracing::{Instrument, Level};
+
+#[tokio::test]
+async fn when_unknown_keys_are_discovered_then_warnings_should_be_deduplicated_bounded_and_exclude_request_values()
+ {
+    let subscriber = tracing::Dispatch::new(
+        tracing_subscriber::fmt()
+            .with_max_level(Level::DEBUG)
+            .with_ansi(false)
+            .with_writer(Mutex::new(Vec::<u8>::new()))
+            .finish(),
+    );
+    let routes = Router::new()
+        .route("/media/{origin}/{*path}", get(|| async {}))
+        .route("/posts/{id}", get(|| async {}));
+    let app = Router::new().nest_service(
+        "/api",
+        QueryPolicy::from_specification(&specification()).wrap(routes),
+    );
+
+    async {
+        for uri in [
+            "/api/media/preview.redd.it/private-path.png?discovered=private-query&s=private-signature",
+            "/api/media/preview.redd.it/other-private-path.png?%64iscovered=other-private-query",
+            "/api/posts/private-id?discovered=private-query",
+        ].into_iter().map(str::to_owned).chain((0..1025).map(|index| format!("/api/posts/private-id?new_key_{index}=private-query"))) {
+            let request = Request::builder().uri(uri).body(Body::empty()).unwrap();
+
+            let response = app.clone().oneshot(request)
+                .instrument(tracing::debug_span!("request", uri = "private-request-uri"))
+                .await.unwrap();
+
+            assert!(response.status().is_success());
+        }
+    }.with_subscriber(subscriber.clone()).await;
+    let logs = String::from_utf8(
+        subscriber
+            .downcast_ref::<Mutex<Vec<u8>>>()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        logs.matches("query_key=\"discovered\"").count(),
+        2,
+        "{logs}"
+    );
+    assert_eq!(
+        logs.matches("Dropped an unknown query key").count(),
+        1024,
+        "{logs}"
+    );
+    assert_eq!(
+        logs.matches("Dropped-query discovery limit reached")
+            .count(),
+        1,
+        "{logs}"
+    );
+    assert!(logs.contains("route=/api/media/{origin}/{path}"));
+    assert!(logs.contains("route=/api/posts/{id}"));
+    assert!(!logs.contains("private-"));
+    assert!(!logs.contains("preview.redd.it"));
+    assert!(!logs.contains("new_key_1024"));
+}
 
 #[tokio::test]
 async fn when_requests_are_logged_then_details_should_follow_the_configured_level() {

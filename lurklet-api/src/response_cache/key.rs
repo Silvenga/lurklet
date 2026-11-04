@@ -2,6 +2,7 @@ use axum::http::Uri;
 use form_urlencoded::{Serializer, parse};
 
 /// Normalized URL identity and its filesystem-safe BLAKE3 digest.
+#[derive(Clone)]
 pub struct CacheKey {
     uri: Uri,
     digest: String,

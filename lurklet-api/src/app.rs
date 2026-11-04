@@ -1,7 +1,7 @@
 use crate::ResponseCache;
 use crate::error::{ApiError, Problem};
 use crate::middleware::{
-    ApiCacheOptions, RateLimit, RateLimits, access_log, api_cache_policy,
+    ApiCacheOptions, QueryPolicy, RateLimit, RateLimits, access_log, api_cache_policy,
     api_content_security_policy, content_type_options, limit_requests, response_compression,
 };
 use crate::routes;
@@ -67,7 +67,9 @@ pub fn application<B: RedditBackend + 'static>(
         .merge(media_api)
         .layer(middleware::from_fn(api_cache_policy))
         .layer(api_content_security_policy())
-        .layer(content_type_options())
+        .layer(content_type_options());
+    let api = QueryPolicy::from_specification(&specification())
+        .wrap(api)
         .layer(middleware::from_fn(access_log));
 
     // Service nesting reserves /api, /api/, and descendants, including unmatched paths.
@@ -583,7 +585,7 @@ mod tests {
             for (path, status) in [
                 ("/api/media/example.test/file", StatusCode::OK),
                 (
-                    "/api/media/example.test/file?invalid=true",
+                    "/api/media/example.test/file?width=1",
                     StatusCode::BAD_REQUEST,
                 ),
             ] {

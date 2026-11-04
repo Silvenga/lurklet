@@ -2,8 +2,8 @@ use crate::session_store::SessionStore;
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use lurklet_api::{
-    ApiCacheOptions, RateLimitOptions, RateLimits, ResponseCache, StaticHost, application,
-    specification,
+    ApiCacheOptions, QueryPolicy, RateLimitOptions, RateLimits, ResponseCache, StaticHost,
+    application, specification,
 };
 use lurklet_reddit::{RedditClient, Storage};
 use std::io::{self, Write};
@@ -64,6 +64,8 @@ enum Command {
     /// Write the internal OpenAPI document to stdout without starting the server.
     #[command(name = "export-openapi")]
     ExportOpenApi,
+    /// Export per-route CDN query keys; unknown keys are stripped and forwardOnly keys are not cached.
+    ExportCacheQueryKeys,
     /// Check the local API's HTTP status without reading its response body.
     HealthCheck,
 }
@@ -103,6 +105,14 @@ async fn main() -> ExitCode {
                 Ok(())
             }
             Some(Command::HealthCheck) => health_check::check(arguments.bind).await,
+            Some(Command::ExportCacheQueryKeys) => {
+                let policy = QueryPolicy::from_specification(&specification());
+                let mut output = io::stdout().lock();
+                serde_json::to_writer_pretty(&mut output, &policy)
+                    .context("failed to serialize cache query keys")?;
+                writeln!(output).context("failed to write cache query keys")?;
+                Ok(())
+            }
             None => {
                 let storage = Storage::new(SessionStore::new(arguments.state_file).await);
                 let reddit = RedditClient::builder()
