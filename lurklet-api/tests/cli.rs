@@ -19,6 +19,26 @@ fn command() -> Command {
 }
 
 #[test]
+fn when_help_is_requested_then_output_should_match_the_readme() {
+    let readme = include_str!("../../README.md");
+    let documented_help = readme
+        .split("```\n")
+        .find(|block| block.starts_with("The lurklet API server\n"))
+        .unwrap();
+    let mut command = command();
+    command.arg("--help");
+
+    let output = command.assert().success().get_output().clone();
+    let help = String::from_utf8(output.stdout).unwrap();
+
+    assert!(output.stderr.is_empty());
+    assert_eq!(
+        help.split_whitespace().collect::<Vec<_>>(),
+        documented_help.split_whitespace().collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn when_contract_exports_are_requested_then_commands_should_emit_only_the_contract_without_runtime_initialization()
  {
     for (subcommand, expected) in [

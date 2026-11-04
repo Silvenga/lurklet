@@ -61,10 +61,10 @@ struct Arguments {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Write the internal OpenAPI document to stdout without starting the server.
+    /// Write the internal OpenAPI document to stdout.
     #[command(name = "export-openapi")]
     ExportOpenApi,
-    /// Export per-route CDN query keys; unknown keys are stripped and forwardOnly keys are not cached.
+    /// Write the allowed query keys per-endpoint.
     ExportCacheQueryKeys,
     /// Check the local API's HTTP status without reading its response body.
     HealthCheck,
