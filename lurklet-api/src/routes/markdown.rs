@@ -1,15 +1,19 @@
 use lurklet_reddit::{Markdown as RedditMarkdown, MarkdownMedia as RedditMarkdownMedia};
+use o2o::o2o;
 use serde::Serialize;
 use utoipa::ToSchema;
 
 /// Untrusted Markdown with resolved, unproxied media references.
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditMarkdown)]
 pub struct Markdown {
     content: String,
+    #[from(~.into_iter().map(Into::into).collect())]
     media: Vec<MarkdownMedia>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditMarkdownMedia)]
 #[serde(rename_all = "camelCase")]
 struct MarkdownMedia {
     id: String,
@@ -20,27 +24,6 @@ struct MarkdownMedia {
     width: Option<u32>,
     #[schema(required)]
     height: Option<u32>,
-}
-
-impl From<RedditMarkdown> for Markdown {
-    fn from(markdown: RedditMarkdown) -> Self {
-        Self {
-            content: markdown.content,
-            media: markdown.media.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-impl From<RedditMarkdownMedia> for MarkdownMedia {
-    fn from(media: RedditMarkdownMedia) -> Self {
-        Self {
-            id: media.id,
-            mime_type: media.mime_type,
-            url: media.url,
-            width: media.width,
-            height: media.height,
-        }
-    }
 }
 
 #[cfg(test)]

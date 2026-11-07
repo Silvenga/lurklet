@@ -5,10 +5,12 @@ use lurklet_reddit::{
     CommentItem as RedditCommentItem, CommentSort as RedditCommentSort,
     CommentState as RedditCommentState, NamedReference as RedditNamedReference,
 };
+use o2o::o2o;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-#[derive(Default, Deserialize, Serialize, ToSchema)]
+#[derive(Default, Deserialize, Serialize, ToSchema, o2o)]
+#[map_owned(RedditCommentSort)]
 #[serde(rename_all = "camelCase")]
 #[schema(default = "best")]
 pub enum CommentSort {
@@ -18,41 +20,30 @@ pub enum CommentSort {
     New,
 }
 
-impl From<CommentSort> for RedditCommentSort {
-    fn from(sort: CommentSort) -> Self {
-        match sort {
-            CommentSort::Best => Self::Best,
-            CommentSort::Top => Self::Top,
-            CommentSort::New => Self::New,
-        }
-    }
-}
-
-impl From<RedditCommentSort> for CommentSort {
-    fn from(sort: RedditCommentSort) -> Self {
-        match sort {
-            RedditCommentSort::Best => Self::Best,
-            RedditCommentSort::Top => Self::Top,
-            RedditCommentSort::New => Self::New,
-        }
-    }
-}
-
 /// Ordered discussion roots, or replacement items for one selected placeholder.
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditCommentForest)]
 #[serde(rename_all = "camelCase")]
 pub struct CommentForest {
     #[schema(required)]
+    #[from(~.map(Into::into))]
     applied_sort: Option<CommentSort>,
+    #[from(~.into_iter().map(Into::into).collect())]
     items: Vec<CommentItem>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditCommentItem | attribute(expect(
+    clippy::redundant_field_names,
+    reason = "o2o generates explicit field names for enum variant constructors"
+)))]
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum CommentItem {
     Comment {
+        #[from(~.into())]
         comment: Comment,
         #[schema(no_recursion)]
+        #[from(~.into_iter().map(Into::into).collect())]
         replies: Vec<CommentItem>,
     },
     #[serde(rename_all = "camelCase")]
@@ -68,22 +59,28 @@ enum CommentItem {
     ContinueThread {
         /// Anchor for the thread endpoint; null means no action is available.
         #[schema(required)]
+        #[from(~.map(|id| id.as_str().to_owned()))]
         comment_id: Option<String>,
     },
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditComment)]
 #[serde(rename_all = "camelCase")]
 struct Comment {
     #[schema(required)]
+    #[from(~.map(|id| id.as_str().to_owned()))]
     id: Option<String>,
+    #[from(~.into())]
     state: CommentState,
     #[schema(required)]
+    #[from(~.map(Into::into))]
     author: Option<CommentAuthor>,
     #[schema(required)]
     created_at: Option<DateTime<Utc>>,
     /// Untrusted Markdown; embedded media URLs are not proxied.
     #[schema(required)]
+    #[from(~.map(Into::into))]
     markdown: Option<Markdown>,
     #[schema(required)]
     score: Option<i64>,
@@ -95,7 +92,8 @@ struct Comment {
     initially_collapsed: Option<bool>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditCommentState)]
 #[serde(rename_all = "camelCase")]
 enum CommentState {
     Present,
@@ -103,82 +101,15 @@ enum CommentState {
     Removed,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditNamedReference)]
 #[serde(rename_all = "camelCase")]
 struct CommentAuthor {
     #[schema(required)]
+    #[from(~.map(|id| id.as_str().to_owned()))]
     id: Option<String>,
     #[schema(required)]
     name: Option<String>,
-}
-
-impl From<RedditCommentForest> for CommentForest {
-    fn from(forest: RedditCommentForest) -> Self {
-        let RedditCommentForest {
-            applied_sort,
-            items,
-        } = forest;
-        Self {
-            applied_sort: applied_sort.map(Into::into),
-            items: items.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-impl From<RedditCommentItem> for CommentItem {
-    fn from(item: RedditCommentItem) -> Self {
-        match item {
-            RedditCommentItem::Comment { comment, replies } => Self::Comment {
-                comment: comment.into(),
-                replies: replies.into_iter().map(Into::into).collect(),
-            },
-            RedditCommentItem::More { cursor, count_hint } => Self::More { cursor, count_hint },
-            RedditCommentItem::ContinueThread { comment_id } => Self::ContinueThread {
-                comment_id: comment_id.map(|id| id.as_str().to_owned()),
-            },
-        }
-    }
-}
-
-impl From<RedditComment> for Comment {
-    fn from(comment: RedditComment) -> Self {
-        let RedditComment {
-            id,
-            state,
-            author,
-            created_at,
-            markdown,
-            score,
-            is_op,
-            is_pinned,
-            initially_collapsed,
-        } = comment;
-        Self {
-            id: id.map(|id| id.as_str().to_owned()),
-            state: match state {
-                RedditCommentState::Present => CommentState::Present,
-                RedditCommentState::Deleted => CommentState::Deleted,
-                RedditCommentState::Removed => CommentState::Removed,
-            },
-            author: author.map(Into::into),
-            created_at,
-            markdown: markdown.map(Into::into),
-            score,
-            is_op,
-            is_pinned,
-            initially_collapsed,
-        }
-    }
-}
-
-impl From<RedditNamedReference> for CommentAuthor {
-    fn from(author: RedditNamedReference) -> Self {
-        let RedditNamedReference { id, name } = author;
-        Self {
-            id: id.map(|id| id.as_str().to_owned()),
-            name,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -305,7 +236,7 @@ mod tests {
             let api = CommentSort::from(sort);
 
             let serialized = serde_json::to_value(&api).unwrap();
-            let restored = RedditCommentSort::from(api);
+            let restored: RedditCommentSort = api.into();
 
             assert_eq!(serialized, json!(expected));
             assert_eq!(restored, sort);

@@ -10,6 +10,7 @@ use lurklet_reddit::{
     PostAttachment as RedditPostAttachment, RedditBackend, RedditClient, RedditId,
     VideoFormat as RedditVideoFormat, VideoSource as RedditVideoSource,
 };
+use o2o::o2o;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
@@ -24,18 +25,23 @@ struct GetPostInput {
     id: RedditId,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditPost)]
 #[serde(rename_all = "camelCase")]
 struct Post {
+    #[from(~.as_str().to_owned())]
     id: String,
     title: String,
     #[schema(required)]
     permalink: Option<String>,
     #[schema(required)]
+    #[from(~.map(Into::into))]
     flair: Option<PostFlair>,
     #[schema(required)]
+    #[from(~.map(Into::into))]
     author: Option<NamedReference>,
     #[schema(required)]
+    #[from(~.map(Into::into))]
     community: Option<NamedReference>,
     created_at: DateTime<Utc>,
     #[schema(required)]
@@ -46,22 +52,31 @@ struct Post {
     is_spoiler: bool,
     /// Untrusted Markdown; embedded media URLs are not proxied.
     #[schema(required)]
+    #[from(~.map(Into::into))]
     markdown: Option<Markdown>,
+    #[from(~.into_iter().map(Into::into).collect())]
     attachments: Vec<PostAttachment>,
     #[schema(required)]
+    #[from(~.map(|id| id.as_str().to_owned()))]
     crosspost_id: Option<String>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditNamedReference)]
 #[serde(rename_all = "camelCase")]
 struct NamedReference {
     #[schema(required)]
+    #[from(~.map(|id| id.as_str().to_owned()))]
     id: Option<String>,
     #[schema(required)]
     name: Option<String>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditPostAttachment | attribute(expect(
+    clippy::redundant_field_names,
+    reason = "o2o generates explicit field names for enum variant constructors"
+)))]
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum PostAttachment {
     Link {
@@ -77,110 +92,29 @@ enum PostAttachment {
     },
     #[serde(rename_all = "camelCase")]
     Video {
+        #[from(~.into_iter().map(Into::into).collect())]
         sources: Vec<VideoSource>,
         #[schema(required)]
         poster_url: Option<String>,
     },
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditVideoSource)]
 #[serde(rename_all = "camelCase")]
 struct VideoSource {
     url: String,
+    #[from(~.into())]
     format: VideoFormat,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditVideoFormat)]
 #[serde(rename_all = "camelCase")]
 enum VideoFormat {
     Mp4,
     Hls,
     Dash,
-}
-
-impl From<RedditPost> for Post {
-    fn from(post: RedditPost) -> Self {
-        let RedditPost {
-            id,
-            title,
-            permalink,
-            flair,
-            author,
-            community,
-            created_at,
-            score,
-            comment_count,
-            is_nsfw,
-            is_spoiler,
-            markdown,
-            attachments,
-            crosspost_id,
-        } = post;
-        Self {
-            id: id.as_str().to_owned(),
-            title,
-            permalink,
-            flair: flair.map(Into::into),
-            author: author.map(Into::into),
-            community: community.map(Into::into),
-            created_at,
-            score,
-            comment_count,
-            is_nsfw,
-            is_spoiler,
-            markdown: markdown.map(Into::into),
-            attachments: attachments.into_iter().map(Into::into).collect(),
-            crosspost_id: crosspost_id.map(|id| id.as_str().to_owned()),
-        }
-    }
-}
-
-impl From<RedditNamedReference> for NamedReference {
-    fn from(reference: RedditNamedReference) -> Self {
-        let RedditNamedReference { id, name } = reference;
-        Self {
-            id: id.map(|id| id.as_str().to_owned()),
-            name,
-        }
-    }
-}
-
-impl From<RedditPostAttachment> for PostAttachment {
-    fn from(attachment: RedditPostAttachment) -> Self {
-        match attachment {
-            RedditPostAttachment::Link { url } => Self::Link { url },
-            RedditPostAttachment::Image {
-                url,
-                alt_text,
-                caption,
-            } => Self::Image {
-                url,
-                alt_text,
-                caption,
-            },
-            RedditPostAttachment::Video {
-                sources,
-                poster_url,
-            } => Self::Video {
-                sources: sources.into_iter().map(Into::into).collect(),
-                poster_url,
-            },
-        }
-    }
-}
-
-impl From<RedditVideoSource> for VideoSource {
-    fn from(source: RedditVideoSource) -> Self {
-        let RedditVideoSource { url, format } = source;
-        Self {
-            url,
-            format: match format {
-                RedditVideoFormat::Mp4 => VideoFormat::Mp4,
-                RedditVideoFormat::Hls => VideoFormat::Hls,
-                RedditVideoFormat::Dash => VideoFormat::Dash,
-            },
-        }
-    }
 }
 
 /// Builds the post endpoint and its API-owned contract.

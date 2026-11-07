@@ -10,6 +10,7 @@ use lurklet_reddit::{
     SubredditPage as RedditSubredditPage, SubredditSort as RedditSubredditSort,
     Thumbnail as RedditThumbnail, TimeRange as RedditTimeRange,
 };
+use o2o::o2o;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
@@ -47,7 +48,8 @@ enum Sort {
     Top,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema, o2o)]
+#[owned_into(RedditTimeRange)]
 #[serde(rename_all = "camelCase")]
 enum TimeRange {
     Hour,
@@ -58,36 +60,29 @@ enum TimeRange {
     All,
 }
 
-impl From<TimeRange> for RedditTimeRange {
-    fn from(range: TimeRange) -> Self {
-        match range {
-            TimeRange::Hour => Self::Hour,
-            TimeRange::Day => Self::Day,
-            TimeRange::Week => Self::Week,
-            TimeRange::Month => Self::Month,
-            TimeRange::Year => Self::Year,
-            TimeRange::All => Self::All,
-        }
-    }
-}
-
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditSubredditPage)]
 #[serde(rename_all = "camelCase")]
 struct SubredditPage {
+    #[from(~.into_iter().map(Into::into).collect())]
     posts: Vec<ListedPost>,
     #[schema(required)]
     next_cursor: Option<String>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditListedPost)]
 #[serde(rename_all = "camelCase")]
 struct ListedPost {
+    #[from(~.as_str().to_owned())]
     id: String,
     #[schema(required)]
     title: Option<String>,
     #[schema(required)]
+    #[from(~.map(Into::into))]
     flair: Option<PostFlair>,
     #[schema(required)]
+    #[from(~.map(Into::into))]
     thumbnail: Option<Thumbnail>,
     #[schema(required)]
     score: Option<i64>,
@@ -101,10 +96,12 @@ struct ListedPost {
     is_spoiler: bool,
     is_pinned: bool,
     #[schema(required)]
+    #[from(~.map(|id| id.as_str().to_owned()))]
     crosspost_id: Option<String>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditThumbnail)]
 #[serde(rename_all = "camelCase")]
 struct Thumbnail {
     url: String,
@@ -116,68 +113,6 @@ struct Thumbnail {
     width: Option<u32>,
     #[schema(required)]
     height: Option<u32>,
-}
-
-impl From<RedditSubredditPage> for SubredditPage {
-    fn from(page: RedditSubredditPage) -> Self {
-        let RedditSubredditPage { posts, next_cursor } = page;
-        Self {
-            posts: posts.into_iter().map(Into::into).collect(),
-            next_cursor,
-        }
-    }
-}
-
-impl From<RedditListedPost> for ListedPost {
-    fn from(post: RedditListedPost) -> Self {
-        let RedditListedPost {
-            id,
-            title,
-            flair,
-            thumbnail,
-            score,
-            comment_count,
-            author_name,
-            created_at,
-            is_nsfw,
-            is_spoiler,
-            is_pinned,
-            crosspost_id,
-        } = post;
-        Self {
-            id: id.as_str().to_owned(),
-            title,
-            flair: flair.map(Into::into),
-            thumbnail: thumbnail.map(Into::into),
-            score,
-            comment_count,
-            author_name,
-            created_at,
-            is_nsfw,
-            is_spoiler,
-            is_pinned,
-            crosspost_id: crosspost_id.map(|id| id.as_str().to_owned()),
-        }
-    }
-}
-
-impl From<RedditThumbnail> for Thumbnail {
-    fn from(thumbnail: RedditThumbnail) -> Self {
-        let RedditThumbnail {
-            url,
-            obfuscated_url,
-            is_obfuscated,
-            width,
-            height,
-        } = thumbnail;
-        Self {
-            url,
-            obfuscated_url,
-            is_obfuscated,
-            width,
-            height,
-        }
-    }
 }
 
 /// Builds the subreddit listing endpoint and its API-owned contract.

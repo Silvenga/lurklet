@@ -5,6 +5,7 @@ use axum::extract::rejection::{PathRejection, QueryRejection};
 use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
 use lurklet_reddit::{CommentThread as RedditCommentThread, RedditBackend, RedditClient, RedditId};
+use o2o::o2o;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
@@ -28,22 +29,15 @@ struct GetCommentThreadQuery {
     sort: CommentSort,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditCommentThread)]
 #[serde(rename_all = "camelCase")]
 struct CommentThread {
     #[schema(required)]
+    #[from(~.map(|id| id.as_str().to_owned()))]
     post_id: Option<String>,
+    #[from(~.into())]
     forest: CommentForest,
-}
-
-impl From<RedditCommentThread> for CommentThread {
-    fn from(thread: RedditCommentThread) -> Self {
-        let RedditCommentThread { post_id, forest } = thread;
-        Self {
-            post_id: post_id.map(|id| id.as_str().to_owned()),
-            forest: forest.into(),
-        }
-    }
 }
 
 /// Builds the focused comment-thread endpoint and its API-owned contract.

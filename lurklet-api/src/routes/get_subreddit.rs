@@ -10,6 +10,7 @@ use lurklet_reddit::{
     SubredditDetails as RedditSubredditDetails, SubredditStyles as RedditSubredditStyles,
     UnavailableSubreddit as RedditUnavailableSubreddit,
 };
+use o2o::o2o;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
@@ -23,16 +24,19 @@ struct GetSubredditInput {
     subreddit: String,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditSubreddit)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum Subreddit {
-    Available(Box<SubredditDetails>),
-    Unavailable(Box<UnavailableSubreddit>),
+    Available(#[from(Box::new((*~).into()))] Box<SubredditDetails>),
+    Unavailable(#[from(Box::new((*~).into()))] Box<UnavailableSubreddit>),
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditSubredditDetails)]
 #[serde(rename_all = "camelCase")]
 struct SubredditDetails {
+    #[from(~.as_str().to_owned())]
     id: String,
     name: String,
     #[schema(required)]
@@ -43,6 +47,7 @@ struct SubredditDetails {
     short_description: Option<String>,
     /// Untrusted long-form Markdown, not structured sidebar widgets or rules.
     #[schema(required)]
+    #[from(~.map(Into::into))]
     description_markdown: Option<Markdown>,
     #[schema(required)]
     subscriber_count: Option<u64>,
@@ -52,6 +57,7 @@ struct SubredditDetails {
     #[schema(required)]
     weekly_contribution_count: Option<u64>,
     #[schema(required)]
+    #[from(~.map(Into::into))]
     styles: Option<SubredditStyles>,
     #[schema(required)]
     community_type: Option<String>,
@@ -62,12 +68,15 @@ struct SubredditDetails {
     #[schema(required)]
     is_quarantined: Option<bool>,
     #[schema(required)]
+    #[from(~.map(Into::into))]
     quarantine_message_markdown: Option<Markdown>,
     #[schema(required)]
+    #[from(~.map(Into::into))]
     interstitial_warning_markdown: Option<Markdown>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditSubredditStyles)]
 #[serde(rename_all = "camelCase")]
 struct SubredditStyles {
     #[schema(required)]
@@ -86,115 +95,26 @@ struct SubredditStyles {
     legacy_primary_color: Option<String>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, o2o)]
+#[from_owned(RedditUnavailableSubreddit)]
 #[serde(rename_all = "camelCase")]
 struct UnavailableSubreddit {
     #[schema(required)]
+    #[from(~.map(|id| id.as_str().to_owned()))]
     id: Option<String>,
     #[schema(required)]
     forbidden_reason: Option<String>,
     #[schema(required)]
     ban_title: Option<String>,
     #[schema(required)]
+    #[from(~.map(Into::into))]
     ban_message_markdown: Option<Markdown>,
     #[schema(required)]
+    #[from(~.map(Into::into))]
     quarantine_message_markdown: Option<Markdown>,
     #[schema(required)]
+    #[from(~.map(Into::into))]
     interstitial_warning_markdown: Option<Markdown>,
-}
-
-impl From<RedditSubreddit> for Subreddit {
-    fn from(subreddit: RedditSubreddit) -> Self {
-        match subreddit {
-            RedditSubreddit::Available(details) => Self::Available(Box::new((*details).into())),
-            RedditSubreddit::Unavailable(details) => Self::Unavailable(Box::new((*details).into())),
-        }
-    }
-}
-
-impl From<RedditSubredditDetails> for SubredditDetails {
-    fn from(details: RedditSubredditDetails) -> Self {
-        let RedditSubredditDetails {
-            id,
-            name,
-            title,
-            created_at,
-            short_description,
-            description_markdown,
-            subscriber_count,
-            weekly_active_user_count,
-            weekly_contribution_count,
-            styles,
-            community_type,
-            is_nsfw,
-            is_posting_restricted,
-            is_quarantined,
-            quarantine_message_markdown,
-            interstitial_warning_markdown,
-        } = details;
-        Self {
-            id: id.as_str().to_owned(),
-            name,
-            title,
-            created_at,
-            short_description,
-            description_markdown: description_markdown.map(Into::into),
-            subscriber_count,
-            weekly_active_user_count,
-            weekly_contribution_count,
-            styles: styles.map(Into::into),
-            community_type,
-            is_nsfw,
-            is_posting_restricted,
-            is_quarantined,
-            quarantine_message_markdown: quarantine_message_markdown.map(Into::into),
-            interstitial_warning_markdown: interstitial_warning_markdown.map(Into::into),
-        }
-    }
-}
-
-impl From<RedditSubredditStyles> for SubredditStyles {
-    fn from(styles: RedditSubredditStyles) -> Self {
-        let RedditSubredditStyles {
-            icon_url,
-            legacy_icon_url,
-            banner_url,
-            mobile_banner_url,
-            legacy_banner_url,
-            primary_color,
-            legacy_primary_color,
-        } = styles;
-        Self {
-            icon_url,
-            legacy_icon_url,
-            banner_url,
-            mobile_banner_url,
-            legacy_banner_url,
-            primary_color,
-            legacy_primary_color,
-        }
-    }
-}
-
-impl From<RedditUnavailableSubreddit> for UnavailableSubreddit {
-    fn from(details: RedditUnavailableSubreddit) -> Self {
-        let RedditUnavailableSubreddit {
-            id,
-            forbidden_reason,
-            ban_title,
-            ban_message_markdown,
-            quarantine_message_markdown,
-            interstitial_warning_markdown,
-        } = details;
-        Self {
-            id: id.map(|id| id.as_str().to_owned()),
-            forbidden_reason,
-            ban_title,
-            ban_message_markdown: ban_message_markdown.map(Into::into),
-            quarantine_message_markdown: quarantine_message_markdown.map(Into::into),
-            interstitial_warning_markdown: interstitial_warning_markdown.map(Into::into),
-        }
-    }
 }
 
 /// Builds the subreddit metadata endpoint and its API-owned contract.

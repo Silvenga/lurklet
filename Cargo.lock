@@ -1429,6 +1429,7 @@ dependencies = [
  "lurklet-reddit",
  "mediatype",
  "mime_guess",
+ "o2o",
  "percent-encoding",
  "serde",
  "serde_json",
@@ -1612,6 +1613,37 @@ checksum = "91df4bbde75afed763b708b7eee1e8e7651e02d97f6d5dd763e89367e957b23b"
 dependencies = [
  "hermit-abi",
  "libc",
+]
+
+[[package]]
+name = "o2o"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93a0d8296bd43ca3f7f8331de606fd191a673c7fdee3ac391a0d493d3d9e11c7"
+dependencies = [
+ "o2o-impl",
+ "o2o-macros",
+]
+
+[[package]]
+name = "o2o-impl"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6113fd04ff48f6cedcb359b1a148c02372581931eaae0c81f86f31c22770486"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "o2o-macros"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d69c3374e5d85ab5641278683e366e5a786f00cf387ccf1328d4067f72b170d"
+dependencies = [
+ "o2o-impl",
+ "syn 2.0.119",
 ]
 
 [[package]]
