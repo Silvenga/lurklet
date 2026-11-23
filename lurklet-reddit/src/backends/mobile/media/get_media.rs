@@ -11,19 +11,6 @@ use wreq::header::{
     LAST_MODIFIED, RANGE, USER_AGENT,
 };
 
-const HOSTS: [&str; 10] = [
-    "emoji.redditmedia.com",
-    "i.redd.it",
-    "preview.redd.it",
-    "external-preview.redd.it",
-    "a.thumbs.redditmedia.com",
-    "b.thumbs.redditmedia.com",
-    "styles.redditmedia.com",
-    "www.redditstatic.com",
-    "packaged-media.redd.it",
-    "v.redd.it",
-];
-
 impl<S: StateStore> MobileBackend<S> {
     pub(in crate::backends::mobile) async fn get_media(
         &self,
@@ -34,13 +21,27 @@ impl<S: StateStore> MobileBackend<S> {
             .parse()
             .map_err(|_| Error::InvalidRequest { field: "media_url" })?;
         let authority = uri.authority().map_or("", |authority| authority.as_str());
-        let host = authority.strip_suffix(":443").unwrap_or(authority);
+        let host = authority
+            .strip_suffix(":443")
+            .unwrap_or(authority)
+            .to_ascii_lowercase();
+        let allowed_host = host == "www.redditstatic.com"
+            || [".redd.it", ".redditmedia.com"].iter().any(|suffix| {
+                host.strip_suffix(suffix).is_some_and(|prefix| {
+                    prefix.split('.').all(|label| {
+                        (1..=63).contains(&label.len())
+                            && !label.starts_with('-')
+                            && !label.ends_with('-')
+                            && label
+                                .bytes()
+                                .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                    })
+                })
+            });
         if !uri
             .scheme_str()
             .is_some_and(|scheme| scheme.eq_ignore_ascii_case("https"))
-            || !HOSTS
-                .iter()
-                .any(|allowed| host.eq_ignore_ascii_case(allowed))
+            || !allowed_host
             || url.contains('#')
         {
             return Err(Error::InvalidRequest { field: "media_url" });
@@ -470,6 +471,7 @@ mod tests {
             "emoji.redditmedia.com",
             "i.redd.it",
             "preview.redd.it",
+            "cf.preview.redd.it",
             "external-preview.redd.it",
             "a.thumbs.redditmedia.com",
             "b.thumbs.redditmedia.com",
@@ -640,7 +642,13 @@ mod tests {
             "https://i.redd.it:/image",
             "https://i.redd.it:0443/image",
             "https://i.redd.it./image",
-            "https://sub.i.redd.it/image",
+            "https://redd.it/image",
+            "https://redditmedia.com/image",
+            "https://notredd.it/image",
+            "https://notredditmedia.com/image",
+            "https://other.redditstatic.com/image",
+            "https://.redd.it/image",
+            "https://cf..preview.redd.it/image",
             "https://redditstatic.com/image",
             "https://gql-fed.reddit.com/image",
             "https://127.0.0.1/image",
