@@ -6,7 +6,7 @@ use wreq_util::Profile;
 
 #[derive(Args, Default)]
 pub struct TransportOptions {
-    /// Opt into a wreq profile, e.g. okhttp_4.12. No preset is used by default.
+    /// Override the wreq profile, e.g. okhttp_4.12. Defaults to a random compatible Chrome or Edge profile.
     #[arg(long, global = true, value_parser = |value: &str| serde_json::from_value::<Profile>(Value::String(value.into())).map_err(|_| "unknown emulation profile"))]
     emulation_profile: Option<Profile>,
     #[arg(long, global = true)]

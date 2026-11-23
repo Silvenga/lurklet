@@ -8,6 +8,7 @@ mod clock;
 mod error;
 mod named_reference;
 mod profile;
+mod profiles;
 mod reddit_id;
 mod state;
 mod storage;

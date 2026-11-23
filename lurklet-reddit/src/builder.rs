@@ -1,4 +1,5 @@
 use crate::backends::{Config, PersistedQuery};
+use crate::profiles;
 use crate::{
     AppProfile, BuildError, Clock, DeviceProfile, InMemoryStore, MobileBackend, RedditClient,
     ResponseObserver, StateStore, Storage, SystemClock, TransportError,
@@ -11,6 +12,13 @@ use wreq::redirect::Policy;
 use wreq::retry;
 use wreq_util::{Emulation, Profile};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum EmulationProfile {
+    Random,
+    Fixed(Profile),
+    Disabled,
+}
+
 /// Configuration for constructing a mobile Reddit client.
 #[must_use]
 pub struct RedditClientBuilder<S: StateStore = InMemoryStore> {
@@ -20,7 +28,7 @@ pub struct RedditClientBuilder<S: StateStore = InMemoryStore> {
     config: Config,
     storage: Storage<S>,
     clock: Arc<dyn Clock>,
-    emulation_profile: Option<Profile>,
+    emulation_profile: EmulationProfile,
     observer: Option<Arc<dyn ResponseObserver>>,
     #[cfg(test)]
     mock_origins: Vec<(http::Uri, http::Uri)>,
@@ -35,7 +43,7 @@ impl Default for RedditClientBuilder {
             config: Config::default(),
             storage: Storage::default(),
             clock: Arc::new(SystemClock),
-            emulation_profile: None,
+            emulation_profile: EmulationProfile::Random,
             observer: None,
             #[cfg(test)]
             mock_origins: Vec::new(),
@@ -140,9 +148,12 @@ impl<S: StateStore> RedditClientBuilder<S> {
         self
     }
 
-    /// Enables an opt-in transport preset, or clears it with None, without preset headers.
+    /// Overrides the randomly selected transport preset, or clears it with None, without preset headers.
     pub fn with_emulation_profile(mut self, profile: impl Into<Option<Profile>>) -> Self {
-        self.emulation_profile = profile.into();
+        self.emulation_profile = match profile.into() {
+            Some(profile) => EmulationProfile::Fixed(profile),
+            None => EmulationProfile::Disabled,
+        };
         self
     }
 
@@ -305,11 +316,13 @@ impl<S: StateStore> RedditClientBuilder<S> {
         } else {
             http
         };
-        let http = if let Some(profile) = self.emulation_profile {
-            tracing::trace!(
-                ?profile,
-                "Applying explicitly configured transport emulation"
-            );
+        let emulation_profile = match self.emulation_profile {
+            EmulationProfile::Random => Some(profiles::random()),
+            EmulationProfile::Fixed(profile) => Some(profile),
+            EmulationProfile::Disabled => None,
+        };
+        let http = if let Some(profile) = emulation_profile {
+            tracing::debug!(?profile, "Applying transport emulation");
             http.emulation(Emulation::builder().profile(profile).headers(false).build())
         } else {
             tracing::trace!("Using default HTTP transport without emulation");
@@ -391,7 +404,7 @@ mod tests {
             ),
             (
                 None,
-                None,
+                EmulationProfile::Random,
                 Some(Duration::from_secs(30)),
                 Duration::from_secs(10)
             )
@@ -418,13 +431,13 @@ mod tests {
             ),
             (
                 Some(proxy),
-                Some(Profile::OkHttp4_12),
+                EmulationProfile::Fixed(Profile::OkHttp4_12),
                 None,
                 Duration::from_secs(5)
             )
         );
         let builder = builder.with_emulation_profile(None);
-        assert_eq!(builder.emulation_profile, None);
+        assert_eq!(builder.emulation_profile, EmulationProfile::Disabled);
         assert!(builder.build().is_ok());
     }
 
