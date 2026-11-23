@@ -5,6 +5,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { PostFlair } from "./PostFlair";
 import { PostMetadata } from "./PostMetadata";
 import { PostThumbnail } from "./PostThumbnail";
+import { SpoilerBadge } from "./SpoilerBadge";
 
 type PostListProps = {
   subreddit: string;
@@ -45,9 +46,10 @@ export function PostList({ subreddit, posts }: PostListProps) {
                   {post.title ?? `Post ${post.id}`}
                 </Link>
               </h2>
-              {(post.flair || post.isPinned) && (
-                <div className="ms-auto flex max-w-full min-w-0 items-start gap-2">
+              {(post.flair || post.isPinned || post.isSpoiler) && (
+                <div className="ms-auto flex max-w-full min-w-0 flex-wrap items-start gap-2">
                   <PostFlair flair={post.flair} />
+                  {post.isSpoiler && <SpoilerBadge />}
                   {post.isPinned && (
                     <Badge variant="secondary" className="font-normal">
                       Pinned

@@ -598,7 +598,6 @@ test.each([null, { id: "source", name: null }])(
 
 test.each([
   ["primary", "isNsfw"],
-  ["primary", "isSpoiler"],
   ["original", "isNsfw"],
   ["original", "isSpoiler"],
 ])(
@@ -644,6 +643,58 @@ test.each([
     expect(screen.getByRole("heading", { level: 1, name: CROSSPOST_RESPONSE.title })).toBeVisible();
   },
 );
+
+test("When a spoiler crosspost is revealed then its body and unmarked original should appear until navigating away", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/posts/:id", ({ params }) =>
+      HttpResponse.json(
+        params.id === ORIGINAL_POST_RESPONSE.id
+          ? ORIGINAL_POST_RESPONSE
+          : {
+              ...CROSSPOST_RESPONSE,
+              id: String(params.id),
+              isSpoiler: true,
+              createdAt: null,
+              markdown: { content: "Concealed post body", media: [] },
+              attachments: POST_RESPONSE.attachments,
+            },
+      ),
+    ),
+  );
+  const router = renderPath(CROSSPOST_PATH);
+  const article = within(await screen.findByRole("article"));
+  const reveal = article.getByRole("button");
+  expect(article.queryByText(/Rust doesn't prevent memory leaks/)).not.toBeInTheDocument();
+  expect(article.queryByText("Concealed post body")).not.toBeInTheDocument();
+  expect(article.queryByRole("link")).not.toBeInTheDocument();
+
+  reveal.focus();
+  await user.keyboard("{Enter}");
+
+  expect(article.getByText("Concealed post body")).toBeVisible();
+  expect(article.getByRole("link", { name: /this-week-in-rust.org/ })).toBeVisible();
+  expect(await article.findByText(/Rust doesn't prevent memory leaks/)).toBeVisible();
+
+  await act(async () => {
+    await router.navigate("/r/rust/comments/another");
+  });
+  expect(within(await screen.findByRole("article")).getByRole("button")).toBeVisible();
+  expect(screen.queryByText("Concealed post body")).not.toBeInTheDocument();
+});
+
+test("When a spoiler has only a title then the title should be visible without a reveal button", async () => {
+  server.use(
+    http.get(`*/api/posts/${POST_RESPONSE.id}`, () =>
+      HttpResponse.json({ ...POST_RESPONSE, createdAt: null, isSpoiler: true, attachments: [] }),
+    ),
+  );
+  renderPath(POST_PATH);
+
+  const article = within(await screen.findByRole("article"));
+  expect(article.getByRole("heading", { name: POST_RESPONSE.title })).toBeVisible();
+  expect(article.queryByRole("button")).not.toBeInTheDocument();
+});
 
 test("When navigating to another cross-post after revealing content then its preview should start concealed", async () => {
   const user = userEvent.setup();

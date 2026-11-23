@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
 import { Markdown } from "@/components/Markdown";
 import { PaneMenu } from "@/components/PaneMenu";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { PostError } from "@/features/posts/components/PostError";
 import { PostLoading } from "@/features/posts/components/PostLoading";
@@ -11,9 +13,11 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { CrosspostPreview } from "./CrosspostPreview";
 import { PostAttachments } from "./PostAttachments";
 import { PostFlair } from "./PostFlair";
+import { SpoilerBadge } from "./SpoilerBadge";
 
 export function PostContent({ postId }: { postId: string }) {
   const { subreddit } = useParams();
+  const [isRevealed, setIsRevealed] = useState(false);
   const {
     query: post,
     jsonHref,
@@ -54,6 +58,7 @@ export function PostContent({ postId }: { postId: string }) {
           r/{subreddit}
         </Link>
         <PostFlair flair={post.isSuccess ? post.data.flair : null} />
+        {post.isSuccess && post.data.isSpoiler && <SpoilerBadge />}
       </div>
     </>
   );
@@ -68,6 +73,8 @@ export function PostContent({ postId }: { postId: string }) {
   }
 
   const value = post.data;
+  const hasBody =
+    value.markdown !== null || value.attachments.length > 0 || value.crosspostId !== null;
 
   return (
     <>
@@ -83,18 +90,26 @@ export function PostContent({ postId }: { postId: string }) {
           />
         </div>
         <Separator />
-        {value.markdown && (
-          <section aria-label="Post content">
-            <Markdown className="prose-sm max-w-none" value={value.markdown} />
-          </section>
-        )}
-        <PostAttachments attachments={value.attachments} />
-        {value.crosspostId && (
-          <CrosspostPreview
-            key={`${value.id}:${value.crosspostId}`}
-            postId={value.crosspostId}
-            isSensitive={value.isNsfw || value.isSpoiler}
-          />
+        {hasBody && value.isSpoiler && !isRevealed ? (
+          <Button variant="outline" className="min-h-24" onPress={() => setIsRevealed(true)}>
+            Show spoiler
+          </Button>
+        ) : (
+          <>
+            {value.markdown && (
+              <section aria-label="Post content">
+                <Markdown className="prose-sm max-w-none" value={value.markdown} />
+              </section>
+            )}
+            <PostAttachments attachments={value.attachments} />
+            {value.crosspostId && (
+              <CrosspostPreview
+                key={`${value.id}:${value.crosspostId}`}
+                postId={value.crosspostId}
+                isParentNsfw={value.isNsfw}
+              />
+            )}
+          </>
         )}
       </article>
     </>

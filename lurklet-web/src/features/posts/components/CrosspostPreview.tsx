@@ -9,13 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { PostAttachments } from "./PostAttachments";
 import { PostMetadata } from "./PostMetadata";
+import { SpoilerBadge } from "./SpoilerBadge";
 
 export function CrosspostPreview({
   postId,
-  isSensitive,
+  isParentNsfw,
 }: {
   postId: string;
-  isSensitive: boolean;
+  isParentNsfw: boolean;
 }) {
   const post = useQuery(apiQueryOptions.getPost({ path: { id: postId } }));
   const [isRevealed, setIsRevealed] = useState(false);
@@ -59,13 +60,13 @@ export function CrosspostPreview({
 
   const value = post.data;
   const subreddit = value.community?.name;
-  const isHidden = (isSensitive || value.isNsfw || value.isSpoiler) && !isRevealed;
+  const isHidden = (isParentNsfw || value.isNsfw || value.isSpoiler) && !isRevealed;
 
   return (
     <section aria-label="Original post" className="min-w-0 select-none">
       <Card>
         <CardHeader>
-          <CardDescription className="wrap-anywhere">
+          <CardDescription className="flex flex-wrap items-center gap-2 wrap-anywhere">
             {subreddit ? (
               <Link className="hover:underline" to={`/r/${encodeURIComponent(subreddit)}`}>
                 r/{subreddit}
@@ -73,6 +74,7 @@ export function CrosspostPreview({
             ) : (
               "Unknown community"
             )}
+            {value.isSpoiler && <SpoilerBadge />}
           </CardDescription>
           <CardTitle>
             <h2 className="min-w-0 wrap-anywhere">
