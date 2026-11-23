@@ -1,13 +1,19 @@
 import { FaGithub } from "react-icons/fa";
 import { Link, Outlet, ScrollRestoration } from "react-router";
 import { version } from "../../package.json";
+import logoSvg from "../../static/public/logo.svg?raw";
 
 export function AppLayout() {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 sm:px-6">
       <ScrollRestoration />
       <header className="flex h-14 items-center justify-between">
-        <Link className="text-2xl font-light tracking-tight" to="/">
+        <Link className="inline-flex items-center gap-2 text-2xl font-light tracking-tight" to="/">
+          <span
+            aria-hidden="true"
+            className="[&>svg]:size-5"
+            dangerouslySetInnerHTML={{ __html: logoSvg }}
+          />
           Lurklet
         </Link>
         <a
