@@ -40,7 +40,7 @@ pub struct QueryPolicy {
 impl QueryPolicy {
     /// Derives data keys from GET parameters and adds the upstream media contract.
     pub fn from_specification(specification: &OpenApi) -> Self {
-        let routes = specification
+        let mut routes: BTreeMap<_, _> = specification
             .paths
             .paths
             .iter()
@@ -74,6 +74,13 @@ impl QueryPolicy {
                 Some((path.clone(), keys))
             })
             .collect();
+        routes.insert(
+            "/api/openapi.json".into(),
+            QueryKeys {
+                cache_key: vec![],
+                forward_only: vec![],
+            },
+        );
         Self {
             routes,
             dropped: Mutex::default(),
@@ -176,6 +183,7 @@ mod tests {
             exported,
             json!({
                 "/api/health": {"cacheKey": [], "forwardOnly": []},
+                "/api/openapi.json": {"cacheKey": [], "forwardOnly": []},
                 "/api/posts/{id}": {"cacheKey": [], "forwardOnly": []},
                 "/api/posts/{id}/comments": {"cacheKey": ["cursor", "sort"], "forwardOnly": []},
                 "/api/comments/{id}/thread": {"cacheKey": ["sort"], "forwardOnly": []},

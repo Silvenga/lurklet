@@ -6,8 +6,10 @@ use crate::middleware::{
 };
 use crate::routes;
 use axum::Router;
+use axum::body::Bytes;
 use axum::http::header;
 use axum::middleware;
+use axum::routing::get;
 use lurklet_reddit::{MobileBackend, RedditBackend, RedditClient};
 use utoipa::OpenApi as _;
 use utoipa::openapi::{OpenApi, OpenApiVersion};
@@ -31,13 +33,30 @@ pub fn application<B: RedditBackend + 'static>(
     cache: Option<&ResponseCache>,
     cache_options: &ApiCacheOptions,
 ) -> Router {
-    let (health, _) = routes::health().split_for_parts();
-    let health = health.method_not_allowed_fallback(|| async {
-        (
-            [(header::CACHE_CONTROL, "no-store")],
-            ApiError::MethodNotAllowed,
+    let specification = specification();
+    let query_policy = QueryPolicy::from_specification(&specification);
+    let document =
+        Bytes::from(serde_json::to_vec(&specification).expect("OpenAPI document must serialize"));
+    let (metadata, _) = routes::health().split_for_parts();
+    let metadata = metadata
+        .route(
+            "/openapi.json",
+            get(move || async move {
+                (
+                    [
+                        (header::CONTENT_TYPE, "application/json"),
+                        (header::CACHE_CONTROL, "public, max-age=31536000, immutable"),
+                    ],
+                    document,
+                )
+            }),
         )
-    });
+        .method_not_allowed_fallback(|| async {
+            (
+                [(header::CACHE_CONTROL, "no-store")],
+                ApiError::MethodNotAllowed,
+            )
+        });
 
     let (json_routes, _) = routes::get_post()
         .merge(routes::get_post_comments())
@@ -53,7 +72,7 @@ pub fn application<B: RedditBackend + 'static>(
         cache,
         cache_options,
     )
-    .merge(health)
+    .merge(metadata)
     .layer(middleware::from_fn(response_compression));
     let (media_routes, _) = routes::get_media().split_for_parts();
     let media_api = data_api(
@@ -68,7 +87,7 @@ pub fn application<B: RedditBackend + 'static>(
         .layer(middleware::from_fn(api_cache_policy))
         .layer(api_content_security_policy())
         .layer(content_type_options());
-    let api = QueryPolicy::from_specification(&specification())
+    let api = query_policy
         .wrap(api)
         .layer(middleware::from_fn(access_log));
 
@@ -119,7 +138,6 @@ mod tests {
     use axum::extract::{ConnectInfo, State};
     use axum::http::{HeaderMap, HeaderValue, Method, Request, StatusCode, header};
     use axum::response::Html;
-    use axum::routing::get;
     use axum::{Extension, Json};
     use lurklet_reddit::{StateStore, Storage};
     use serde_json::{Value, json};
@@ -469,7 +487,6 @@ mod tests {
             "/api//",
             "/api/missing",
             "/api/health/",
-            "/api/openapi.json",
             "/api/missing?secret=private",
             "/api/media",
             "/api/media?url=https%3A%2F%2Fi.redd.it%2Fimage.png",
@@ -517,6 +534,28 @@ mod tests {
             assert!(!headers.contains_key(header::X_CONTENT_TYPE_OPTIONS));
             assert_eq!(body.as_ref(), b"SPA");
         }
+    }
+
+    #[tokio::test]
+    async fn when_openapi_is_requested_then_the_contract_should_be_served_with_immutable_caching() {
+        let request = Request::builder()
+            .uri("/api/openapi.json?ignored=1")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = application().oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "public, max-age=31536000, immutable"
+        );
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(
+            serde_json::from_slice::<Value>(&body).unwrap(),
+            serde_json::to_value(specification()).unwrap()
+        );
     }
 
     #[test]
