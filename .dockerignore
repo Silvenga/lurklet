@@ -30,4 +30,5 @@
 !lurklet-web/openapi-ts.config.ts
 !lurklet-web/src/**
 !lurklet-web/scripts/**
+!lurklet-web/static/**
 lurklet-web/src/clients/lurklet-api/generated/
