@@ -9,11 +9,14 @@ import { createQueryClient } from "./query-client";
 
 test("When a query fails then it should expose the error without automatic retries", async () => {
   let requests = 0;
-  const problem = { type: "about:blank", title: "Unavailable", status: 503 };
+  const retryAt = new Date(Math.floor(Date.now() / 1000) * 1000 + 60_000);
   server.use(
     http.get("*/api/posts/:id", () => {
       requests++;
-      return HttpResponse.json(problem, { status: 503 });
+      return HttpResponse.text("Unavailable", {
+        status: 503,
+        headers: { "Retry-After": retryAt.toUTCString() },
+      });
     }),
   );
   const queryClient = createQueryClient();
@@ -23,7 +26,7 @@ test("When a query fails then it should expose the error without automatic retri
     apiQueryOptions.getPost({ path: { id: POST_RESPONSE.id } }),
   );
 
-  await expect(result).rejects.toEqual(problem);
+  await expect(result).rejects.toMatchObject({ status: 503, retryAt: retryAt.getTime() });
   expect(requests).toBe(1);
 });
 

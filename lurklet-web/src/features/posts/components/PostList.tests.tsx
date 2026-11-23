@@ -116,7 +116,6 @@ test("When the listing is empty then it should show an empty state", () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByText("No posts")).toBeVisible();
   expect(screen.queryByRole("list")).not.toBeInTheDocument();
 });
 

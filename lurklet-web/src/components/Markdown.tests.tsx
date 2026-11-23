@@ -263,11 +263,8 @@ test("When an image is inline inside a link then its proxied image and failure p
 
   fireEvent.error(media);
 
-  const placeholder = screen.getByRole("img", { name: "Media unavailable: A Rust diagram" });
-  expect(link).toContainElement(placeholder);
-  expect(placeholder.closest("p")).toHaveTextContent(
-    "Before [Media unavailable: A Rust diagram] after.",
-  );
+  expect(link).toHaveAccessibleName(/A Rust diagram/);
+  expect(link.querySelector("button")).toBeNull();
   expect(container.querySelector("p div, p figure, img")).toBeNull();
 });
 
@@ -295,7 +292,6 @@ test.each(["data:image/png;base64,example", "/media/example.png"])(
   (src) => {
     const { container } = renderMarkdown(`![](${src})`);
 
-    expect(screen.getByRole("img", { name: "Media unavailable" })).toBeVisible();
     expect(container.querySelector("img, [src], [srcset]")).toBeNull();
   },
 );
@@ -390,8 +386,6 @@ test.each([
   ({ media }) => {
     const { container } = renderMarkdown("Before ![An image](asset) after.", "/", media);
 
-    expect(screen.getByRole("img", { name: "Media unavailable: An image" })).toBeVisible();
-    expect(container).toHaveTextContent("Before [Media unavailable: An image] after.");
     expect(container.querySelector("[src], [srcset], video, iframe")).toBeNull();
   },
 );

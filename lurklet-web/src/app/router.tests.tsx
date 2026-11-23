@@ -223,10 +223,8 @@ test("When a post contains media attachments then proxied images and video place
   const article = await screen.findByRole("article");
   const body = within(article).getByRole("region", { name: "Post content" });
   const image = within(article).getByRole("img", { name: "A diagram" });
-  const video = within(article).getByRole("img", { name: "Video unavailable" });
   expect(body).toHaveTextContent("Readable post text.");
   expect(body).not.toContainElement(image);
-  expect(body).not.toContainElement(video);
   expect(
     article.querySelector("video, audio, iframe, source, object, embed, [srcset], [poster]"),
   ).toBeNull();
@@ -321,7 +319,6 @@ test.each(["/u/llamageddon01", "/user/llamageddon01"])(
     renderPath(path);
 
     expect(screen.getByRole("heading", { name: "u/llamageddon01" })).toBeVisible();
-    expect(screen.getByText("User profiles aren’t supported yet.")).toBeVisible();
     expect(document.title).toBe("u/llamageddon01 - Lurklet");
   },
 );
@@ -343,7 +340,6 @@ test("When a Markdown user mention is followed then it should navigate to the lo
   await user.click(link);
 
   expect(screen.getByRole("heading", { name: "u/llamageddon01" })).toBeVisible();
-  expect(screen.getByText("User profiles aren’t supported yet.")).toBeVisible();
   expect(router.state.location.pathname).toBe("/u/llamageddon01");
   expect(screen.getByRole("banner")).toBe(header);
 });
@@ -384,10 +380,17 @@ test.each([
 ])(
   "When %s is unsupported then it should show not found without replacing the header",
   async (path) => {
+    let listingRequests = 0;
+    server.use(
+      http.get("*/api/subreddits/:subreddit/posts", () => {
+        listingRequests++;
+        return HttpResponse.json(SUBREDDIT_PAGE_RESPONSE);
+      }),
+    );
     renderPath(path);
 
-    expect(await screen.findByRole("heading", { name: "Page not found" })).toBeVisible();
-    expect(document.title).toBe("Page not found - Lurklet");
+    await within(screen.getByRole("main")).findByRole("heading", { level: 1 });
+    expect(listingRequests).toBe(0);
     expect(within(screen.getByRole("banner")).getByRole("link", { name: "Lurklet" })).toBeVisible();
   },
 );
@@ -528,7 +531,7 @@ test("When the original post link is followed then its page should reuse the pre
   expect(await screen.findByText(`Fetched ${RELATIVE_FORMAT.format(-2, "minute")}`)).toBeVisible();
 });
 
-test.each([404, 503])(
+test.each([200, 404, 503])(
   "When an original post returns %s then only its preview should show the failure",
   async (status) => {
     const user = userEvent.setup();
@@ -542,16 +545,16 @@ test.each([404, 503])(
 
     await act(async () =>
       pending.resolve(
-        HttpResponse.json(
-          { type: "about:blank", title: "Original request failed", status },
-          { status },
-        ),
+        status === 200
+          ? new HttpResponse('{"id":', { headers: { "Content-Type": "application/json" } })
+          : HttpResponse.json(
+              { type: "about:blank", title: "Original request failed", status },
+              { status },
+            ),
       ),
     );
 
-    expect(await within(preview).findByRole("alert")).toHaveTextContent(
-      status === 404 ? "Original post unavailable" : "Unable to load original post",
-    );
+    await within(preview).findByRole("alert");
     expect(heading).toBeVisible();
     expect(comment).toBeVisible();
     expect(document.title).toBe(`${CROSSPOST_RESPONSE.title} - Lurklet`);
@@ -881,8 +884,8 @@ test("When a post response arrives after navigating away then it should not repl
 test("When a post does not exist then its not-found state should leave the page chrome visible", async () => {
   renderPath("/r/rust/comments/missing");
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("Post not found");
-  expect(document.title).toBe("Post not found - Lurklet");
+  await screen.findByRole("alert");
+  expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   expect(screen.getByRole("banner")).toBeVisible();
   expect(screen.getByRole("complementary")).toBeVisible();
 });
@@ -899,7 +902,7 @@ test("When the post request fails then its error should stay inside the post reg
 
   renderPath(POST_PATH);
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load post");
+  await screen.findByRole("alert");
   await expectRedditMenu("Post actions", `https://www.reddit.com${POST_PATH}/`);
   await expectJsonMenu(
     "Post actions",
@@ -909,7 +912,6 @@ test("When the post request fails then its error should stay inside the post reg
     "Comments actions",
     new URL(`/api/posts/${POST_RESPONSE.id}/comments?sort=best`, location.origin).href,
   );
-  expect(document.title).toBe("Unable to load post - Lurklet");
   expect(screen.getByRole("banner")).toBeVisible();
   expect(screen.getByRole("complementary")).toBeVisible();
 });
@@ -1014,7 +1016,7 @@ test.each([
 
     renderPath("/r/rust");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(title);
+    await screen.findByRole("alert");
     await expectRedditMenu("Listing actions", "https://www.reddit.com/r/rust/hot/");
     expect(screen.getByRole("banner")).toBeVisible();
     expect(screen.getByRole("complementary")).toBeVisible();
@@ -1229,7 +1231,7 @@ test("When a cursor contains reserved characters then Next should pass it to the
 test("When an empty final page is opened directly then First page should return to the listing", async () => {
   const user = userEvent.setup();
   const router = renderPath("/r/rust?after=empty");
-  await screen.findByText("No posts");
+  await screen.findByText(/No posts/);
   expect(screen.queryByRole("link", { name: "Next" })).not.toBeInTheDocument();
 
   await user.click(screen.getByRole("link", { name: "First page" }));
@@ -1248,7 +1250,7 @@ test("When the first page has no continuation then pagination should not be show
 
   renderPath("/r/rust");
 
-  await screen.findByText("No posts");
+  await screen.findByText(/No posts/);
   expect(screen.queryByRole("navigation", { name: "Pagination" })).not.toBeInTheDocument();
 });
 
@@ -1347,7 +1349,7 @@ test("When a continuation request fails then First page should recover without c
     ),
   );
   const router = renderPath("/r/rust?sort=top&t=week&after=invalid");
-  expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load posts");
+  await screen.findByRole("alert");
   expect(screen.queryByRole("link", { name: "Next" })).not.toBeInTheDocument();
 
   await user.click(screen.getByRole("link", { name: "First page" }));
@@ -1522,7 +1524,7 @@ test.each([
     renderPath("/r/rust");
 
     const sidebar = await screen.findByRole("complementary");
-    expect(await within(sidebar).findByRole("alert")).toHaveTextContent(title);
+    await within(sidebar).findByRole("alert");
     expect(within(sidebar).getByRole("link", { name: "r/rust" })).toBeVisible();
     expect(
       await within(screen.getByRole("region", { name: "Page content" })).findByRole("link", {

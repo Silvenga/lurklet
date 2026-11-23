@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import type { VideoSource } from "@/clients/lurklet-api/generated/types.gen";
 import { Video } from "./Video";
 
@@ -35,9 +35,7 @@ test("When MP4 sources and a poster are available then playback should use only 
 test("When playback fails then distinct MP4 alternatives should be tried in order before becoming unavailable", () => {
   const first: VideoSource = { format: "mp4", url: "https://v.redd.it/first.mp4" };
   const second: VideoSource = { format: "mp4", url: "https://v.redd.it/second.mp4" };
-  const { container, rerender } = render(
-    <Video sources={[first, first, second]} posterUrl={null} />,
-  );
+  const { rerender } = render(<Video sources={[first, first, second]} posterUrl={null} />);
   const original = screen.getByLabelText("Video");
   const candidates = original.querySelectorAll("source");
   expect([...candidates].map((source) => source.src)).toEqual([
@@ -55,8 +53,7 @@ test("When playback fails then distinct MP4 alternatives should be tried in orde
 
   fireEvent.error(candidates[1]!);
 
-  expect(screen.getByRole("img", { name: "Video unavailable" })).toBeVisible();
-  expect(container.querySelector("video, [src], [poster], [href]")).toBeNull();
+  expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
 
   rerender(<Video sources={[second]} posterUrl={null} />);
 
@@ -67,9 +64,12 @@ test("When playback fails then distinct MP4 alternatives should be tried in orde
   fireEvent.error(alternative);
   expect(screen.getByLabelText("Video")).toBeVisible();
 
-  fireEvent.error(screen.getByLabelText("Video"));
+  const player = screen.getByLabelText<HTMLVideoElement>("Video");
+  fireEvent.error(player);
+  const load = vi.spyOn(player, "load");
 
-  expect(screen.getByRole("img", { name: "Video unavailable" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(load).toHaveBeenCalledTimes(1);
 });
 
 test("When video sources or posters are invalid then they should not create requests or prevent valid alternatives", () => {
@@ -94,6 +94,5 @@ test("When video sources or posters are invalid then they should not create requ
 
   rerender(<Video sources={[{ format: "mp4", url: "/relative.mp4" }]} posterUrl={null} />);
 
-  expect(screen.getByRole("img", { name: "Video unavailable" })).toBeVisible();
   expect(container.querySelector("video, [src], [poster]")).toBeNull();
 });

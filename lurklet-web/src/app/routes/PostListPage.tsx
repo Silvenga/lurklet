@@ -3,10 +3,10 @@ import type { SubredditPage } from "@/clients/lurklet-api/generated/types.gen";
 import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
 import { PaneMenu } from "@/components/PaneMenu";
 import { PendingRegion } from "@/components/PendingRegion";
+import { RequestNotice } from "@/components/RequestNotice";
 import type { postListLoader } from "@/features/posts/api/post-list-loader";
 import { PostList } from "@/features/posts/components/PostList";
 import { PostListControls } from "@/features/posts/components/PostListControls";
-import { PostListError } from "@/features/posts/components/PostListError";
 import { PostListLoading } from "@/features/posts/components/PostListLoading";
 import { PostListPagination } from "@/features/posts/components/PostListPagination";
 import { useJsonQuery } from "@/hooks/useJsonQuery";
@@ -57,12 +57,7 @@ export function PostListPage() {
         {page.isPending ? (
           <PostListLoading />
         ) : page.isError ? (
-          <PostListError
-            error={page.error}
-            onRetry={() => {
-              void page.refetch();
-            }}
-          />
+          <RequestNotice subject="Posts" query={page} />
         ) : (
           <PostList subreddit={subreddit!} posts={page.data.posts} />
         )}

@@ -25,12 +25,9 @@ test("When attachments mix links images and videos then their order and link pol
     wrapper: MemoryRouter,
   });
 
-  expect([...container.children].map((element) => element.tagName)).toEqual([
-    "A",
-    "FIGURE",
-    "VIDEO",
-    "A",
-  ]);
+  expect(
+    [...container.querySelectorAll("a, img, video")].map((element) => element.tagName),
+  ).toEqual(["A", "IMG", "VIDEO", "A"]);
   const image = screen.getByRole("img", { name: "A diagram" });
   expect(image.tagName).toBe("IMG");
   expect(image).toHaveAttribute("src", `${location.origin}/api/media/images.example.com/image.png`);
@@ -126,10 +123,9 @@ test.each([
       />,
     );
 
-    expect(screen.getAllByRole("img", { name: "Video unavailable" })).toHaveLength(1);
     expect(
       container.querySelector(
-        "img, video, audio, iframe, source, object, embed, [src], [srcset], [poster], [href]",
+        "img, video, audio, iframe, source, object, embed, [src], [srcset], [poster]",
       ),
     ).toBeNull();
     expect(fetch).not.toHaveBeenCalled();

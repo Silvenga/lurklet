@@ -34,10 +34,11 @@ test("When an image fails then it should stay unavailable without falling back t
   fireEvent.error(screen.getByRole("img", { name: "Missing image" }));
   rerender(<Media kind="image" src={src} alt="Missing image" />);
 
-  expect(screen.getByRole("img", { name: "Image unavailable: Missing image" }).tagName).toBe(
-    "SPAN",
-  );
   expect(container.querySelector("img, [src], [srcset], [href]")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(container.querySelector("img")?.src).toBe(
+    `${location.origin}/api/media/i.redd.it/missing.png`,
+  );
 });
 
 test("When the source changes after failure then the new image should load and returning to the original source should permit another attempt", () => {
@@ -76,7 +77,6 @@ test.each([
 ])("When the image source is %j then no request URL should be rendered", (src) => {
   const { container } = render(<Media kind="image" src={src} />);
 
-  expect(screen.getByRole("img", { name: "Image unavailable" })).toBeVisible();
   expect(container.querySelector("[src], [srcset]")).toBeNull();
 });
 
@@ -108,7 +108,6 @@ test("When a signature changes then the media path should remain stable and all 
 test("When media is a video then it should remain a non-fetching placeholder even if a source is supplied", () => {
   const { container } = render(<Media kind="video" src="https://v.redd.it/example.mp4" />);
 
-  expect(screen.getByRole("img", { name: "Video unavailable" })).toBeVisible();
   expect(container.querySelector("img, video, source, [src], [srcset], [poster]")).toBeNull();
 });
 

@@ -1,10 +1,8 @@
 import { cn } from "cn";
-import { CirclePlusIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import type { CommentItem } from "@/clients/lurklet-api/generated/types.gen";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { buttonVariants } from "@/components/ui/button";
 import type { CommentContext } from "@/features/comments/types";
 import { CommentMore } from "./CommentMore";
 import { CommentRow } from "./CommentRow";
@@ -46,24 +44,12 @@ export function CommentList({ items, context }: { items: CommentItem[]; context:
       }
 
       if (context.focusedCommentId !== null || id === null) {
-        const isMore = item.kind === "more";
         return renderRow(
-          <TooltipTrigger>
-            <Button
-              variant={isMore ? "ghost" : "outline"}
-              size={isMore ? "xs" : "sm"}
-              aria-disabled="true"
-              className="cursor-not-allowed opacity-50"
-            >
-              {isMore && <CirclePlusIcon aria-hidden="true" data-icon="inline-start" />}
-              {isMore ? "Load more replies" : "Continue thread"}
-            </Button>
-            <Tooltip>
-              {context.focusedCommentId !== null
-                ? "Further expansion in a focused thread is not supported yet."
-                : "No expansion is available for this item."}
-            </Tooltip>
-          </TooltipTrigger>,
+          <p className="text-muted-foreground text-sm/6">
+            {context.focusedCommentId !== null
+              ? "Open the full discussion to load more replies."
+              : "Reddit provided no link to more replies."}
+          </p>,
         );
       }
 

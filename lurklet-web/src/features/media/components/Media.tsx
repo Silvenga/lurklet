@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { ImageOffIcon } from "lucide-react";
 import { useState, type ComponentProps } from "react";
+import { Button } from "@/components/ui/button";
 import { buildMediaUrl } from "../build-media-url";
 
 export function Media({
@@ -16,6 +17,7 @@ export function Media({
   variant?: "content" | "thumbnail" | "icon" | "emoji";
 }) {
   const [failedSource, setFailedSource] = useState<string | null>(null);
+  const [canRetry, setCanRetry] = useState(false);
   if (failedSource !== null && failedSource !== src) {
     setFailedSource(null);
   }
@@ -46,7 +48,10 @@ export function Media({
               : "bg-muted block object-cover",
           compactClassName,
         )}
-        onError={() => setFailedSource(src)}
+        onError={(event) => {
+          setCanRetry(!event.currentTarget.closest("a, button"));
+          setFailedSource(src);
+        }}
       />
     );
   }
@@ -58,6 +63,28 @@ export function Media({
   const type = kind === "image" ? "Image" : kind === "video" ? "Video" : "Media";
   const label = alt ? `${type} unavailable: ${alt}` : `${type} unavailable`;
 
+  if (variant === "content") {
+    const message = failedSource
+      ? "Image failed to load"
+      : kind === "video"
+        ? "No playable video source"
+        : "No usable image source";
+    return (
+      <span className="text-muted-foreground text-sm wrap-anywhere">
+        {message}
+        {alt ? `: ${alt}` : "."}
+        {failedSource && canRetry && (
+          <>
+            {" "}
+            <Button size="xs" variant="outline" onPress={() => setFailedSource(null)}>
+              Retry
+            </Button>
+          </>
+        )}
+      </span>
+    );
+  }
+
   return (
     <span
       role="img"
@@ -65,17 +92,11 @@ export function Media({
       title={title}
       className={cn(
         "text-muted-foreground",
-        variant === "content"
-          ? "wrap-anywhere"
-          : "bg-muted inline-flex items-center justify-center",
+        "bg-muted inline-flex items-center justify-center",
         compactClassName,
       )}
     >
-      {variant === "content" ? (
-        `[${label}]`
-      ) : (
-        <ImageOffIcon aria-hidden="true" className="size-4" />
-      )}
+      <ImageOffIcon aria-hidden="true" className="size-4" />
     </span>
   );
 }

@@ -2,11 +2,11 @@ import { cn } from "cn";
 import { Link, useParams, useSearchParams } from "react-router";
 import type { CommentForest, CommentSort } from "@/clients/lurklet-api/generated/types.gen";
 import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
+import { EmptyResult } from "@/components/EmptyResult";
 import { PaneMenu } from "@/components/PaneMenu";
 import { PendingRegion } from "@/components/PendingRegion";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { RequestNotice } from "@/components/RequestNotice";
+import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useJsonQuery } from "@/hooks/useJsonQuery";
@@ -16,13 +16,11 @@ import { CommentList } from "./CommentList";
 export function CommentDiscussion() {
   const { subreddit, postId, slug, commentId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const requestedSort = searchParams.get("sort") ?? "best";
-  const isValidSort =
-    requestedSort === "best" || requestedSort === "top" || requestedSort === "new";
-  const sort = isValidSort ? requestedSort : "best";
+  // Forward bookmarked sort values unchanged. The API validates them.
+  const sort = (searchParams.get("sort") ?? "best") as CommentSort;
   const comments = useJsonQuery({
     ...apiQueryOptions.getPostComments({ path: { id: postId! }, query: { sort } }),
-    enabled: isValidSort && !commentId,
+    enabled: !commentId,
     placeholderData: (previous, previousQuery) =>
       previous && previousQuery && previousQuery.queryKey[0].path?.id === postId
         ? {
@@ -33,7 +31,7 @@ export function CommentDiscussion() {
   });
   const thread = useJsonQuery({
     ...apiQueryOptions.getCommentThread({ path: { id: commentId ?? "" }, query: { sort } }),
-    enabled: isValidSort && Boolean(commentId),
+    enabled: Boolean(commentId),
     placeholderData: (previous, previousQuery) =>
       previous && previousQuery && previousQuery.queryKey[0].path?.id === commentId
         ? {
@@ -80,10 +78,10 @@ export function CommentDiscussion() {
         spacing={0}
         selectionMode="single"
         disallowEmptySelection
-        selectedKeys={isValidSort ? [sort] : []}
+        selectedKeys={[sort]}
         onSelectionChange={(keys) => {
           const nextSort = String([...keys][0]);
-          if (nextSort === requestedSort) return;
+          if (nextSort === sort) return;
           const next = new URLSearchParams(searchParams);
           next.set("sort", nextSort);
           void setSearchParams(next, { preventScrollReset: true });
@@ -93,32 +91,14 @@ export function CommentDiscussion() {
         <ToggleGroupItem id="top">Top</ToggleGroupItem>
         <ToggleGroupItem id="new">New</ToggleGroupItem>
       </ToggleGroup>
-      {!isValidSort ? (
-        <Alert>
-          <AlertTitle>Unsupported comment sort</AlertTitle>
-          <AlertDescription>Choose Best, Top, or New.</AlertDescription>
-        </Alert>
-      ) : query.isPending ? (
+      {query.isPending ? (
         <div role="status" className="flex flex-col gap-4">
           <span className="sr-only">Loading comments</span>
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-20 w-full" />
         </div>
       ) : query.isError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load comments</AlertTitle>
-          <AlertDescription>Please try again.</AlertDescription>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-2 w-fit"
-            onPress={() => {
-              void query.refetch();
-            }}
-          >
-            Retry
-          </Button>
-        </Alert>
+        <RequestNotice subject={commentId ? "Comment thread" : "Comments"} query={query} />
       ) : (
         <PendingRegion
           pending={query.isPlaceholderData || query.isFetching}
@@ -128,11 +108,7 @@ export function CommentDiscussion() {
             <p className="text-muted-foreground text-sm">Applied sort: {query.data.appliedSort}</p>
           )}
           {query.data.items.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>No comments</EmptyTitle>
-              </EmptyHeader>
-            </Empty>
+            <EmptyResult>No comments.</EmptyResult>
           ) : (
             <CommentList
               key={JSON.stringify([postId, displayedSort, commentId])}

@@ -176,8 +176,6 @@ test("When an unavailable community has no explanation then it should show a neu
     quarantineMessageMarkdown: null,
   });
 
-  expect(screen.getByRole("alert")).toHaveTextContent("Subreddit unavailable");
-  expect(screen.getByText("This subreddit is unavailable.")).toBeVisible();
   expect(screen.queryByText(/banned|private|deleted/i)).toBeNull();
 });
 

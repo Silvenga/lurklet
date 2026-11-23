@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 import type { ListedPost } from "@/clients/lurklet-api/generated/types.gen";
+import { EmptyResult } from "@/components/EmptyResult";
 import { Badge } from "@/components/ui/badge";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { PostFlair } from "./PostFlair";
 import { PostMetadata } from "./PostMetadata";
 import { PostThumbnail } from "./PostThumbnail";
@@ -14,14 +14,7 @@ type PostListProps = {
 
 export function PostList({ subreddit, posts }: PostListProps) {
   if (posts.length === 0) {
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>No posts</EmptyTitle>
-          <EmptyDescription>No posts were returned for this listing.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    );
+    return <EmptyResult>No posts in this listing.</EmptyResult>;
   }
 
   return (

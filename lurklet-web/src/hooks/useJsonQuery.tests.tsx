@@ -11,13 +11,9 @@ import {
 import { server } from "@/_tests/mocks/server";
 import { createQueryClient } from "@/app/query-client";
 import { getPostQueryKey } from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
-import type {
-  CommentForest,
-  Post,
-  Problem,
-  SubredditPage,
-} from "@/clients/lurklet-api/generated/types.gen";
+import type { CommentForest, Post, SubredditPage } from "@/clients/lurklet-api/generated/types.gen";
 import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
+import type { RequestFailure } from "@/clients/lurklet-api/request-failure";
 import { useJsonQuery } from "./useJsonQuery";
 
 function renderQuery<TProps, TResult>(
@@ -72,7 +68,7 @@ test.each([undefined, "https://api.example.test"])(
     expect(requests).toEqual([result.current.jsonHref]);
     expect(result.current.query.data).toEqual(SUBREDDIT_PAGE_RESPONSE);
     expectTypeOf(result.current.query.data).toEqualTypeOf<SubredditPage | undefined>();
-    expectTypeOf(result.current.query.error).toEqualTypeOf<Problem | null>();
+    expectTypeOf(result.current.query.error).toEqualTypeOf<RequestFailure | null>();
   },
 );
 
@@ -108,7 +104,7 @@ test("When a thread query selects its forest then the JSON link should still add
     ).href,
   );
   expectTypeOf(result.current.query.data).toEqualTypeOf<CommentForest | undefined>();
-  expectTypeOf(result.current.query.error).toEqualTypeOf<Problem | null>();
+  expectTypeOf(result.current.query.error).toEqualTypeOf<RequestFailure | null>();
   if (result.current.query.isSuccess) {
     expectTypeOf(result.current.query.data).toEqualTypeOf<CommentForest>();
   }
@@ -158,7 +154,7 @@ test("When a query loads refetches and fails then its JSON link should remain av
   expect(result.current.query.data).toEqual(POST_RESPONSE);
   if (result.current.query.isRefetchError) {
     expectTypeOf(result.current.query.data).toEqualTypeOf<Post>();
-    expectTypeOf(result.current.query.error).toEqualTypeOf<Problem>();
+    expectTypeOf(result.current.query.error).toEqualTypeOf<RequestFailure>();
   }
 });
 

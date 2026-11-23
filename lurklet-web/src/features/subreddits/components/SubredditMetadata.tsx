@@ -3,6 +3,7 @@ import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
 import { DateAgo } from "@/components/DateAgo";
 import { Markdown } from "@/components/Markdown";
 import { PaneMenu } from "@/components/PaneMenu";
+import { RequestNotice } from "@/components/RequestNotice";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,20 +48,10 @@ export function SubredditMetadata({ subreddit }: { subreddit: string }) {
   }
 
   if (metadata.isError) {
-    const error: unknown = metadata.error;
-    const isNotFound =
-      typeof error === "object" && error !== null && "status" in error && error.status === 404;
     return (
       <div className="flex flex-col gap-4 wrap-anywhere select-text">
         {header}
-        <Alert variant={isNotFound ? "default" : "destructive"}>
-          <AlertTitle>
-            {isNotFound ? "Subreddit details not found" : "Unable to load subreddit details"}
-          </AlertTitle>
-          <AlertDescription>
-            {isNotFound ? "No metadata was found for this subreddit." : "Please try again later."}
-          </AlertDescription>
-        </Alert>
+        <RequestNotice subject="Subreddit details" query={metadata} />
       </div>
     );
   }
@@ -120,14 +111,11 @@ export function SubredditMetadata({ subreddit }: { subreddit: string }) {
         </>
       ) : (
         <Alert>
-          <AlertTitle>{value.banTitle || "Subreddit unavailable"}</AlertTitle>
+          <AlertTitle>{value.banTitle || `r/${subreddit} is unavailable`}</AlertTitle>
           <AlertDescription>
             {value.forbiddenReason && <p>{value.forbiddenReason}</p>}
             {value.banMessageMarkdown && (
               <Markdown className={MARKDOWN_CLASS} value={value.banMessageMarkdown} />
-            )}
-            {!value.forbiddenReason && !value.banMessageMarkdown && (
-              <p>This subreddit is unavailable.</p>
             )}
           </AlertDescription>
         </Alert>

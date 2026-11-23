@@ -30,8 +30,8 @@ import type {
   GetPostData,
   GetSubredditData,
   ListSubredditPostsData,
-  Problem,
 } from "./generated/types.gen";
+import type { RequestFailure } from "./request-failure";
 import { withResponseAge, type AgedResponse } from "./with-response-age";
 
 function responseOptions<T, Key extends QueryKey>({
@@ -42,8 +42,9 @@ function responseOptions<T, Key extends QueryKey>({
   queryFn: QueryFunction<AgedResponse<T>, Key>;
   meta: QueryMeta | undefined;
 }) {
-  return queryOptions<AgedResponse<T>, Problem, T, Key>({
+  return queryOptions<AgedResponse<T>, RequestFailure, T, Key>({
     ...options,
+    networkMode: "always",
     ...(meta ? { meta } : {}),
     select: (response) => response.data,
   });
@@ -53,7 +54,8 @@ export const apiQueryOptions = {
   getPost: (options: Options<GetPostData>) =>
     responseOptions({
       queryKey: getPostQueryKey(options),
-      queryFn: ({ signal }) => withResponseAge(getPost({ ...options, signal, throwOnError: true })),
+      queryFn: ({ signal }) =>
+        withResponseAge(getPost({ ...options, signal, throwOnError: false })),
       meta: getPostOptions(options).meta,
     }),
 
@@ -61,7 +63,7 @@ export const apiQueryOptions = {
     responseOptions({
       queryKey: getSubredditQueryKey(options),
       queryFn: ({ signal }) =>
-        withResponseAge(getSubreddit({ ...options, signal, throwOnError: true })),
+        withResponseAge(getSubreddit({ ...options, signal, throwOnError: false })),
       meta: getSubredditOptions(options).meta,
     }),
 
@@ -69,7 +71,7 @@ export const apiQueryOptions = {
     responseOptions({
       queryKey: listSubredditPostsQueryKey(options),
       queryFn: ({ signal }) =>
-        withResponseAge(listSubredditPosts({ ...options, signal, throwOnError: true })),
+        withResponseAge(listSubredditPosts({ ...options, signal, throwOnError: false })),
       meta: listSubredditPostsOptions(options).meta,
     }),
 
@@ -77,7 +79,7 @@ export const apiQueryOptions = {
     responseOptions({
       queryKey: getPostCommentsQueryKey(options),
       queryFn: ({ signal }) =>
-        withResponseAge(getPostComments({ ...options, signal, throwOnError: true })),
+        withResponseAge(getPostComments({ ...options, signal, throwOnError: false })),
       meta: getPostCommentsOptions(options).meta,
     }),
 
@@ -85,7 +87,7 @@ export const apiQueryOptions = {
     responseOptions({
       queryKey: getCommentThreadQueryKey(options),
       queryFn: ({ signal }) =>
-        withResponseAge(getCommentThread({ ...options, signal, throwOnError: true })),
+        withResponseAge(getCommentThread({ ...options, signal, throwOnError: false })),
       meta: getCommentThreadOptions(options).meta,
     }),
 };

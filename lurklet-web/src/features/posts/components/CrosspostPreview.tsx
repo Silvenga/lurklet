@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
 import { Markdown } from "@/components/Markdown";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { RequestNotice } from "@/components/RequestNotice";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,8 +22,6 @@ export function CrosspostPreview({
   const [isRevealed, setIsRevealed] = useState(false);
 
   if (!post.isSuccess) {
-    const isNotFound = post.error?.status === 404;
-
     return (
       <section aria-label="Original post" className="min-w-0 select-none">
         {post.isPending ? (
@@ -33,26 +31,7 @@ export function CrosspostPreview({
             <Skeleton className="h-16 w-full" />
           </div>
         ) : (
-          <Alert variant={isNotFound ? "default" : "destructive"}>
-            <AlertTitle>
-              {isNotFound ? "Original post unavailable" : "Unable to load original post"}
-            </AlertTitle>
-            <AlertDescription>
-              {isNotFound ? "The original post could not be found." : "Please try again."}
-            </AlertDescription>
-            {!isNotFound && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2 w-fit"
-                onPress={() => {
-                  void post.refetch();
-                }}
-              >
-                Retry
-              </Button>
-            )}
-          </Alert>
+          <RequestNotice subject="Original post" query={post} />
         )}
       </section>
     );

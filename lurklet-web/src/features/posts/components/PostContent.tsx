@@ -3,9 +3,9 @@ import { Link, useParams } from "react-router";
 import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
 import { Markdown } from "@/components/Markdown";
 import { PaneMenu } from "@/components/PaneMenu";
+import { RequestNotice } from "@/components/RequestNotice";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { PostError } from "@/features/posts/components/PostError";
 import { PostLoading } from "@/features/posts/components/PostLoading";
 import { PostMetadata } from "@/features/posts/components/PostMetadata";
 import { useJsonQuery } from "@/hooks/useJsonQuery";
@@ -28,8 +28,8 @@ export function PostContent({ postId }: { postId: string }) {
       ? "Loading post"
       : post.isError
         ? post.error?.status === 404
-          ? "Post not found"
-          : "Unable to load post"
+          ? "Post unavailable"
+          : "Post failed to load"
         : post.data.title,
   );
 
@@ -67,7 +67,7 @@ export function PostContent({ postId }: { postId: string }) {
     return (
       <>
         {header}
-        {post.isPending ? <PostLoading /> : <PostError error={post.error} />}
+        {post.isPending ? <PostLoading /> : <RequestNotice subject="Post" query={post} />}
       </>
     );
   }

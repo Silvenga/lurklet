@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { getPostCommentsQueryKey } from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
 import type { CommentItem } from "@/clients/lurklet-api/generated/types.gen";
 import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { RequestNotice } from "@/components/RequestNotice";
 import { Button } from "@/components/ui/button";
 import type { CommentContext } from "@/features/comments/types";
 
@@ -47,33 +47,22 @@ export function CommentMore({
       : renderRow(<p className="text-muted-foreground text-sm/6">No more replies.</p>);
   }
 
+  if (expansion.isError)
+    return renderRow(
+      <RequestNotice subject="Replies" query={expansion} disabled={context.isUpdating} />,
+    );
+
   return renderRow(
     <div className="flex flex-col gap-2">
-      {expansion.isError && (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load replies</AlertTitle>
-          <AlertDescription>Please try again.</AlertDescription>
-        </Alert>
-      )}
       <Button
         className="w-fit"
         variant="ghost"
         size="xs"
         isDisabled={context.isUpdating || expansion.isFetching}
-        onPress={() => {
-          if (expansion.isError) {
-            void expansion.refetch();
-          } else {
-            setIsRequested(true);
-          }
-        }}
+        onPress={() => setIsRequested(true)}
       >
-        {!expansion.isError && <CirclePlusIcon aria-hidden="true" data-icon="inline-start" />}
-        {expansion.isFetching
-          ? "Loading replies"
-          : expansion.isError
-            ? "Retry"
-            : "Load more replies"}
+        <CirclePlusIcon aria-hidden="true" data-icon="inline-start" />
+        {expansion.isFetching ? "Loading replies" : "Load more replies"}
       </Button>
     </div>,
   );

@@ -19,6 +19,17 @@ import videoData from "./video.mp4?inline";
 
 const VIDEO_BYTES = Uint8Array.from(atob(videoData.split(",")[1]!), (char) => char.charCodeAt(0));
 
+function invalidCommentSort(request: Request) {
+  const sort = new URL(request.url).searchParams.get("sort");
+  if (sort !== null && !["best", "top", "new"].includes(sort)) {
+    return HttpResponse.json(
+      { type: "about:blank", title: "Bad Request", status: 400 } satisfies Problem,
+      { status: 400 },
+    );
+  }
+  return undefined;
+}
+
 export const handlers = [
   http.all("*/api/media/:origin/*", ({ request }) => {
     if (request.method !== "GET" && request.method !== "HEAD") {
@@ -80,6 +91,8 @@ export const handlers = [
     );
   }),
   http.get("*/api/posts/:id/comments", ({ params, request }) => {
+    const error = invalidCommentSort(request);
+    if (error) return error;
     const comments =
       params.id === POST_RESPONSE.id
         ? COMMENTS_RESPONSE
@@ -96,7 +109,9 @@ export const handlers = [
       { headers: { "Cache-Control": "no-store", Age: "7200" } },
     );
   }),
-  http.get("*/api/comments/:id/thread", ({ params }) => {
+  http.get("*/api/comments/:id/thread", ({ params, request }) => {
+    const error = invalidCommentSort(request);
+    if (error) return error;
     const thread =
       params.id === COMMENTS_RESPONSE.items[0]!.comment.id
         ? COMMENT_THREAD_RESPONSE

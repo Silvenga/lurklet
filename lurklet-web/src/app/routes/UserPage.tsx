@@ -8,7 +8,7 @@ export function UserPage() {
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-semibold">u/{username}</h1>
-      <p className="text-muted-foreground">User profiles aren’t supported yet.</p>
+      <p className="text-muted-foreground">User profiles are unsupported.</p>
     </div>
   );
 }
