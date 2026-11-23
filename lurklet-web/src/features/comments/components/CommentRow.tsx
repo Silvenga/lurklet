@@ -1,13 +1,12 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import type { CommentItem } from "@/clients/lurklet-api/generated/types.gen";
 import { DateAgo } from "@/components/DateAgo";
 import { Markdown } from "@/components/Markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
-import type { CommentContext } from "@/features/comments/types";
-import { CommentList } from "./CommentList";
 
 type CommentNode = Extract<CommentItem, { kind: "comment" }>;
 
@@ -20,33 +19,42 @@ function containsComment(item: CommentNode, id: string): boolean {
 
 export function CommentRow({
   item,
-  context,
-  depth,
+  focusedCommentId,
+  children,
 }: {
   item: CommentNode;
-  context: CommentContext;
-  depth: number;
+  focusedCommentId: string | null;
+  children: ReactNode;
 }) {
-  const { comment, replies } = item;
-  const isFocused = context.focusedCommentId !== null && comment.id === context.focusedCommentId;
+  const { comment } = item;
+  const isFocused = focusedCommentId !== null && comment.id === focusedCommentId;
 
   return (
     <Collapsible
       defaultExpanded={
         comment.initiallyCollapsed !== true ||
-        (context.focusedCommentId !== null && containsComment(item, context.focusedCommentId))
+        (focusedCommentId !== null && containsComment(item, focusedCommentId))
       }
-      className="flex min-w-0 flex-col gap-2"
+      className="min-w-0"
     >
-      <div className="flex items-start gap-2">
-        <Button
-          slot="trigger"
-          variant="ghost"
-          size="icon-xs"
-          aria-label={`Toggle comment by ${comment.author?.name ?? "unknown author"}`}
-        >
-          <ChevronRightIcon aria-hidden="true" className="group-aria-expanded/button:rotate-90" />
-        </Button>
+      <div className="flex gap-2">
+        <div className="flex shrink-0 flex-col">
+          <Button
+            slot="trigger"
+            variant="ghost"
+            size="icon-xs"
+            className="peer"
+            aria-label={`Toggle comment by ${comment.author?.name ?? "unknown author"}`}
+          >
+            <ChevronRightIcon aria-hidden="true" className="group-aria-expanded/button:rotate-90" />
+          </Button>
+          {children && (
+            <span
+              aria-hidden="true"
+              className="ml-3 hidden flex-1 border-l peer-aria-expanded:block"
+            />
+          )}
+        </div>
         <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm select-text">
           <span>{comment.author?.name ? `u/${comment.author.name}` : "Unknown author"}</span>
           {comment.createdAt && <DateAgo dateTime={comment.createdAt} />}
@@ -60,23 +68,19 @@ export function CommentRow({
           {isFocused && <Badge variant="outline">Selected comment</Badge>}
         </div>
       </div>
-      <CollapsibleContent>
-        <div className="flex min-w-0 flex-col gap-4">
-          <div className="min-w-0 select-text">
-            {comment.state !== "present" ? (
-              <p className="text-muted-foreground text-sm">
-                {comment.state === "deleted" ? "Comment deleted." : "Comment removed."}
-              </p>
-            ) : comment.markdown ? (
-              <Markdown className="prose-sm max-w-none overflow-x-auto" value={comment.markdown} />
-            ) : null}
-          </div>
-          {replies.length > 0 && (
-            <div className={cn("min-w-0 border-l", depth < 4 && "pl-3")}>
-              <CommentList items={replies} context={context} depth={depth + 1} />
-            </div>
-          )}
+      <CollapsibleContent className="ml-3">
+        <div
+          className={cn("min-w-0 pt-2 pl-5 select-text", children && "border-l border-border pb-3")}
+        >
+          {comment.state !== "present" ? (
+            <p className="text-muted-foreground text-sm">
+              {comment.state === "deleted" ? "Comment deleted." : "Comment removed."}
+            </p>
+          ) : comment.markdown ? (
+            <Markdown className="prose-sm max-w-none overflow-x-auto" value={comment.markdown} />
+          ) : null}
         </div>
+        {children}
       </CollapsibleContent>
     </Collapsible>
   );

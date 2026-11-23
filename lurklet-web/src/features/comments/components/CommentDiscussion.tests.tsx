@@ -339,6 +339,10 @@ test("When two placeholders are expanded then their requests should be independe
   expect(requests.every((url) => url.searchParams.get("sort") === "top")).toBe(true);
 
   await user.click(screen.getByRole("button", { name: "Toggle comment by first" }));
+
+  expect(screen.getByText("First reply")).not.toBeVisible();
+  expect(screen.getByText("Second reply")).toBeVisible();
+
   await user.click(screen.getByRole("button", { name: "Toggle comment by first" }));
 
   expect(screen.getByText("First reply")).toBeVisible();

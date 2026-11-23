@@ -1,4 +1,6 @@
 import { cn } from "cn";
+import { CirclePlusIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { Link } from "react-router";
 import type { CommentItem } from "@/clients/lurklet-api/generated/types.gen";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -7,72 +9,100 @@ import type { CommentContext } from "@/features/comments/types";
 import { CommentMore } from "./CommentMore";
 import { CommentRow } from "./CommentRow";
 
-export function CommentList({
-  items,
-  context,
-  depth = 0,
-}: {
-  items: CommentItem[];
-  context: CommentContext;
-  depth?: number;
-}) {
-  return (
-    <ol className="flex min-w-0 flex-col gap-4">
-      {items.map((item, index) => {
-        const id =
-          item.kind === "comment"
-            ? item.comment.id
-            : item.kind === "more"
-              ? item.cursor
-              : item.commentId;
-        const label = item.kind === "more" ? "Load more replies" : "Continue thread";
-        return (
-          <li key={`${item.kind}:${id ?? index}`} className="min-w-0">
-            {item.kind === "comment" ? (
-              <CommentRow item={item} context={context} depth={depth} />
-            ) : context.focusedCommentId !== null || id === null ? (
-              <TooltipTrigger>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-disabled="true"
-                  className="cursor-not-allowed opacity-50"
-                >
-                  {label}
-                </Button>
-                <Tooltip>
-                  {context.focusedCommentId !== null
-                    ? "Further expansion in a focused thread is not supported yet."
-                    : "No expansion is available for this item."}
-                </Tooltip>
-              </TooltipTrigger>
-            ) : item.kind === "more" ? (
-              <CommentMore cursor={item.cursor!} context={context} depth={depth} />
-            ) : context.isUpdating ? (
-              <span
-                role="link"
-                aria-disabled="true"
-                className={cn(
-                  buttonVariants({ variant: "outline", size: "sm" }),
-                  "cursor-not-allowed opacity-50",
-                )}
-              >
-                Continue thread
-              </span>
-            ) : (
-              <Link
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-                to={{
-                  pathname: `/r/${encodeURIComponent(context.subreddit)}/comments/${encodeURIComponent(context.postId)}/${encodeURIComponent(context.slug)}/${encodeURIComponent(item.commentId!)}`,
-                  search: new URLSearchParams({ sort: context.sort }).toString(),
-                }}
-              >
-                Continue thread
-              </Link>
-            )}
-          </li>
+export function CommentList({ items, context }: { items: CommentItem[]; context: CommentContext }) {
+  function renderItems(siblings: CommentItem[], isReply: boolean): ReactNode {
+    return siblings.map((item, index) => {
+      const id =
+        item.kind === "comment"
+          ? item.comment.id
+          : item.kind === "more"
+            ? item.cursor
+            : item.commentId;
+      const key = `${item.kind}:${id ?? index}`;
+      const renderRow = (content: ReactNode) => (
+        <li
+          key={key}
+          className={cn(
+            "min-w-0 pb-4 last:pb-0",
+            isReply && "flex border-l border-border last:border-l-transparent",
+          )}
+        >
+          {isReply && (
+            <span
+              aria-hidden="true"
+              className="border-border pointer-events-none -ml-px h-3 w-2 shrink-0 rounded-bl-md border-b border-l sm:w-4"
+            />
+          )}
+          <div className="min-w-0 flex-1">{content}</div>
+        </li>
+      );
+
+      if (item.kind === "comment") {
+        return renderRow(
+          <CommentRow item={item} focusedCommentId={context.focusedCommentId}>
+            {item.replies.length > 0 && <ol>{renderItems(item.replies, true)}</ol>}
+          </CommentRow>,
         );
-      })}
-    </ol>
-  );
+      }
+
+      if (context.focusedCommentId !== null || id === null) {
+        const isMore = item.kind === "more";
+        return renderRow(
+          <TooltipTrigger>
+            <Button
+              variant={isMore ? "ghost" : "outline"}
+              size={isMore ? "xs" : "sm"}
+              aria-disabled="true"
+              className="cursor-not-allowed opacity-50"
+            >
+              {isMore && <CirclePlusIcon aria-hidden="true" data-icon="inline-start" />}
+              {isMore ? "Load more replies" : "Continue thread"}
+            </Button>
+            <Tooltip>
+              {context.focusedCommentId !== null
+                ? "Further expansion in a focused thread is not supported yet."
+                : "No expansion is available for this item."}
+            </Tooltip>
+          </TooltipTrigger>,
+        );
+      }
+
+      if (item.kind === "more") {
+        return (
+          <CommentMore
+            key={key}
+            cursor={id}
+            context={context}
+            renderRow={renderRow}
+            renderItems={(page) => renderItems(page, isReply)}
+          />
+        );
+      }
+
+      const linkClassName = buttonVariants({ variant: "outline", size: "sm" });
+      return renderRow(
+        context.isUpdating ? (
+          <span
+            role="link"
+            aria-disabled="true"
+            className={cn(linkClassName, "cursor-not-allowed opacity-50")}
+          >
+            Continue thread
+          </span>
+        ) : (
+          <Link
+            className={linkClassName}
+            to={{
+              pathname: `/r/${encodeURIComponent(context.subreddit)}/comments/${encodeURIComponent(context.postId)}/${encodeURIComponent(context.slug)}/${encodeURIComponent(id)}`,
+              search: new URLSearchParams({ sort: context.sort }).toString(),
+            }}
+          >
+            Continue thread
+          </Link>
+        ),
+      );
+    });
+  }
+
+  return <ol>{renderItems(items, false)}</ol>;
 }

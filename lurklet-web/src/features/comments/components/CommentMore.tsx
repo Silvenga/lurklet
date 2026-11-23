@@ -1,20 +1,23 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { CirclePlusIcon } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { getPostCommentsQueryKey } from "@/clients/lurklet-api/generated/@tanstack/react-query.gen";
+import type { CommentItem } from "@/clients/lurklet-api/generated/types.gen";
 import { apiQueryOptions } from "@/clients/lurklet-api/query-options";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { CommentContext } from "@/features/comments/types";
-import { CommentList } from "./CommentList";
 
 export function CommentMore({
   cursor,
   context,
-  depth,
+  renderItems,
+  renderRow,
 }: {
   cursor: string;
   context: CommentContext;
-  depth: number;
+  renderItems: (items: CommentItem[]) => ReactNode;
+  renderRow: (content: ReactNode) => ReactNode;
 }) {
   const [isRequested, setIsRequested] = useState(false);
   const queryClient = useQueryClient();
@@ -39,14 +42,12 @@ export function CommentMore({
   }, [queryClient, context.isUpdating, context.postId, context.sort, cursor]);
 
   if (expansion.isSuccess) {
-    return expansion.data.items.length > 0 ? (
-      <CommentList items={expansion.data.items} context={context} depth={depth} />
-    ) : (
-      <p className="text-muted-foreground text-sm">No more replies.</p>
-    );
+    return expansion.data.items.length > 0
+      ? renderItems(expansion.data.items)
+      : renderRow(<p className="text-muted-foreground text-sm/6">No more replies.</p>);
   }
 
-  return (
+  return renderRow(
     <div className="flex flex-col gap-2">
       {expansion.isError && (
         <Alert variant="destructive">
@@ -56,8 +57,8 @@ export function CommentMore({
       )}
       <Button
         className="w-fit"
-        variant="outline"
-        size="sm"
+        variant="ghost"
+        size="xs"
         isDisabled={context.isUpdating || expansion.isFetching}
         onPress={() => {
           if (expansion.isError) {
@@ -67,12 +68,13 @@ export function CommentMore({
           }
         }}
       >
+        {!expansion.isError && <CirclePlusIcon aria-hidden="true" data-icon="inline-start" />}
         {expansion.isFetching
           ? "Loading replies"
           : expansion.isError
             ? "Retry"
             : "Load more replies"}
       </Button>
-    </div>
+    </div>,
   );
 }
