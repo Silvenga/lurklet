@@ -17,7 +17,7 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-test.each(["html", "js", "css", "json", "svg", "map"])(
+test.each(["html", "js", "css", "json", "webmanifest", "svg", "map"])(
   "When a nested %s asset is compressible then all sidecars should round-trip to the original",
   async (extension) => {
     const assets = join(directory, "assets");

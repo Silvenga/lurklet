@@ -4,7 +4,15 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { brotliCompress, constants, gzip, zstdCompress } from "node:zlib";
 
-const COMPRESSIBLE_EXTENSIONS = new Set([".html", ".js", ".css", ".json", ".svg", ".map"]);
+const COMPRESSIBLE_EXTENSIONS = new Set([
+  ".html",
+  ".js",
+  ".css",
+  ".json",
+  ".webmanifest",
+  ".svg",
+  ".map",
+]);
 const gzipAsync = promisify(gzip);
 const brotliCompressAsync = promisify(brotliCompress);
 const zstdCompressAsync = promisify(zstdCompress);

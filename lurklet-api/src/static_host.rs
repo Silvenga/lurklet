@@ -67,6 +67,8 @@ async fn spa_fallback(State(index): State<ServeFile>, request: Request) -> Respo
     let path = percent_decode_str(request.uri().path()).decode_utf8_lossy();
     let reserved = path == "/assets"
         || path.starts_with("/assets/")
+        || path == "/public"
+        || path.starts_with("/public/")
         || path.starts_with("/favicon")
         || path.starts_with("/robots.txt/")
         || mime_guess::from_path(&*path)
@@ -123,10 +125,16 @@ mod tests {
     fn fixtures() -> TempDir {
         let directory = TempDir::new().unwrap();
         directory.child("assets").create_dir_all().unwrap();
+        directory.child("public").create_dir_all().unwrap();
         for (path, body) in [
             ("index.html", HTML),
             ("assets/main-abc12345.css", CSS),
             ("assets/main-abc12345.js", JS),
+            (
+                "public/logo.svg",
+                r#"<svg xmlns="http://www.w3.org/2000/svg"/>"#,
+            ),
+            ("public/site.webmanifest", r#"{"name":"Lurklet"}"#),
         ] {
             directory.child(path).write_str(body).unwrap();
             let mut gzip = GzEncoder::new(Vec::new(), Compression::default());
@@ -150,6 +158,10 @@ mod tests {
                 .unwrap();
         }
         directory.child("plain.txt").write_str("plain").unwrap();
+        directory
+            .child("public/icon.png")
+            .write_binary(b"png")
+            .unwrap();
         directory
             .child("favicon.ico")
             .write_binary(b"icon")
@@ -221,6 +233,8 @@ mod tests {
             ("/index.html", "text/html"),
             ("/assets/main-abc12345.css", "text/css"),
             ("/assets/main-abc12345.js", "text/javascript"),
+            ("/public/logo.svg", "image/svg+xml"),
+            ("/public/site.webmanifest", "application/manifest+json"),
         ] {
             for (encoding, expected_encoding) in [
                 ("identity", None),
@@ -441,6 +455,9 @@ mod tests {
             ("/unknown", "application/json; note=\"a,text/html,b\""),
             ("/assets", "text/html"),
             ("/assets/missing.css", "text/html"),
+            ("/public", "text/html"),
+            ("/public/missing", "text/html"),
+            ("/public/missing.png", "text/html"),
             ("/favicon.svg", "text/html"),
             ("/missing.js", "text/html"),
             ("/manifest.webmanifest", "text/html"),
@@ -472,16 +489,32 @@ mod tests {
         let directory = fixtures();
         let app = app(&directory).await;
 
-        for path in ["/", "/index.html", "/plain.txt", "/favicon.ico"] {
-            let request = Request::builder().uri(path).body(Body::empty()).unwrap();
+        for (path, mime) in [
+            ("/", "text/html"),
+            ("/index.html", "text/html"),
+            ("/plain.txt", "text/plain"),
+            ("/favicon.ico", "image/x-icon"),
+            ("/public/logo.svg", "image/svg+xml"),
+            ("/public/icon.png", "image/png"),
+            ("/public/site.webmanifest", "application/manifest+json"),
+        ] {
+            for method in [Method::GET, Method::HEAD] {
+                let request = Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .body(Body::empty())
+                    .unwrap();
 
-            let response = app.clone().oneshot(request).await.unwrap();
+                let response = app.clone().oneshot(request).await.unwrap();
 
-            assert_eq!(response.status(), StatusCode::OK, "{path}");
-            assert_eq!(
-                response.headers()[header::CACHE_CONTROL],
-                "public, max-age=0, stale-while-revalidate=86400"
-            );
+                assert_eq!(response.status(), StatusCode::OK, "{path}");
+                assert_eq!(response.headers()[header::CONTENT_TYPE], mime, "{path}");
+                assert_eq!(
+                    response.headers()[header::CACHE_CONTROL],
+                    "public, max-age=0, stale-while-revalidate=86400",
+                    "{path}"
+                );
+            }
         }
     }
 

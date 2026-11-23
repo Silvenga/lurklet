@@ -5,6 +5,7 @@ import { msw } from "msw/vite";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig(({ command, mode }) => ({
+  publicDir: "static",
   plugins: [
     react(),
     tailwindcss(),

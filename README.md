@@ -1,3 +1,5 @@
+<img src="lurklet-web/static/public/logo.svg" width="72" height="72" alt="" />
+
 # lurklet
 
 A private, read-only, lightweight, front-end for Reddit, built from scratch in Rust.

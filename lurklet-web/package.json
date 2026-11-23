@@ -8,6 +8,7 @@
     "compress": "node scripts/compress.ts",
     "dev": "vite",
     "generate:api": "openapi-ts",
+    "generate:icons": "node scripts/generate-icons.ts",
     "test": "vitest run"
   },
   "dependencies": {
@@ -53,7 +54,9 @@
     "happy-dom": "^21.0.4",
     "micromark-util-types": "^2.0.3",
     "msw": "^3.0.5",
+    "png-to-ico": "^3.0.2",
     "remark-parse": "^11.0.0",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4.3.5",
     "undici": "^8.12.4",
     "unified": "^11.0.5",

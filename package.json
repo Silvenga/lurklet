@@ -9,6 +9,7 @@
     "dev": "pnpm --filter lurklet-web dev",
     "dev:mock": "pnpm --filter lurklet-web dev --mode mock",
     "generate:api": "pnpm --filter lurklet-web generate:api",
+    "generate:icons": "pnpm --filter lurklet-web generate:icons",
     "postinstall": "pnpm generate:api",
     "test": "pnpm --filter lurklet-web test",
     "lint": "tsc -b && oxlint",
