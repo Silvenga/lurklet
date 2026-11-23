@@ -1,4 +1,4 @@
-FROM ghcr.io/pnpm/pnpm:12@sha256:41c39d1c734b0a810669c07587888aa7dbe9ef9b4c8e98b346b3654f7b269b6d AS frontend-build
+FROM ghcr.io/pnpm/pnpm:12@sha256:168feba88e6a1684c99a62cbf4fe361d4e683e2a6c920d3b0acde7e15a28b62d AS frontend-build
 
 WORKDIR /app
 
