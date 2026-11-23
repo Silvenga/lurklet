@@ -94,7 +94,8 @@ mod tests {
         let thread = client
             .get_comment_thread(&"anchor".into(), CommentSort::Top)
             .await
-            .unwrap();
+            .unwrap()
+            .value;
 
         assert_eq!(thread.post_id, Some("example".into()));
         let CommentItem::Comment { comment, .. } = &thread.forest.items[0] else {

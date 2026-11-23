@@ -8,7 +8,7 @@ pub async fn execute<B: RedditBackend>(
 ) -> Result<CommandOutput, Error> {
     let post = client.get_post(id).await?;
     Ok(CommandOutput {
-        result: json!(post),
+        result: json!(post.value),
         error: None,
     })
 }

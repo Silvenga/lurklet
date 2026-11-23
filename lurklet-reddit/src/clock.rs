@@ -1,7 +1,7 @@
 use crate::ClockError;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Supplies time for session expiration and installation creation.
+/// Supplies time for session expiration, installation creation, and content fetches.
 pub trait Clock: Send + Sync {
     /// Returns milliseconds elapsed since the Unix epoch.
     fn now_ms(&self) -> Result<u64, ClockError>;

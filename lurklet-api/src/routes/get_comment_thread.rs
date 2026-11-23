@@ -1,5 +1,5 @@
 use crate::error::ApiError;
-use crate::routes::{CommentForest, CommentSort};
+use crate::routes::{CommentForest, CommentSort, FetchedResponse};
 use axum::Json;
 use axum::extract::rejection::{PathRejection, QueryRejection};
 use axum::extract::{Path, Query, State};
@@ -54,7 +54,7 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     params(GetCommentThreadInput, GetCommentThreadQuery),
     responses(
         ApiError,
-        (status = 200, description = "Thread context and its post reference", body = CommentThread)
+        (status = 200, description = "Thread context and its post reference", body = FetchedResponse<CommentThread>)
     )
 )]
 async fn get_comment_thread<B: RedditBackend>(
@@ -67,13 +67,14 @@ async fn get_comment_thread<B: RedditBackend>(
     let thread = reddit
         .get_comment_thread(&input.id, query.sort.into())
         .await?;
-    Ok(Json(CommentThread::from(thread)))
+    Ok(Json(FetchedResponse::<CommentThread>::from(thread)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ApiCacheOptions;
+    use crate::routes::testing::fetched_payload;
     use crate::routes::testing::{Call, FakeBackend};
     use axum::Router;
     use axum::body::{Body, to_bytes};
@@ -82,7 +83,7 @@ mod tests {
         Comment, CommentForest as RedditCommentForest, CommentItem,
         CommentSort as RedditCommentSort, CommentState, Error as RedditError,
     };
-    use serde_json::{Value, json};
+    use serde_json::json;
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt;
 
@@ -190,7 +191,7 @@ mod tests {
         let body = to_bytes(response.into_body(), 16_384).await.unwrap();
 
         assert_eq!(
-            serde_json::from_slice::<Value>(&body).unwrap(),
+            fetched_payload(&body),
             json!({
                 "postId": "post",
                 "forest": {
@@ -293,8 +294,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
-            serde_json::from_slice::<Value>(&to_bytes(response.into_body(), 4096).await.unwrap())
-                .unwrap(),
+            fetched_payload(&to_bytes(response.into_body(), 4096).await.unwrap()),
             json!({"postId": null, "forest": {"appliedSort": null, "items": []}})
         );
         assert_eq!(calls.lock().unwrap().len(), 1);

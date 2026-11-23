@@ -1,13 +1,23 @@
 use crate::{
-    AnonymousSession, CommentForest, CommentSort, CommentThread, Error, GraphQlResponse, MediaFile,
-    MediaOptions, MobileBackend, Post, RedditBackend, RedditClientBuilder, RedditId,
-    RequestAllowlist, StateStore, Subreddit, SubredditPage, SubredditSort,
+    AnonymousSession, Clock, ClockError, CommentForest, CommentSort, CommentThread, Error,
+    GraphQlResponse, MediaFile, MediaOptions, MobileBackend, Post, RedditBackend,
+    RedditClientBuilder, RedditId, RequestAllowlist, StateStore, Subreddit, SubredditPage,
+    SubredditSort, SystemClock,
 };
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
+
+/// A content result paired with the time its successful fetch completed.
+#[derive(Debug)]
+pub struct Fetched<T> {
+    pub value: T,
+    pub fetched_at: DateTime<Utc>,
+}
 
 /// A Reddit client backed by a replaceable operation implementation.
 pub struct RedditClient<B: RedditBackend = MobileBackend> {
     backend: Arc<B>,
+    clock: Arc<dyn Clock>,
 }
 
 impl RedditClient {
@@ -44,8 +54,8 @@ impl<B: RedditBackend> RedditClient<B> {
 
     /// Reads a bare name's community metadata without fetching its feed or assets.
     /// Unavailable-community explanations are results; a null resource is Error::Unavailable.
-    pub async fn get_subreddit(&self, name: &str) -> Result<Subreddit, Error> {
-        self.backend.get_subreddit(name).await
+    pub async fn get_subreddit(&self, name: &str) -> Result<Fetched<Subreddit>, Error> {
+        self.fetched(self.backend.get_subreddit(name).await?)
     }
 
     /// Reads comments for a post ID. A cursor replaces its selected placeholder, not the whole forest.
@@ -54,8 +64,12 @@ impl<B: RedditBackend> RedditClient<B> {
         post_id: &RedditId,
         sort: CommentSort,
         cursor: Option<&str>,
-    ) -> Result<CommentForest, Error> {
-        self.backend.get_post_comments(post_id, sort, cursor).await
+    ) -> Result<Fetched<CommentForest>, Error> {
+        self.fetched(
+            self.backend
+                .get_post_comments(post_id, sort, cursor)
+                .await?,
+        )
     }
 
     /// Opens a comment ID with ancestor context. Further focused-thread expansion is not enabled.
@@ -63,8 +77,8 @@ impl<B: RedditBackend> RedditClient<B> {
         &self,
         comment_id: &RedditId,
         sort: CommentSort,
-    ) -> Result<CommentThread, Error> {
-        self.backend.get_comment_thread(comment_id, sort).await
+    ) -> Result<Fetched<CommentThread>, Error> {
+        self.fetched(self.backend.get_comment_thread(comment_id, sort).await?)
     }
 
     /// Lists one page without fetching post details or advancing shared navigation state.
@@ -74,16 +88,24 @@ impl<B: RedditBackend> RedditClient<B> {
         subreddit: &str,
         sort: SubredditSort,
         after: Option<&str>,
-    ) -> Result<SubredditPage, Error> {
-        self.backend
-            .list_subreddit_posts(subreddit, sort, after)
-            .await
+    ) -> Result<Fetched<SubredditPage>, Error> {
+        self.fetched(
+            self.backend
+                .list_subreddit_posts(subreddit, sort, after)
+                .await?,
+        )
     }
 
     /// Retrieves one post ID without fetching related posts or comments.
     /// Unavailable means no readable post was returned, not proof that the ID does not exist.
-    pub async fn get_post(&self, id: &RedditId) -> Result<Post, Error> {
-        self.backend.get_post(id).await
+    pub async fn get_post(&self, id: &RedditId) -> Result<Fetched<Post>, Error> {
+        self.fetched(self.backend.get_post(id).await?)
+    }
+
+    fn fetched<T>(&self, value: T) -> Result<Fetched<T>, Error> {
+        let millis = i64::try_from(self.clock.now_ms()?).map_err(|_| ClockError::Overflow)?;
+        let fetched_at = DateTime::from_timestamp_millis(millis).ok_or(ClockError::Overflow)?;
+        Ok(Fetched { value, fetched_at })
     }
 
     /// Ensures an anonymous session is available without logging in.
@@ -93,8 +115,13 @@ impl<B: RedditBackend> RedditClient<B> {
 
     /// Creates a client from a custom backend without initializing HTTP transport.
     pub fn from_backend(backend: B) -> Self {
+        Self::from_backend_with_clock(backend, Arc::new(SystemClock))
+    }
+
+    pub(crate) fn from_backend_with_clock(backend: B, clock: Arc<dyn Clock>) -> Self {
         Self {
             backend: Arc::new(backend),
+            clock,
         }
     }
 
@@ -108,6 +135,7 @@ impl<B: RedditBackend> Clone for RedditClient<B> {
     fn clone(&self) -> Self {
         Self {
             backend: Arc::clone(&self.backend),
+            clock: Arc::clone(&self.clock),
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::error::ApiError;
-use crate::routes::Markdown;
+use crate::routes::{FetchedResponse, Markdown};
 use axum::Json;
 use axum::extract::rejection::PathRejection;
 use axum::extract::{Path, State};
@@ -130,7 +130,7 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     params(GetSubredditInput),
     responses(
         ApiError,
-        (status = 200, description = "Community metadata or an unavailable-community explanation", body = Subreddit)
+        (status = 200, description = "Community metadata or an unavailable-community explanation", body = FetchedResponse<Subreddit>)
     )
 )]
 async fn get_subreddit<B: RedditBackend>(
@@ -139,13 +139,14 @@ async fn get_subreddit<B: RedditBackend>(
 ) -> Result<impl IntoResponse, ApiError> {
     let Path(input) = input.map_err(|_| ApiError::BadRequest)?;
     let subreddit = reddit.get_subreddit(&input.subreddit).await?;
-    Ok(Json(Subreddit::from(subreddit)))
+    Ok(Json(FetchedResponse::<Subreddit>::from(subreddit)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ApiCacheOptions;
+    use crate::routes::testing::fetched_payload;
     use crate::routes::testing::{Call, FakeBackend};
     use axum::Router;
     use axum::body::{Body, to_bytes};
@@ -230,7 +231,7 @@ mod tests {
         assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=3600");
         assert_eq!(*calls.lock().unwrap(), [Call::Subreddit("Rust".into())]);
         assert_eq!(
-            serde_json::from_slice::<Value>(&body).unwrap(),
+            fetched_payload(&body),
             json!({
                 "kind": "available", "id": "community", "name": "Rust", "title": "Rust programming",
                 "createdAt": "1970-01-01T00:00:00Z", "shortDescription": "Systems programming",
@@ -263,8 +264,7 @@ mod tests {
             "public, max-age=3600"
         );
         assert_eq!(
-            serde_json::from_slice::<Value>(&to_bytes(response.into_body(), 4096).await.unwrap())
-                .unwrap(),
+            fetched_payload(&to_bytes(response.into_body(), 4096).await.unwrap()),
             json!({
                 "kind": "unavailable", "id": null, "forbiddenReason": "FUTURE_REASON",
                 "banTitle": "Community unavailable", "banMessageMarkdown": {"content": "A **reported** explanation", "media": []},

@@ -100,13 +100,14 @@ export const handlers = [
           ? CROSSPOST_COMMENTS_RESPONSE
           : null;
     return HttpResponse.json(
-      comments && !new URL(request.url).searchParams.has("cursor")
-        ? {
-            ...comments,
-            appliedSort: new URL(request.url).searchParams.get("sort") ?? "best",
-          }
-        : { appliedSort: new URL(request.url).searchParams.get("sort") ?? "best", items: [] },
-      { headers: { "Cache-Control": "no-store", Age: "7200" } },
+      {
+        ...(comments && !new URL(request.url).searchParams.has("cursor")
+          ? comments
+          : { items: [] }),
+        appliedSort: new URL(request.url).searchParams.get("sort") ?? "best",
+        fetchedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+      },
+      { headers: { "Cache-Control": "no-store" } },
     );
   }),
   http.get("*/api/comments/:id/thread", ({ params, request }) => {
@@ -122,7 +123,10 @@ export const handlers = [
             } satisfies CommentThread)
           : null;
     return thread
-      ? HttpResponse.json(thread, { headers: { "Cache-Control": "no-store", Age: "86400" } })
+      ? HttpResponse.json(
+          { ...thread, fetchedAt: new Date(Date.now() - 86_400_000).toISOString() },
+          { headers: { "Cache-Control": "no-store" } },
+        )
       : HttpResponse.json(
           { type: "about:blank", title: "Not Found", status: 404 } satisfies Problem,
           { status: 404 },
@@ -133,18 +137,21 @@ export const handlers = [
   ),
   http.get("*/api/subreddits/:subreddit", ({ params }) =>
     HttpResponse.json(
-      params.subreddit === "rust"
-        ? SUBREDDIT_RESPONSE
-        : {
-            ...SUBREDDIT_RESPONSE,
-            id: `mock-${params.subreddit}`,
-            name: String(params.subreddit),
-            title: `About r/${params.subreddit}`,
-            shortDescription: null,
-            descriptionMarkdown: null,
-            styles: null,
-          },
-      { headers: { "Cache-Control": "no-store", Age: "0" } },
+      {
+        ...(params.subreddit === "rust"
+          ? SUBREDDIT_RESPONSE
+          : {
+              ...SUBREDDIT_RESPONSE,
+              id: `mock-${params.subreddit}`,
+              name: String(params.subreddit),
+              title: `About r/${params.subreddit}`,
+              shortDescription: null,
+              descriptionMarkdown: null,
+              styles: null,
+            }),
+        fetchedAt: new Date().toISOString(),
+      },
+      { headers: { "Cache-Control": "no-store" } },
     ),
   ),
   http.get("*/api/subreddits/:subreddit/posts", ({ request }) => {
@@ -165,7 +172,10 @@ export const handlers = [
                 ? SUBREDDIT_PAGE_RESPONSE.posts.toSorted((a, b) => b.score - a.score)
                 : SUBREDDIT_PAGE_RESPONSE.posts,
         };
-    return HttpResponse.json(page, { headers: { "Cache-Control": "no-store", Age: "600" } });
+    return HttpResponse.json(
+      { ...page, fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString() },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   }),
   http.get("*/api/posts/:id", ({ params }) => {
     const post = [
@@ -183,8 +193,11 @@ export const handlers = [
         },
       );
     }
-    return HttpResponse.json(post, {
-      headers: { "Cache-Control": "no-store", Age: "3060" },
-    });
+    return HttpResponse.json(
+      { ...post, fetchedAt: new Date(Date.now() - 51 * 60_000).toISOString() },
+      {
+        headers: { "Cache-Control": "no-store" },
+      },
+    );
   }),
 ];

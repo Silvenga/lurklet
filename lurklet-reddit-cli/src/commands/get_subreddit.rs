@@ -8,7 +8,7 @@ pub async fn execute<B: RedditBackend>(
 ) -> Result<CommandOutput, Error> {
     let subreddit = client.get_subreddit(name).await?;
     Ok(CommandOutput {
-        result: json!(subreddit),
+        result: json!(subreddit.value),
         error: None,
     })
 }

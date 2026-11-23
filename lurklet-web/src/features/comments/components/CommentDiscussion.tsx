@@ -23,10 +23,7 @@ export function CommentDiscussion() {
     enabled: !commentId,
     placeholderData: (previous, previousQuery) =>
       previous && previousQuery && previousQuery.queryKey[0].path?.id === postId
-        ? {
-            ...previous,
-            data: retainQueryView(previous.data, previousQuery.queryKey[0].query?.sort ?? "best"),
-          }
+        ? retainQueryView(previous, previousQuery.queryKey[0].query?.sort ?? "best")
         : undefined,
   });
   const thread = useJsonQuery({
@@ -36,19 +33,16 @@ export function CommentDiscussion() {
       previous && previousQuery && previousQuery.queryKey[0].path?.id === commentId
         ? {
             ...previous,
-            data: {
-              ...previous.data,
-              forest: retainQueryView(
-                previous.data.forest,
-                previousQuery.queryKey[0].query?.sort ?? "best",
-              ),
-            },
+            forest: retainQueryView(
+              previous.forest,
+              previousQuery.queryKey[0].query?.sort ?? "best",
+            ),
           }
         : undefined,
-    select: (value) => value.data.forest,
   });
   const { query, jsonHref, fetchedAt } = commentId ? thread : comments;
-  const displayed: RetainedQueryView<CommentForest, CommentSort> | undefined = query.data;
+  const displayed: RetainedQueryView<CommentForest, CommentSort> | undefined =
+    query.data && ("forest" in query.data ? query.data.forest : query.data);
   const displayedSort = displayed?.__retainedContext ?? sort;
 
   return (
@@ -104,15 +98,15 @@ export function CommentDiscussion() {
           pending={query.isPlaceholderData || query.isFetching}
           className="flex min-w-0 flex-col gap-4"
         >
-          {query.data.appliedSort && query.data.appliedSort !== displayedSort && (
-            <p className="text-muted-foreground text-sm">Applied sort: {query.data.appliedSort}</p>
+          {displayed?.appliedSort && displayed.appliedSort !== displayedSort && (
+            <p className="text-muted-foreground text-sm">Applied sort: {displayed.appliedSort}</p>
           )}
-          {query.data.items.length === 0 ? (
+          {!displayed?.items.length ? (
             <EmptyResult>No comments.</EmptyResult>
           ) : (
             <CommentList
               key={JSON.stringify([postId, displayedSort, commentId])}
-              items={query.data.items}
+              items={displayed.items}
               context={{
                 postId: postId!,
                 subreddit: subreddit!,

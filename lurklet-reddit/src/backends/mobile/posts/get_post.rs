@@ -70,8 +70,9 @@ mod tests {
 
         let post = client.get_post(&"fixturepost".into()).await.unwrap();
 
+        assert_eq!(post.fetched_at.timestamp_millis(), testing::NOW as i64);
         assert_eq!(
-            serde_json::to_value(post).unwrap(),
+            serde_json::to_value(post.value).unwrap(),
             fixture["expected_post"]
         );
     }
@@ -104,7 +105,7 @@ mod tests {
             .await;
         let client = graphql_client(&server, testing::storage());
 
-        let post = client.get_post(&"t3_18t5968".into()).await.unwrap();
+        let post = client.get_post(&"t3_18t5968".into()).await.unwrap().value;
 
         assert_eq!(post.id.as_str(), "18t5968");
         assert_eq!(post.markdown, Some("Hello **world**.".into()));
@@ -135,7 +136,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let post = client.get_post(&"18t5968".into()).await.unwrap();
+        let post = client.get_post(&"18t5968".into()).await.unwrap().value;
 
         assert_eq!(post.score, None);
         assert_eq!(post.comment_count, Some(3));
@@ -190,7 +191,7 @@ mod tests {
             .await;
         let client = graphql_client(&server, cached_storage());
 
-        let post = client.get_post(&"18t5968".into()).await.unwrap();
+        let post = client.get_post(&"18t5968".into()).await.unwrap().value;
 
         assert_eq!(
             post.crosspost_id.as_ref().map(|id| id.as_str()),

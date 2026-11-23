@@ -106,7 +106,8 @@ mod tests {
         let page = client
             .list_subreddit_posts("rust", SubredditSort::New, None)
             .await
-            .unwrap();
+            .unwrap()
+            .value;
 
         assert_eq!(
             serde_json::to_value(page.posts).unwrap(),
@@ -139,7 +140,8 @@ mod tests {
             let result = client
                 .list_subreddit_posts("rust", SubredditSort::Hot, token.as_deref())
                 .await
-                .unwrap();
+                .unwrap()
+                .value;
 
             assert_eq!(
                 serde_json::to_value(result.posts).unwrap(),
@@ -211,11 +213,13 @@ mod tests {
         let first = client
             .list_subreddit_posts("rust", SubredditSort::Hot, None)
             .await
-            .unwrap();
+            .unwrap()
+            .value;
         let second = client
             .list_subreddit_posts("rust", SubredditSort::Hot, first.next_cursor.as_deref())
             .await
-            .unwrap();
+            .unwrap()
+            .value;
 
         assert_eq!(first.posts.len(), 3);
         assert_eq!(second.posts, first.posts);
@@ -263,7 +267,8 @@ mod tests {
         let page = client
             .list_subreddit_posts("rust", SubredditSort::New, None)
             .await
-            .unwrap();
+            .unwrap()
+            .value;
 
         assert_eq!(page.posts.len(), 3);
         assert_eq!(server.received_requests().await.unwrap().len(), 2);
@@ -364,7 +369,8 @@ mod tests {
         let page = client
             .list_subreddit_posts("rust", SubredditSort::Hot, None)
             .await
-            .unwrap();
+            .unwrap()
+            .value;
 
         assert_eq!(page.posts.len(), 3);
         assert!(page.next_cursor.is_some());

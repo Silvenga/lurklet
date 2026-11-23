@@ -1,4 +1,5 @@
 mod comment_models;
+mod fetched_response;
 mod get_comment_thread;
 mod get_media;
 mod get_post;
@@ -13,6 +14,7 @@ mod robots;
 pub mod testing;
 
 pub use comment_models::{CommentForest, CommentSort};
+use fetched_response::FetchedResponse;
 pub use get_comment_thread::router as get_comment_thread;
 pub use get_media::router as get_media;
 pub use get_post::router as get_post;

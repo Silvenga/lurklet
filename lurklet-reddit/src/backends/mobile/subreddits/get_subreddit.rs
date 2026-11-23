@@ -57,7 +57,8 @@ mod tests {
             let result = client
                 .get_subreddit(case["name"].as_str().unwrap())
                 .await
-                .unwrap();
+                .unwrap()
+                .value;
 
             assert_eq!(serde_json::to_value(result).unwrap(), case["expected"]);
             assert_eq!(server.received_requests().await.unwrap().len(), 1);
@@ -93,7 +94,7 @@ mod tests {
         let before = storage.store().load().await.unwrap();
         let client = graphql_client(&server, storage.clone());
 
-        let actual = client.get_subreddit("rust").await.unwrap();
+        let actual = client.get_subreddit("rust").await.unwrap().value;
         let after = storage.store().load().await.unwrap();
         let requests = server.received_requests().await.unwrap();
 
@@ -124,7 +125,7 @@ mod tests {
             .await;
         let client = graphql_client(&server, testing::storage());
 
-        let actual = client.get_subreddit("rust").await.unwrap();
+        let actual = client.get_subreddit("rust").await.unwrap().value;
         let requests = server.received_requests().await.unwrap();
 
         assert!(matches!(actual, Subreddit::Available(_)));
@@ -149,7 +150,7 @@ mod tests {
             .await;
         let client = graphql_client(&server, cached_storage());
 
-        let actual = client.get_subreddit("example").await.unwrap();
+        let actual = client.get_subreddit("example").await.unwrap().value;
 
         assert!(
             matches!(actual, Subreddit::Unavailable(fields) if fields.forbidden_reason.as_deref() == Some("BANNED"))

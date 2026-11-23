@@ -101,7 +101,8 @@ mod tests {
         let forest = client
             .get_post_comments(&"example".into(), CommentSort::Best, None)
             .await
-            .unwrap();
+            .unwrap()
+            .value;
 
         assert_eq!(forest.items.len(), 3);
         assert_eq!(server.received_requests().await.unwrap().len(), 2);
@@ -136,7 +137,8 @@ mod tests {
         let initial = client
             .get_post_comments(&"example".into(), CommentSort::Best, None)
             .await
-            .unwrap();
+            .unwrap()
+            .value;
         let CommentItem::Comment { replies, .. } = &initial.items[0] else {
             panic!("expected parent")
         };
@@ -153,7 +155,8 @@ mod tests {
         let expanded = client
             .get_post_comments(&"example".into(), CommentSort::Best, Some(cursor))
             .await
-            .unwrap();
+            .unwrap()
+            .value;
 
         assert_eq!(expanded.items.len(), 1);
         let CommentItem::Comment { comment, replies } = &expanded.items[0] else {
@@ -196,7 +199,8 @@ mod tests {
         let forest = client
             .get_post_comments(&"example".into(), CommentSort::Top, Some(&cursor))
             .await
-            .unwrap();
+            .unwrap()
+            .value;
 
         assert!(forest.items.is_empty());
         assert_eq!(server.received_requests().await.unwrap().len(), 1);
@@ -271,7 +275,8 @@ mod tests {
         let forest = client
             .get_post_comments(&"example".into(), CommentSort::Best, None)
             .await
-            .unwrap();
+            .unwrap()
+            .value;
 
         assert_eq!(forest.items.len(), 3);
         assert!(

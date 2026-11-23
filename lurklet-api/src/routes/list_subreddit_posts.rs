@@ -1,4 +1,5 @@
 use crate::error::ApiError;
+use crate::routes::FetchedResponse;
 use crate::routes::PostFlair;
 use axum::Json;
 use axum::extract::rejection::{PathRejection, QueryRejection};
@@ -128,7 +129,7 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     params(ListSubredditPostsInput, ListSubredditPostsQuery),
     responses(
         ApiError,
-        (status = 200, description = "A page of posts with an optional continuation token", body = SubredditPage)
+        (status = 200, description = "A page of posts with an optional continuation token", body = FetchedResponse<SubredditPage>)
     )
 )]
 async fn list_subreddit_posts<B: RedditBackend>(
@@ -153,13 +154,14 @@ async fn list_subreddit_posts<B: RedditBackend>(
             RedditError::InvalidRequest { field: "after" } => ApiError::BadRequest,
             error => error.into(),
         })?;
-    Ok(Json(SubredditPage::from(page)))
+    Ok(Json(FetchedResponse::<SubredditPage>::from(page)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ApiCacheOptions;
+    use crate::routes::testing::fetched_payload;
     use crate::routes::testing::{Call, FakeBackend};
     use axum::Router;
     use axum::body::{Body, to_bytes};
@@ -359,7 +361,7 @@ mod tests {
         assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=3600");
         assert_eq!(calls.lock().unwrap().len(), 1);
         assert_eq!(
-            serde_json::from_slice::<Value>(&body).unwrap(),
+            fetched_payload(&body),
             json!({
                 "posts": [
                     {
@@ -408,7 +410,7 @@ mod tests {
 
             assert_eq!(status, StatusCode::OK);
             assert_eq!(
-                serde_json::from_slice::<Value>(&body).unwrap(),
+                fetched_payload(&body),
                 json!({"posts": [], "nextCursor": next_cursor})
             );
             assert_eq!(calls.lock().unwrap().len(), 1);

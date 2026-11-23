@@ -507,7 +507,10 @@ test("When the original post link is followed then its page should reuse the pre
   server.use(
     http.get(`*/api/posts/${ORIGINAL_POST_RESPONSE.id}`, () => {
       originalRequests++;
-      return HttpResponse.json(ORIGINAL_POST_RESPONSE, { headers: { Age: "120" } });
+      return HttpResponse.json({
+        ...ORIGINAL_POST_RESPONSE,
+        fetchedAt: new Date(Date.now() - 2 * 60_000).toISOString(),
+      });
     }),
   );
   const router = renderPath(CROSSPOST_PATH);
@@ -774,6 +777,34 @@ test("When only the slug or query changes then the post should not be requested 
   expect(requests).toBe(1);
   expect(screen.getByRole("heading", { name: POST_RESPONSE.title })).toBeVisible();
   expect(screen.getByRole("complementary")).toBe(sidebar);
+});
+
+test("When a legacy post is refreshed with the same content then its open menu should show the fetch time", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/posts/:id", () =>
+      HttpResponse.json(POST_RESPONSE, { headers: { Age: "3600" } }),
+    ),
+  );
+  const queryClient = createQueryClient();
+  renderPath(POST_PATH, queryClient);
+  await screen.findByRole("heading", { name: POST_RESPONSE.title });
+  await user.click(screen.getByRole("button", { name: "Post actions" }));
+  expect(screen.getByRole("menu")).toBeVisible();
+  expect(screen.queryByText(/^Fetched /)).toBeNull();
+
+  server.use(
+    http.get("*/api/posts/:id", () =>
+      HttpResponse.json({ ...POST_RESPONSE, fetchedAt: new Date().toISOString() }),
+    ),
+  );
+  await act(async () => {
+    await queryClient.invalidateQueries({
+      queryKey: getPostQueryKey({ path: { id: POST_RESPONSE.id } }),
+    });
+  });
+
+  expect(await screen.findByText("Fetched just now")).toBeVisible();
 });
 
 test("When its query is explicitly invalidated then the post should be fetched again", async () => {

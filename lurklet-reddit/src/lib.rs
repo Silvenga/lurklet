@@ -23,7 +23,7 @@ pub use backends::{
 };
 pub use builder::RedditClientBuilder;
 pub use capture::{ResponseCapture, ResponseObserver};
-pub use client::RedditClient;
+pub use client::{Fetched, RedditClient};
 pub use clock::{Clock, SystemClock};
 pub use error::{
     BuildError, ClockError, Error, ResponseError, RetryAfter, StorageError, TransportError,

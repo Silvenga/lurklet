@@ -64,7 +64,7 @@ impl ListSubredditPosts {
             .list_subreddit_posts(&self.subreddit, sort, self.after.as_deref())
             .await?;
         Ok(CommandOutput {
-            result: json!(page),
+            result: json!(page.value),
             error: None,
         })
     }

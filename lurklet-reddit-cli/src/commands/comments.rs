@@ -48,7 +48,7 @@ impl GetPostComments {
             .get_post_comments(&self.post_id, self.sort.into(), self.cursor.as_deref())
             .await?;
         Ok(CommandOutput {
-            result: json!(forest),
+            result: json!(forest.value),
             error: None,
         })
     }
@@ -63,7 +63,7 @@ impl GetCommentThread {
             .get_comment_thread(&self.comment_id, self.sort.into())
             .await?;
         Ok(CommandOutput {
-            result: json!(thread),
+            result: json!(thread.value),
             error: None,
         })
     }

@@ -7,7 +7,7 @@
       "name": "AGPL-3.0-only",
       "identifier": "AGPL-3.0-only"
     },
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "paths": {
     "/api/comments/{id}/thread": {
@@ -42,7 +42,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CommentThread"
+                  "$ref": "#/components/schemas/FetchedResponse_CommentThread"
                 }
               }
             }
@@ -451,7 +451,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Post"
+                  "$ref": "#/components/schemas/FetchedResponse_Post"
                 }
               }
             }
@@ -604,7 +604,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CommentForest"
+                  "$ref": "#/components/schemas/FetchedResponse_CommentForest"
                 }
               }
             }
@@ -737,7 +737,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Subreddit"
+                  "$ref": "#/components/schemas/FetchedResponse_Subreddit"
                 }
               }
             }
@@ -899,7 +899,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SubredditPage"
+                  "$ref": "#/components/schemas/FetchedResponse_SubredditPage"
                 }
               }
             }
@@ -1186,6 +1186,268 @@
             "type": ["string", "null"]
           }
         }
+      },
+      "FetchedResponse_CommentForest": {
+        "allOf": [
+          {
+            "type": "object",
+            "description": "Ordered discussion roots, or replacement items for one selected placeholder.",
+            "required": ["appliedSort", "items"],
+            "properties": {
+              "appliedSort": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/CommentSort"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CommentItem"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["fetchedAt"],
+            "properties": {
+              "fetchedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When Lurklet successfully fetched this result from Reddit."
+              }
+            }
+          }
+        ]
+      },
+      "FetchedResponse_CommentThread": {
+        "allOf": [
+          {
+            "type": "object",
+            "required": ["postId", "forest"],
+            "properties": {
+              "forest": {
+                "$ref": "#/components/schemas/CommentForest"
+              },
+              "postId": {
+                "type": ["string", "null"]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["fetchedAt"],
+            "properties": {
+              "fetchedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When Lurklet successfully fetched this result from Reddit."
+              }
+            }
+          }
+        ]
+      },
+      "FetchedResponse_Post": {
+        "allOf": [
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "permalink",
+              "flair",
+              "author",
+              "community",
+              "createdAt",
+              "score",
+              "commentCount",
+              "isNsfw",
+              "isSpoiler",
+              "markdown",
+              "attachments",
+              "crosspostId"
+            ],
+            "properties": {
+              "attachments": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PostAttachment"
+                }
+              },
+              "author": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/NamedReference"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "commentCount": {
+                "type": ["integer", "null"],
+                "format": "int64",
+                "minimum": 0
+              },
+              "community": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/NamedReference"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "crosspostId": {
+                "type": ["string", "null"]
+              },
+              "flair": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/PostFlair"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "isNsfw": {
+                "type": "boolean"
+              },
+              "isSpoiler": {
+                "type": "boolean"
+              },
+              "markdown": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Markdown",
+                    "description": "Untrusted Markdown; embedded media URLs are not proxied."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "permalink": {
+                "type": ["string", "null"]
+              },
+              "score": {
+                "type": ["integer", "null"],
+                "format": "int64"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["fetchedAt"],
+            "properties": {
+              "fetchedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When Lurklet successfully fetched this result from Reddit."
+              }
+            }
+          }
+        ]
+      },
+      "FetchedResponse_Subreddit": {
+        "allOf": [
+          {
+            "oneOf": [
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SubredditDetails"
+                  },
+                  {
+                    "type": "object",
+                    "required": ["kind"],
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": ["available"]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/UnavailableSubreddit"
+                  },
+                  {
+                    "type": "object",
+                    "required": ["kind"],
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": ["unavailable"]
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "object",
+            "required": ["fetchedAt"],
+            "properties": {
+              "fetchedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When Lurklet successfully fetched this result from Reddit."
+              }
+            }
+          }
+        ]
+      },
+      "FetchedResponse_SubredditPage": {
+        "allOf": [
+          {
+            "type": "object",
+            "required": ["posts", "nextCursor"],
+            "properties": {
+              "nextCursor": {
+                "type": ["string", "null"]
+              },
+              "posts": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ListedPost"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["fetchedAt"],
+            "properties": {
+              "fetchedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When Lurklet successfully fetched this result from Reddit."
+              }
+            }
+          }
+        ]
       },
       "FlairPart": {
         "oneOf": [

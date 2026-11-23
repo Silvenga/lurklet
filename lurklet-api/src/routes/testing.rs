@@ -4,6 +4,13 @@ use lurklet_reddit::{
 };
 use std::sync::{Arc, Mutex};
 
+pub fn fetched_payload(body: &[u8]) -> serde_json::Value {
+    let mut json: serde_json::Value = serde_json::from_slice(body).unwrap();
+    let timestamp = json.as_object_mut().unwrap().remove("fetchedAt").unwrap();
+    serde_json::from_value::<chrono::DateTime<chrono::Utc>>(timestamp).unwrap();
+    json
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Call {
     Post(RedditId),

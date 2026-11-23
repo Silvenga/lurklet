@@ -1,4 +1,5 @@
 use crate::error::ApiError;
+use crate::routes::FetchedResponse;
 use crate::routes::{CommentForest, CommentSort};
 use axum::Json;
 use axum::extract::rejection::{PathRejection, QueryRejection};
@@ -44,7 +45,7 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     params(GetPostCommentsInput, GetPostCommentsQuery),
     responses(
         ApiError,
-        (status = 200, description = "Ordered comments and expansion placeholders", body = CommentForest)
+        (status = 200, description = "Ordered comments and expansion placeholders", body = FetchedResponse<CommentForest>)
     )
 )]
 async fn get_post_comments<B: RedditBackend>(
@@ -61,13 +62,14 @@ async fn get_post_comments<B: RedditBackend>(
             RedditError::InvalidRequest { field: "cursor" } => ApiError::BadRequest,
             error => error.into(),
         })?;
-    Ok(Json(CommentForest::from(forest)))
+    Ok(Json(FetchedResponse::<CommentForest>::from(forest)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ApiCacheOptions;
+    use crate::routes::testing::fetched_payload;
     use crate::routes::testing::{Call, FakeBackend};
     use axum::Router;
     use axum::body::{Body, to_bytes};
@@ -75,7 +77,7 @@ mod tests {
     use lurklet_reddit::{
         CommentForest as RedditCommentForest, CommentItem, CommentSort as RedditCommentSort,
     };
-    use serde_json::{Value, json};
+    use serde_json::json;
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt;
 
@@ -145,7 +147,7 @@ mod tests {
             assert_eq!(status, StatusCode::OK, "{uri}");
             assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=3600");
             assert_eq!(
-                serde_json::from_slice::<Value>(&body).unwrap(),
+                fetched_payload(&body),
                 json!({
                     "appliedSort": "top", "items": [{"kind": "more", "cursor": "next-token", "countHint": 3}]
                 })
@@ -235,8 +237,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
-            serde_json::from_slice::<Value>(&to_bytes(response.into_body(), 4096).await.unwrap())
-                .unwrap(),
+            fetched_payload(&to_bytes(response.into_body(), 4096).await.unwrap()),
             json!({"appliedSort": null, "items": []})
         );
         assert_eq!(calls.lock().unwrap().len(), 1);

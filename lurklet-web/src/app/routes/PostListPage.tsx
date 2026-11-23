@@ -29,12 +29,9 @@ export function PostListPage() {
     ...apiQueryOptions.listSubredditPosts(options),
     placeholderData: (previous, previousQuery) =>
       previous && previousQuery && previousQuery.queryKey[0].path?.subreddit === subreddit
-        ? {
-            ...previous,
-            data: retainQueryView(previous.data, {
-              hasPreviousPages: Boolean(previousQuery.queryKey[0].query?.after),
-            }),
-          }
+        ? retainQueryView(previous, {
+            hasPreviousPages: Boolean(previousQuery.queryKey[0].query?.after),
+          })
         : undefined,
   });
   const displayed: RetainedQueryView<SubredditPage, { hasPreviousPages: boolean }> | undefined =

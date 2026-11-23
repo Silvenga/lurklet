@@ -41,7 +41,10 @@ test("When paging then the old rows and pagination should remain mounted until t
       requests++;
       return new URL(request.url).searchParams.has("after")
         ? pending.promise
-        : HttpResponse.json(SUBREDDIT_PAGE_RESPONSE, { headers: { Age: "3060" } });
+        : HttpResponse.json({
+            ...SUBREDDIT_PAGE_RESPONSE,
+            fetchedAt: new Date(Date.now() - 51 * 60_000).toISOString(),
+          });
     }),
   );
   const queryClient = createQueryClient();
@@ -81,7 +84,12 @@ test("When paging then the old rows and pagination should remain mounted until t
   expect(router.state.location).toBe(previousLocation);
 
   await act(async () => {
-    pending.resolve(HttpResponse.json(SUBREDDIT_NEXT_PAGE_RESPONSE, { headers: { Age: "120" } }));
+    pending.resolve(
+      HttpResponse.json({
+        ...SUBREDDIT_NEXT_PAGE_RESPONSE,
+        fetchedAt: new Date(Date.now() - 2 * 60_000).toISOString(),
+      }),
+    );
   });
 
   await screen.findByRole("link", { name: SUBREDDIT_NEXT_PAGE_RESPONSE.posts[0]!.title });

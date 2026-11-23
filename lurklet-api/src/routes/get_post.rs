@@ -1,5 +1,5 @@
 use crate::error::ApiError;
-use crate::routes::{Markdown, PostFlair};
+use crate::routes::{FetchedResponse, Markdown, PostFlair};
 use axum::Json;
 use axum::extract::rejection::PathRejection;
 use axum::extract::{Path, State};
@@ -130,7 +130,7 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     params(GetPostInput),
     responses(
         ApiError,
-        (status = 200, description = "A readable post", body = Post)
+        (status = 200, description = "A readable post", body = FetchedResponse<Post>)
     )
 )]
 async fn get_post<B: RedditBackend>(
@@ -139,19 +139,20 @@ async fn get_post<B: RedditBackend>(
 ) -> Result<impl IntoResponse, ApiError> {
     let Path(input) = input.map_err(|_| ApiError::BadRequest)?;
     let post = reddit.get_post(&input.id).await?;
-    Ok(Json(Post::from(post)))
+    Ok(Json(FetchedResponse::<Post>::from(post)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ApiCacheOptions;
+    use crate::routes::testing::fetched_payload;
     use crate::routes::testing::{Call, FakeBackend};
     use axum::Router;
     use axum::body::{Body, to_bytes};
     use axum::http::{Request, StatusCode, header};
     use lurklet_reddit::Error;
-    use serde_json::{Value, json};
+    use serde_json::json;
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt;
 
@@ -245,8 +246,7 @@ mod tests {
         let response = app.oneshot(request()).await.unwrap();
         let status = response.status();
         let headers = response.headers().clone();
-        let body: Value =
-            serde_json::from_slice(&to_bytes(response.into_body(), 16384).await.unwrap()).unwrap();
+        let body = fetched_payload(&to_bytes(response.into_body(), 16384).await.unwrap());
 
         assert_eq!(*calls.lock().unwrap(), [Call::Post("18t5968".into())]);
         assert_eq!(status, StatusCode::OK);

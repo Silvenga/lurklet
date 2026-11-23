@@ -374,15 +374,15 @@ impl<S: StateStore> RedditClientBuilder<S> {
 
         let http = http.build().map_err(TransportError::from)?;
 
-        let client = RedditClient::from_backend(MobileBackend {
+        let backend = MobileBackend {
             http,
             config: self.config,
             storage: self.storage,
-            clock: self.clock,
+            clock: Arc::clone(&self.clock),
             observer: self.observer,
-        });
+        };
         tracing::trace!("Reddit client initialized");
-        Ok(client)
+        Ok(RedditClient::from_backend_with_clock(backend, self.clock))
     }
 }
 
