@@ -40,6 +40,7 @@ RUN set -xe \
     make \
     cmake \
     git \
+    jq \
     libclang-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -63,7 +64,9 @@ COPY --parents \
     ./
 
 RUN set -xe \
-    && cargo chef prepare --recipe-path recipe.json
+    && cargo chef prepare --recipe-path /tmp/recipe.json \
+    && jq '(.skeleton.manifests[] | select(.targets | length > 0) | .contents) += "\n[lints.cargo]\nunused_dependencies = \"allow\"\n"' \
+        /tmp/recipe.json > recipe.json
 
 FROM backend-chef AS backend-builder
 
