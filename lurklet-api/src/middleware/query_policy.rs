@@ -14,11 +14,17 @@ use utoipa::openapi::{OpenApi, RefOr};
 // https://github.com/glanceapp/glance/issues/1016 (height)
 // https://github.com/uBlockOrigin/uAssets/issues/17225 (blur)
 // https://www.reddit.com/r/help/comments/uyw5xq/ (crop)
-// MP4 parameters: https://github.com/yshui/picom/issues/1467 (m, v, e)
+// MP4 parameters: https://github.com/yshui/picom/issues/1467 (m, v)
 // and https://github.com/QuantumBadger/RedReader/issues/752 (source).
 const MEDIA_CACHE_KEYS: &[&str] = &[
-    "auto", "blur", "crop", "e", "format", "frame", "height", "m", "source", "v", "width",
+    "auto", "blur", "crop", "format", "frame", "height", "m", "source", "v", "width",
 ];
+// Keys signed over by Reddit on packaged-media.redd.it MP4s: s is the signature,
+// e the signing window's expiry, and c and var routing constants (wh_ben_en,
+// sgpssan) observed stable per resource and across clients since 2026-04.
+// Stripping any of them invalidates the signed query (upstream responds 403),
+// while none of them selects the served bytes, so they are excluded from identity.
+const MEDIA_FORWARD_ONLY_KEYS: &[&str] = &["c", "e", "s", "var"];
 const MAX_DROPPED_KEYS: usize = 1024;
 
 #[derive(Serialize)]
@@ -49,7 +55,10 @@ impl QueryPolicy {
                 let keys = if operation.operation_id.as_deref() == Some("get_media") {
                     QueryKeys {
                         cache_key: MEDIA_CACHE_KEYS.iter().map(|key| (*key).into()).collect(),
-                        forward_only: vec!["s".into()],
+                        forward_only: MEDIA_FORWARD_ONLY_KEYS
+                            .iter()
+                            .map(|key| (*key).into())
+                            .collect(),
                     }
                 } else {
                     let mut keys = item
@@ -190,8 +199,8 @@ mod tests {
                 "/api/subreddits/{subreddit}": {"cacheKey": [], "forwardOnly": []},
                 "/api/subreddits/{subreddit}/posts": {"cacheKey": ["after", "sort", "timeRange"], "forwardOnly": []},
                 "/api/media/{origin}/{path}": {
-                    "cacheKey": ["auto", "blur", "crop", "e", "format", "frame", "height", "m", "source", "v", "width"],
-                    "forwardOnly": ["s"]
+                    "cacheKey": ["auto", "blur", "crop", "format", "frame", "height", "m", "source", "v", "width"],
+                    "forwardOnly": ["c", "e", "s", "var"]
                 }
             })
         );
@@ -259,9 +268,9 @@ mod tests {
                 "/media/i.redd.it/file.png",
             ),
             (
-                "/media/packaged-media.redd.it/file.mp4?m=DASHPlaylist.mpd&v=1&e=123&s=signed&unknown=x",
-                "/media/packaged-media.redd.it/file.mp4?m=DASHPlaylist.mpd&v=1&e=123&s=signed",
-                "/media/packaged-media.redd.it/file.mp4?e=123&m=DASHPlaylist.mpd&v=1",
+                "/media/packaged-media.redd.it/file.mp4?m=DASHPlaylist.mpd&c=wh_ben_en&var=sgpssan&v=1&e=123&s=signed&unknown=x",
+                "/media/packaged-media.redd.it/file.mp4?m=DASHPlaylist.mpd&c=wh_ben_en&var=sgpssan&v=1&e=123&s=signed",
+                "/media/packaged-media.redd.it/file.mp4?m=DASHPlaylist.mpd&v=1",
             ),
         ] {
             let response = app

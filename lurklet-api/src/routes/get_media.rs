@@ -23,7 +23,7 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     path = "/media/{origin}/{path}",
     operation_id = "get_media",
     summary = "Stream an image or MP4 file, optionally selecting one byte range",
-    description = "The upstream URL uses HTTPS and an allowed origin. The path can contain multiple segments. Unknown query keys are stripped. Allowed parameters retain their original encoding and order when forwarded upstream. The s signature is forwarded but excluded from cache identity. Use export-cache-query-keys for the current per-route CDN allowlists. Single byte ranges are supported. Invalid, unsupported, and multipart Range headers are ignored. HEAD ignores Range. MP4s and ranged requests bypass persistent caching, while successful responses remain cacheable by clients and CDNs.",
+    description = "The upstream URL uses HTTPS and an allowed origin. The path can contain multiple segments. Unknown query keys are stripped. Allowed parameters retain their original encoding and order when forwarded upstream. The s signature, the c and var routing constants, and the e expiry are forwarded but excluded from cache identity. Use export-cache-query-keys for the current per-route CDN allowlists. Single byte ranges are supported. Invalid, unsupported, and multipart Range headers are ignored. HEAD ignores Range. MP4s and ranged requests bypass persistent caching, while successful responses remain cacheable by clients and CDNs.",
     params(
         ("origin" = String, Path, description = "Allowed upstream authority, such as i.redd.it"),
         ("path" = String, Path, description = "Upstream media path, including nested segments and existing percent escapes"),
@@ -428,6 +428,16 @@ mod tests {
             ),
             (Method::HEAD, "auto=webp&width=640&new_key=3", "hit"),
             (Method::GET, "width=320&auto=webp&s=third", "miss"),
+            (
+                Method::GET,
+                "width=480&auto=webp&c=wh_ben_en&var=sgpssan&e=123&s=fourth",
+                "miss",
+            ),
+            (
+                Method::GET,
+                "auto=webp&c=wh_ben_de&var=usnycny&e=456&width=480&s=fifth",
+                "hit",
+            ),
         ] {
             let request = Request::builder()
                 .method(method.clone())
@@ -463,6 +473,12 @@ mod tests {
                 ),
                 (
                     "https://preview.redd.it/nested/file%20name.png?width=320&auto=webp&s=third"
+                        .into(),
+                    None,
+                    None
+                ),
+                (
+                    "https://preview.redd.it/nested/file%20name.png?width=480&auto=webp&c=wh_ben_en&var=sgpssan&e=123&s=fourth"
                         .into(),
                     None,
                     None
