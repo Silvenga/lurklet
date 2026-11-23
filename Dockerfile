@@ -100,9 +100,10 @@ EXPOSE 3000/tcp
 VOLUME ["/cache"]
 USER 65532:65532
 HEALTHCHECK \
-    --interval=30s \
-    --timeout=5s \
-    --start-period=10s \
+    --interval=10s \
+    --timeout=3s \
+    --start-period=5s \
+    --start-interval=200ms \
     --retries=3 \
     CMD ["/usr/local/bin/lurklet-api", "health-check"]
 ENTRYPOINT ["/usr/local/bin/lurklet-api"]
