@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.4.0](https://github.com/Silvenga/lurklet/compare/v0.3.0...v0.4.0) (2026-11-23)
+
+
+### Features
+
+* added hosting of the openapi spec ([78cdf5e](https://github.com/Silvenga/lurklet/commit/78cdf5ee608e49ea4cda7d000bd8cf5ce5e6d41e))
+* added logo to header ([93c46f2](https://github.com/Silvenga/lurklet/commit/93c46f2eb0e076154ebf45a5b3fdee2dae7b328e))
+* added project icon ([e790e07](https://github.com/Silvenga/lurklet/commit/e790e077688a1daa4848c7c5c3ba79370900447d))
+* added spoliers support ([5d3ce36](https://github.com/Silvenga/lurklet/commit/5d3ce3690ec0ca1dc8dbce04123105950eab510e))
+* enabled tls profiles ([a5cf292](https://github.com/Silvenga/lurklet/commit/a5cf292446c3f59dfb11a528a8cb8238f7cecdef))
+* improved/standarized error messages ([48f12c8](https://github.com/Silvenga/lurklet/commit/48f12c8a1ccab66f411e7efcb976ddd171ba08bb))
+* updated comment ui ([88ec97e](https://github.com/Silvenga/lurklet/commit/88ec97e8d6cc321fbe7645d1f59b648cd95d71dc))
+
+
+### Bug Fixes
+
+* allowed proxying for more CDN domains ([c9d4603](https://github.com/Silvenga/lurklet/commit/c9d4603aeec83042a8271ab481fbad2ebc3bcdd1))
+* fixed 403 when fetching video ([ae923bf](https://github.com/Silvenga/lurklet/commit/ae923bf076232f366258ad00590103c07e475b60))
+* fixed detection of cached content through cdns ([369e7fe](https://github.com/Silvenga/lurklet/commit/369e7fe43a8c228827c0d9700b577c8b840461a1))
+* reduced startup health convergence delay ([de20c13](https://github.com/Silvenga/lurklet/commit/de20c1339da13ddfa17a68267f70b78ccbbc0cdd))
+
 ## [0.3.0](https://github.com/Silvenga/lurklet/compare/v0.2.0...v0.3.0) (2026-11-04)
 
 
