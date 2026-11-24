@@ -17,20 +17,29 @@ A private, read-only, lightweight, front-end for Reddit, built from scratch in R
 
 ## Features
 
-- Mimics the Reddit URL style - just change the origin (use your favorite redirect extension).
-- Viewing subreddits, posts, and comments.
-  - Flair - basic and customized flair (emojis).
-  - Cross-posts.
-  - Thumbnails with NSFW blurring.
-  - Reddit markdown - spoilers, relaxed whitespace handling, double tilde, linking subreddits/users, inline media, and basic super support.
+### Compatibility
+
+- Mimics the Reddit URL style.
+- Subreddits, posts, and comments.
+- Flair (basic and customized/emoji flair).
+- Cross-posts.
+- Spoilers/NSFW marking and blurring.
+- Reddit markdown - inline-spoilers, relaxed whitespace handling, double tilde, linking subreddits/users, inline media, and basic super support.
+- Attempts to mimic real devices, including resisting TLS fingerprinting.
+- Streaming of DASH and HLS media.
+
+### UI
+
 - Mobile (this is a feature these days?).
-- Proxies supported media through the server (images and MP4 videos).
-- Built-in rate-limiting - with basic protections against flood attacks and scraping.
-- Search-indexing disallowed.
-- Sane caching by default - designed to operate behind a CDN/Caching proxy.
+- Proxies media (images, emojis, DASH, HLS, MP4).
 - A11y by default (let me know how this can be improved).
 - Dark/light mode by default.
-- Attempts to mimic real devices, including resisting TLS fingerprinting.
+
+### Hosting
+
+- Designed to operate behind a CDN/Caching proxy.
+- Built-in rate-limiting - with basic protections against flood attacks and scraping.
+- Search-indexing disallowed.
 - Reasonable security - restrictive Content Security Policy, mime-sniffing disallowed, XSS protections, resource usage is constrained by design, tested under restricted container defaults (read-only filesystem, non-root runtime user, etc.).
 - Proxy support (SOCKS5 and HTTP/HTTPS).
 - Distroless-based image - minimal, no package managers, no shells, etc.
@@ -119,13 +128,21 @@ Options:
           Print version
 ```
 
+## Agents
+
+`/agents` endpoints can be enabled with `--enable-agents-routes` or `LURKLET_ENABLE_AGENTS_ROUTES=true` (disabled by default).
+
+Installing the Lurklet skill is recommended:
+
+```bash
+npx skills add Silvenga/lurklet --skill lurklet
+```
+
 ## Planned Features
 
-- Proxying DASH videos.
 - RSS Feeds.
 - Alternative transports e.g., authenticated, desktop emulation, etc.
 - Disk based perma caching (disabled by default).
-- Programmatic access (disabled by default).
 - Basic u/user support.
 
 ## Unsupported
