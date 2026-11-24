@@ -6,11 +6,7 @@ import { Video } from "./Video";
 test("When MP4 sources and a poster are available then playback should use only proxied URLs without autoplay or preloading", () => {
   const url = "https://packaged-media.redd.it/file.mp4?s=a%2Bb&tag=2&tag=1";
   const posterUrl = "https://preview.redd.it/poster.jpeg?s=opaque";
-  const sources: VideoSource[] = [
-    { format: "hls", url: "https://v.redd.it/file.m3u8" },
-    { format: "mp4", url },
-    { format: "dash", url: "https://v.redd.it/file.mpd" },
-  ];
+  const sources: VideoSource[] = [{ format: "mp4", url }];
 
   render(<Video sources={sources} posterUrl={posterUrl} />);
 

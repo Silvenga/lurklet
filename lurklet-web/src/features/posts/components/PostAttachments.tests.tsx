@@ -101,36 +101,25 @@ test("When image text contains markup then it should remain plain text", () => {
   expect(container.querySelector("script, em, strong")).toBeNull();
 });
 
-test.each([
-  { sources: [] },
-  {
-    sources: [
-      { format: "hls", url: "https://videos.example.com/video.m3u8" },
-      { format: "dash", url: "https://videos.example.com/video.mpd" },
-    ],
-  },
-] satisfies Array<{ sources: Extract<PostAttachment, { kind: "video" }>["sources"] }>)(
-  "When a video has sources $sources then it should render exactly one non-fetching placeholder",
-  ({ sources }) => {
-    const fetch = vi.spyOn(globalThis, "fetch");
-    onTestFinished(() => fetch.mockRestore());
+test("When a video has no sources then it should not fetch media", () => {
+  const fetch = vi.spyOn(globalThis, "fetch");
+  onTestFinished(() => fetch.mockRestore());
 
-    const { container } = render(
-      <PostAttachments
-        attachments={[
-          { kind: "video", posterUrl: "https://images.example.com/poster.png", sources },
-        ]}
-      />,
-    );
+  const { container } = render(
+    <PostAttachments
+      attachments={[
+        { kind: "video", posterUrl: "https://images.example.com/poster.png", sources: [] },
+      ]}
+    />,
+  );
 
-    expect(
-      container.querySelector(
-        "img, video, audio, iframe, source, object, embed, [src], [srcset], [poster]",
-      ),
-    ).toBeNull();
-    expect(fetch).not.toHaveBeenCalled();
-  },
-);
+  expect(
+    container.querySelector(
+      "img, video, audio, iframe, source, object, embed, [src], [srcset], [poster]",
+    ),
+  ).toBeNull();
+  expect(fetch).not.toHaveBeenCalled();
+});
 
 test("When no attachments are present then no placeholder should be rendered", () => {
   const { container } = render(<PostAttachments attachments={[]} />);

@@ -8,6 +8,7 @@ mod get_subreddit;
 mod health;
 mod list_subreddit_posts;
 mod markdown;
+mod media_manifest;
 mod post_flair;
 mod robots;
 #[cfg(test)]

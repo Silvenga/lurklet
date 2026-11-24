@@ -7,7 +7,7 @@
       "name": "AGPL-3.0-only",
       "identifier": "AGPL-3.0-only"
     },
-    "version": "0.3.0"
+    "version": "0.4.0"
   },
   "paths": {
     "/api/comments/{id}/thread": {
@@ -202,7 +202,7 @@
     },
     "/api/media/{origin}/{path}": {
       "get": {
-        "summary": "Stream an image or MP4 file, optionally selecting one byte range",
+        "summary": "Proxy media and adaptive video manifests, optionally selecting one file byte range",
         "description": "The upstream URL uses HTTPS and an allowed origin. The path can contain multiple segments. Unknown query keys are stripped. Allowed parameters retain their original encoding and order when forwarded upstream. The s signature, the c and var routing constants, and the e expiry are forwarded but excluded from cache identity. Use export-cache-query-keys for the current per-route CDN allowlists. Single byte ranges are supported. Invalid, unsupported, and multipart Range headers are ignored. HEAD ignores Range. MP4s and ranged requests bypass persistent caching, while successful responses remain cacheable by clients and CDNs.",
         "operationId": "get_media",
         "parameters": [
@@ -245,7 +245,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Complete binary file content",
+            "description": "Complete file or a DASH/HLS manifest with local track URLs",
             "headers": {
               "Accept-Ranges": {
                 "schema": {
@@ -268,7 +268,12 @@
             },
             "content": {
               "image/*": {},
-              "video/mp4": {}
+              "video/mp4": {},
+              "audio/mp4": {},
+              "text/vtt": {},
+              "application/dash+xml": {},
+              "application/x-mpegurl": {},
+              "application/vnd.apple.mpegurl": {}
             }
           },
           "206": {
@@ -309,7 +314,9 @@
             },
             "content": {
               "image/*": {},
-              "video/mp4": {}
+              "video/mp4": {},
+              "audio/mp4": {},
+              "text/vtt": {}
             }
           },
           "400": {

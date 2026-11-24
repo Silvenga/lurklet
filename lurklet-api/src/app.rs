@@ -1064,7 +1064,7 @@ mod tests {
             } else {
                 assert_eq!(
                     response.headers()[header::CONTENT_SECURITY_POLICY],
-                    "default-src 'self'; style-src-elem 'self' 'unsafe-inline'; style-src-attr 'none'"
+                    "default-src 'self'; media-src 'self' blob:; style-src-elem 'self' 'unsafe-inline'; style-src-attr 'none'"
                 );
                 assert_eq!(response.headers()[header::REFERRER_POLICY], "same-origin");
                 assert_eq!(

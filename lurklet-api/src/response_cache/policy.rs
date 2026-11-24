@@ -7,7 +7,9 @@ pub fn is_persistable(headers: &HeaderMap) -> bool {
             .get(header::CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
             .and_then(|value| MediaType::parse(value).ok())
-            .is_some_and(|media| media.ty == names::VIDEO && media.subty == names::MP4)
+            .is_some_and(|media| {
+                (media.ty == names::VIDEO || media.ty == names::AUDIO) && media.subty == names::MP4
+            })
 }
 
 #[cfg(test)]

@@ -76,13 +76,20 @@ impl<S: StateStore> MobileBackend<S> {
         let kind = MediaType::parse(content_type).ok().and_then(|media| {
             if media.ty == names::IMAGE && media.subty != names::_STAR {
                 Some(MediaKind::Image)
-            } else if media.ty == names::VIDEO
+            } else if (media.ty == names::VIDEO || media.ty == names::AUDIO)
                 && media.subty == names::MP4
                 && media.suffix.is_none()
             {
                 Some(MediaKind::Mp4)
             } else {
-                None
+                match media.essence().to_string().to_ascii_lowercase().as_str() {
+                    "application/dash+xml" => Some(MediaKind::Dash),
+                    "application/vnd.apple.mpegurl" | "application/x-mpegurl" => {
+                        Some(MediaKind::Hls)
+                    }
+                    "text/vtt" => Some(MediaKind::WebVtt),
+                    _ => None,
+                }
             }
         });
         let content_range = response.headers().typed_get::<ContentRange>();
@@ -747,6 +754,11 @@ mod tests {
             ("image/svg+xml; charset=utf-8", MediaKind::Image),
             ("image/x-future", MediaKind::Image),
             ("video/mp4; codecs=\"avc1\"", MediaKind::Mp4),
+            ("audio/mp4", MediaKind::Mp4),
+            ("application/dash+xml", MediaKind::Dash),
+            ("application/x-mpegURL", MediaKind::Hls),
+            ("application/vnd.apple.mpegurl", MediaKind::Hls),
+            ("text/vtt; charset=utf-8", MediaKind::WebVtt),
         ] {
             let server = MockServer::start().await;
             Mock::given(method("GET"))
@@ -779,9 +791,6 @@ mod tests {
             None,
             Some("application/octet-stream"),
             Some("text/html"),
-            Some("application/dash+xml"),
-            Some("application/vnd.apple.mpegurl"),
-            Some("application/x-mpegURL"),
             Some("video/webm"),
             Some("image/*"),
             Some("image/"),

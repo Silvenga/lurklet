@@ -187,6 +187,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.107.1
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
+      bowser:
+        specifier: ^2.15.1
+        version: 2.15.1
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -247,6 +250,9 @@ importers:
       shadcn:
         specifier: ^4.23.0
         version: 4.23.0
+      shaka-player:
+        specifier: ^5.3.6
+        version: 5.3.6
       tailwind-merge:
         specifier: ^3.7.0
         version: 3.7.0
@@ -1441,6 +1447,9 @@ packages:
     resolution: {integrity: sha512-Aqr8mA1kIvyJ3UY5YAY7ib8LSo1DmDMbMnVqGPtsKW1LxaFQFwn9Eb3yvq2fUKJsRvaXjnAV7R5osqETapzNiA==}
     engines: {node: '>=6.0.0'}
     hasBin: true
+
+  bowser@2.15.1:
+    resolution: {integrity: sha512-ma47ABeUiTsmG4McKDtGCgQSiTCatM97Mlbn13K42N1kPSFE14oN3WFMjtyL4KubhGvQTqYheKl4Qx2bJtMXLQ==}
 
   brace-expansion@5.0.12:
     resolution: {integrity: sha512-YovQ3rzhaLMIrDjNDMkNS01tea93qhEhG5xy8f6+R0l+dw3Ki+5sCoIoI942iuLZTHWogWktgwVDhU09iNEimQ==}
@@ -2753,6 +2762,10 @@ packages:
     resolution: {integrity: sha512-lKgq7QPFgkV/6EOrMCwvEn7ZAw/YnM/grhxzJmK4cZdw3E4F3Ut2EmWvrn2E+vzJp1y/76mxU185OSkXo9Ff+Q==}
     engines: {node: '>=20.18.1'}
     hasBin: true
+
+  shaka-player@5.3.6:
+    resolution: {integrity: sha512-FP+pZ1ncSe9UAD6fzqDhEGcf8xENBm2nlS5dgpxjDjnYG/x6jMCg7FEg82NWdDRaSiwW26hF9WPKr0rqX4EIdA==}
+    engines: {node: '>=18'}
 
   sharp@0.35.5:
     resolution: {integrity: sha512-Ywn4OnzGukp7CDMrp08RQ50YKmuwG47brZgIVPTvBaaAfQlRlygrRqSrxdCiL9M+LlzLBiJ68IR1QqvzHyjC7g==}
@@ -4091,6 +4104,8 @@ snapshots:
   balanced-match@4.0.4: {}
 
   baseline-browser-mapping@2.11.34: {}
+
+  bowser@2.15.1: {}
 
   brace-expansion@5.0.12:
     dependencies:
@@ -5460,6 +5475,8 @@ snapshots:
     transitivePeerDependencies:
       - babel-plugin-macros
       - supports-color
+
+  shaka-player@5.3.6: {}
 
   sharp@0.35.5(@types/node@26.6.6):
     dependencies:

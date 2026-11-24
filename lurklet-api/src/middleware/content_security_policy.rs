@@ -6,7 +6,7 @@ pub fn content_security_policy() -> SetResponseHeaderLayer<HeaderValue> {
     SetResponseHeaderLayer::overriding(
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_static(
-            "default-src 'self'; style-src-elem 'self' 'unsafe-inline'; style-src-attr 'none'",
+            "default-src 'self'; media-src 'self' blob:; style-src-elem 'self' 'unsafe-inline'; style-src-attr 'none'",
         ),
     )
 }

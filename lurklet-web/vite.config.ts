@@ -16,7 +16,14 @@ export default defineConfig(({ command, mode }) => ({
     rolldownOptions: {
       output: {
         codeSplitting: {
-          groups: [{ name: "vendor", test: /node_modules[\\/]/ }],
+          groups: [
+            {
+              name: "playback",
+              test: /(?:[\\/]adaptive-playback\.ts$|node_modules[\\/](?:shaka-player|bowser)[\\/])/,
+              priority: 10,
+            },
+            { name: "vendor", test: /node_modules[\\/]/ },
+          ],
         },
       },
     },

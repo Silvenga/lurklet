@@ -40,4 +40,7 @@ impl fmt::Debug for MediaFile {
 pub enum MediaKind {
     Image,
     Mp4,
+    Dash,
+    Hls,
+    WebVtt,
 }

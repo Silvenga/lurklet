@@ -237,7 +237,6 @@ export const VIDEO_POST_RESPONSE = {
       sources: [
         { format: "mp4", url: VIDEO_SOURCE_URL },
         { format: "mp4", url: VIDEO_SOURCE_URL },
-        { format: "hls", url: "https://v.redd.it/fixture/HLSPlaylist.m3u8" },
       ],
       posterUrl: "https://preview.redd.it/fixture.png?s=offline",
     },

@@ -17,7 +17,7 @@ use utoipa::openapi::{OpenApi, RefOr};
 // MP4 parameters: https://github.com/yshui/picom/issues/1467 (m, v)
 // and https://github.com/QuantumBadger/RedReader/issues/752 (source).
 const MEDIA_CACHE_KEYS: &[&str] = &[
-    "auto", "blur", "crop", "format", "frame", "height", "m", "source", "v", "width",
+    "a", "auto", "blur", "crop", "f", "format", "frame", "height", "m", "source", "v", "width",
 ];
 // Keys signed over by Reddit on packaged-media.redd.it MP4s: s is the signature,
 // e the signing window's expiry, and c and var routing constants (wh_ben_en,
@@ -199,7 +199,7 @@ mod tests {
                 "/api/subreddits/{subreddit}": {"cacheKey": [], "forwardOnly": []},
                 "/api/subreddits/{subreddit}/posts": {"cacheKey": ["after", "sort", "timeRange"], "forwardOnly": []},
                 "/api/media/{origin}/{path}": {
-                    "cacheKey": ["auto", "blur", "crop", "format", "frame", "height", "m", "source", "v", "width"],
+                    "cacheKey": ["a", "auto", "blur", "crop", "f", "format", "frame", "height", "m", "source", "v", "width"],
                     "forwardOnly": ["c", "e", "s", "var"]
                 }
             })

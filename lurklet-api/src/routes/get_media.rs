@@ -1,10 +1,11 @@
 use crate::error::ApiError;
+use crate::routes::media_manifest;
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
 use headers::{ContentLength, ContentRange, HeaderMapExt};
-use lurklet_reddit::{Error as RedditError, MediaOptions, RedditBackend, RedditClient};
+use lurklet_reddit::{Error as RedditError, MediaKind, MediaOptions, RedditBackend, RedditClient};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
@@ -22,7 +23,7 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     get,
     path = "/media/{origin}/{path}",
     operation_id = "get_media",
-    summary = "Stream an image or MP4 file, optionally selecting one byte range",
+    summary = "Proxy media and adaptive video manifests, optionally selecting one file byte range",
     description = "The upstream URL uses HTTPS and an allowed origin. The path can contain multiple segments. Unknown query keys are stripped. Allowed parameters retain their original encoding and order when forwarded upstream. The s signature, the c and var routing constants, and the e expiry are forwarded but excluded from cache identity. Use export-cache-query-keys for the current per-route CDN allowlists. Single byte ranges are supported. Invalid, unsupported, and multipart Range headers are ignored. HEAD ignores Range. MP4s and ranged requests bypass persistent caching, while successful responses remain cacheable by clients and CDNs.",
     params(
         ("origin" = String, Path, description = "Allowed upstream authority, such as i.redd.it"),
@@ -32,12 +33,12 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     ),
     responses(
         ApiError,
-        (status = 200, description = "Complete binary file content", content(("image/*"), ("video/mp4")), headers(
+        (status = 200, description = "Complete file or a DASH/HLS manifest with local track URLs", content(("image/*"), ("video/mp4"), ("audio/mp4"), ("text/vtt"), ("application/dash+xml"), ("application/x-mpegurl"), ("application/vnd.apple.mpegurl")), headers(
             ("Accept-Ranges" = String, description = "Range support advertised by the upstream"),
             ("ETag" = String, description = "Upstream representation validator, when supplied"),
             ("Last-Modified" = String, description = "Upstream modification date, when supplied")
         )),
-        (status = 206, description = "Single byte range", content(("image/*"), ("video/mp4")), headers(
+        (status = 206, description = "Single byte range", content(("image/*"), ("video/mp4"), ("audio/mp4"), ("text/vtt")), headers(
             ("Content-Range" = String, description = "Inclusive byte offsets and complete representation length"),
             ("Content-Length" = u64, description = "Length of this partial response, when supplied"),
             ("Accept-Ranges" = String, description = "Range support advertised by the upstream"),
@@ -98,6 +99,9 @@ async fn get_media<B: RedditBackend>(
             error => error.into(),
         })?,
     };
+    if matches!(media.kind, MediaKind::Dash | MediaKind::Hls) {
+        return media_manifest::response(&url, media).await;
+    }
     let content_type =
         HeaderValue::from_str(&media.content_type).map_err(|_| ApiError::BadGateway)?;
     let mut response = Response::new(Body::from_stream(media.body));
