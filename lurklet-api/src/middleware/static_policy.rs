@@ -1,4 +1,5 @@
 use crate::routes::robots;
+use crate::static_host::SpaIndex;
 use axum::extract::Request;
 use axum::http::{StatusCode, header};
 use axum::middleware::Next;
@@ -23,6 +24,9 @@ pub async fn static_policy(request: Request, next: Next) -> Response {
         path.starts_with("/assets/")
             && mime_guess::from_path(&**path).first_raw() != Some("text/html")
     });
+    let index = path
+        .as_ref()
+        .is_ok_and(|path| matches!(path.trim_matches('/'), "" | "index.html"));
     let robots_alias = path
         .as_ref()
         .is_ok_and(|path| path.trim_start_matches('/') == "robots.txt")
@@ -38,8 +42,10 @@ pub async fn static_policy(request: Request, next: Next) -> Response {
         "public, max-age=10"
     } else if immutable {
         "public, max-age=31536000, immutable"
+    } else if index || response.extensions().get::<SpaIndex>().is_some() {
+        "public, max-age=10, stale-while-revalidate=86400"
     } else {
-        "public, max-age=0, stale-while-revalidate=86400"
+        "public, max-age=3600, stale-while-revalidate=86400"
     };
     let vary = if response
         .headers()

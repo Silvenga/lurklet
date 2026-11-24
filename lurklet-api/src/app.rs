@@ -72,7 +72,10 @@ pub fn application<B: RedditBackend + 'static>(
                 (
                     [
                         (header::CONTENT_TYPE, "application/json"),
-                        (header::CACHE_CONTROL, "public, max-age=31536000, immutable"),
+                        (
+                            header::CACHE_CONTROL,
+                            "public, max-age=3600, stale-while-revalidate=86400",
+                        ),
                     ],
                     document,
                 )
@@ -557,7 +560,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_openapi_is_requested_then_the_contract_should_be_served_with_immutable_caching() {
+    async fn when_openapi_is_requested_then_the_contract_should_be_cacheable_for_one_hour() {
         let request = Request::builder()
             .uri("/api/openapi.json?ignored=1")
             .body(Body::empty())
@@ -569,7 +572,7 @@ mod tests {
         assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
         assert_eq!(
             response.headers()[header::CACHE_CONTROL],
-            "public, max-age=31536000, immutable"
+            "public, max-age=3600, stale-while-revalidate=86400"
         );
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         assert_eq!(

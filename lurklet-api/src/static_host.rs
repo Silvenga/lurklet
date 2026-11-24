@@ -4,7 +4,6 @@ use crate::middleware::{
 use crate::routes::robots;
 use anyhow::{Context, ensure};
 use axum::Router;
-use axum::body::Body;
 use axum::extract::{Request, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::middleware;
@@ -63,6 +62,9 @@ impl StaticHost {
     }
 }
 
+#[derive(Clone)]
+pub(crate) struct SpaIndex;
+
 async fn spa_fallback(State(index): State<ServeFile>, request: Request) -> Response {
     let path = percent_decode_str(request.uri().path()).decode_utf8_lossy();
     let reserved = path == "/assets"
@@ -75,7 +77,11 @@ async fn spa_fallback(State(index): State<ServeFile>, request: Request) -> Respo
             .first_raw()
             .is_some_and(|mime| mime != "text/html");
     let response = if !reserved && accepts_html(request.headers()) {
-        index.oneshot(request).await.unwrap().map(Body::new)
+        (
+            axum::Extension(SpaIndex),
+            index.oneshot(request).await.unwrap(),
+        )
+            .into_response()
     } else {
         StatusCode::NOT_FOUND.into_response()
     };
@@ -107,7 +113,7 @@ mod tests {
     use super::*;
     use assert_fs::TempDir;
     use assert_fs::prelude::*;
-    use axum::body::to_bytes;
+    use axum::body::{Body, to_bytes};
     use axum::http::Method;
     use brotli::{CompressorWriter, Decompressor};
     use flate2::Compression;
@@ -432,7 +438,7 @@ mod tests {
             assert_eq!(headers[header::CONTENT_TYPE], "text/html");
             assert_eq!(
                 headers[header::CACHE_CONTROL],
-                "public, max-age=0, stale-while-revalidate=86400"
+                "public, max-age=10, stale-while-revalidate=86400"
             );
             assert_eq!(headers[header::VARY], "Accept, Accept-Encoding");
             assert_eq!(headers[header::CONTENT_ENCODING], encoding);
@@ -489,14 +495,19 @@ mod tests {
         let directory = fixtures();
         let app = app(&directory).await;
 
-        for (path, mime) in [
-            ("/", "text/html"),
-            ("/index.html", "text/html"),
-            ("/plain.txt", "text/plain"),
-            ("/favicon.ico", "image/x-icon"),
-            ("/public/logo.svg", "image/svg+xml"),
-            ("/public/icon.png", "image/png"),
-            ("/public/site.webmanifest", "application/manifest+json"),
+        for (path, mime, ttl) in [
+            ("/", "text/html", 10),
+            ("/index.html", "text/html", 10),
+            ("/index%2ehtml", "text/html", 10),
+            ("/plain.txt", "text/plain", 3600),
+            ("/favicon.ico", "image/x-icon", 3600),
+            ("/public/logo.svg", "image/svg+xml", 3600),
+            ("/public/icon.png", "image/png", 3600),
+            (
+                "/public/site.webmanifest",
+                "application/manifest+json",
+                3600,
+            ),
         ] {
             for method in [Method::GET, Method::HEAD] {
                 let request = Request::builder()
@@ -511,7 +522,7 @@ mod tests {
                 assert_eq!(response.headers()[header::CONTENT_TYPE], mime, "{path}");
                 assert_eq!(
                     response.headers()[header::CACHE_CONTROL],
-                    "public, max-age=0, stale-while-revalidate=86400",
+                    format!("public, max-age={ttl}, stale-while-revalidate=86400"),
                     "{path}"
                 );
             }
@@ -524,7 +535,12 @@ mod tests {
         let directory = fixtures();
         let app = app(&directory).await;
 
-        for path in ["/index.html", "/r/rust", "/assets/main-abc12345.css"] {
+        for path in [
+            "/index.html",
+            "/r/rust",
+            "/public/logo.svg",
+            "/assets/main-abc12345.css",
+        ] {
             let mut tags = Vec::new();
             for encoding in [
                 "identity",
@@ -598,7 +614,7 @@ mod tests {
                 assert_eq!(headers[header::CONTENT_TYPE], "text/plain; charset=utf-8");
                 assert_eq!(
                     headers[header::CACHE_CONTROL],
-                    "public, max-age=0, stale-while-revalidate=86400"
+                    "public, max-age=3600, stale-while-revalidate=86400"
                 );
                 assert_eq!(headers[header::CONTENT_LENGTH], ROBOTS.len().to_string());
                 assert_eq!(
