@@ -84,21 +84,14 @@ impl IntoResponses for ApiError {
                     Content::new(Some(Ref::from_schema_name(Problem::name()))),
                 );
             let header = match status {
-                StatusCode::METHOD_NOT_ALLOWED => Some(("Allow", "Supported HTTP methods")),
-                StatusCode::TOO_MANY_REQUESTS => {
-                    Some(("Retry-After", "Seconds until the client may retry"))
+                StatusCode::METHOD_NOT_ALLOWED => Some("Allow"),
+                StatusCode::TOO_MANY_REQUESTS | StatusCode::SERVICE_UNAVAILABLE => {
+                    Some("Retry-After")
                 }
-                StatusCode::SERVICE_UNAVAILABLE => Some((
-                    "Retry-After",
-                    "Upstream retry delay or HTTP date, when supplied",
-                )),
                 _ => None,
             };
-            if let Some((name, description)) = header {
-                response = response.header(
-                    name,
-                    HeaderBuilder::new().description(Some(description)).build(),
-                );
+            if let Some(name) = header {
+                response = response.header(name, HeaderBuilder::new().build());
             }
             (status.as_u16().to_string(), response.build().into())
         })

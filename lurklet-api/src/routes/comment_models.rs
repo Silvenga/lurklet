@@ -20,7 +20,7 @@ pub enum CommentSort {
     New,
 }
 
-/// Ordered discussion roots, or replacement items for one selected placeholder.
+/// Ordered comment trees.
 #[derive(Serialize, ToSchema, o2o)]
 #[from_owned(RedditCommentForest)]
 #[serde(rename_all = "camelCase")]
@@ -48,16 +48,16 @@ enum CommentItem {
     },
     #[serde(rename_all = "camelCase")]
     More {
-        /// Opaque cursor for replacing this placeholder; null means no action is available.
+        /// Cursor for expanding this placeholder.
         #[schema(required)]
         cursor: Option<String>,
-        /// Upstream hint, not an exact count.
+        /// Estimated number of comments.
         #[schema(required)]
         count_hint: Option<u64>,
     },
     #[serde(rename_all = "camelCase")]
     ContinueThread {
-        /// Anchor for the thread endpoint; null means no action is available.
+        /// Comment ID for opening the thread.
         #[schema(required)]
         #[from(~.map(|id| id.as_str().to_owned()))]
         comment_id: Option<String>,
@@ -78,7 +78,6 @@ struct Comment {
     author: Option<CommentAuthor>,
     #[schema(required)]
     created_at: Option<DateTime<Utc>>,
-    /// Untrusted Markdown; embedded media URLs are not proxied.
     #[schema(required)]
     #[from(~.map(Into::into))]
     markdown: Option<Markdown>,

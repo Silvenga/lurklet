@@ -2,7 +2,7 @@
   "openapi": "3.2.0",
   "info": {
     "title": "Lurklet API",
-    "description": "Internal API contract. Data and media requests use separate per-client rate limits; /api/health is exempt. Excess requests return 429 Problem Details with Retry-After. Unknown API paths return 404 Problem Details unless rate limited.",
+    "description": "Read-only API for the Lurklet frontend.",
     "license": {
       "name": "AGPL-3.0-only",
       "identifier": "AGPL-3.0-only"
@@ -12,8 +12,7 @@
   "paths": {
     "/api/comments/{id}/thread": {
       "get": {
-        "summary": "Open a comment thread with ancestor context",
-        "description": "The forest may include ancestors of the requested comment. It is not an inline replacement fragment, and further expansion in this view is not supported.",
+        "summary": "Get a comment thread with its ancestor context",
         "operationId": "get_comment_thread",
         "parameters": [
           {
@@ -73,8 +72,7 @@
               "Allow": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Supported HTTP methods"
+                }
               }
             },
             "content": {
@@ -101,8 +99,7 @@
               "Retry-After": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Seconds until the client may retry"
+                }
               }
             },
             "content": {
@@ -139,8 +136,7 @@
               "Retry-After": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Upstream retry delay or HTTP date, when supplied"
+                }
               }
             },
             "content": {
@@ -156,11 +152,10 @@
     },
     "/api/health": {
       "get": {
-        "summary": "Check API liveness without contacting upstream services",
+        "summary": "Check API liveness",
         "operationId": "get_health",
         "responses": {
           "200": {
-            "description": "The API is serving requests",
             "content": {
               "application/json": {
                 "schema": {
@@ -170,13 +165,11 @@
             }
           },
           "405": {
-            "description": "The method is not supported",
             "headers": {
               "Allow": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "GET,HEAD"
+                }
               }
             },
             "content": {
@@ -188,7 +181,6 @@
             }
           },
           "406": {
-            "description": "No acceptable response encoding",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -202,14 +194,14 @@
     },
     "/api/media/{origin}/{path}": {
       "get": {
-        "summary": "Proxy media and adaptive video manifests, optionally selecting one file byte range",
-        "description": "The upstream URL uses HTTPS and an allowed origin. The path can contain multiple segments. Unknown query keys are stripped. Allowed parameters retain their original encoding and order when forwarded upstream. The s signature, the c and var routing constants, and the e expiry are forwarded but excluded from cache identity. Use export-cache-query-keys for the current per-route CDN allowlists. Single byte ranges are supported. Invalid, unsupported, and multipart Range headers are ignored. HEAD ignores Range. MP4s and ranged requests bypass persistent caching, while successful responses remain cacheable by clients and CDNs.",
+        "summary": "Fetch media",
+        "description": "Preserve the original media URL's path and query string, including percent escapes.",
         "operationId": "get_media",
         "parameters": [
           {
             "name": "origin",
             "in": "path",
-            "description": "Allowed upstream authority, such as i.redd.it",
+            "description": "Allowed media host, such as i.redd.it",
             "required": true,
             "schema": {
               "type": "string"
@@ -218,7 +210,7 @@
           {
             "name": "path",
             "in": "path",
-            "description": "Upstream media path, including nested segments and existing percent escapes",
+            "description": "Media path, which may contain slashes",
             "required": true,
             "schema": {
               "type": "string"
@@ -227,7 +219,6 @@
           {
             "name": "Range",
             "in": "header",
-            "description": "One byte range, such as bytes=0-1023. Ignored for .mpd and .m3u8 paths so manifests can be rewritten in full.",
             "required": false,
             "schema": {
               "type": ["string", "null"]
@@ -236,7 +227,6 @@
           {
             "name": "If-Range",
             "in": "header",
-            "description": "Upstream entity tag or HTTP date. Sent only with a supported Range",
             "required": false,
             "schema": {
               "type": ["string", "null"]
@@ -245,25 +235,21 @@
         ],
         "responses": {
           "200": {
-            "description": "Complete file or a DASH/HLS manifest with local track URLs",
             "headers": {
               "Accept-Ranges": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Range support advertised by the upstream"
+                }
               },
               "ETag": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Upstream representation validator, when supplied"
+                }
               },
               "Last-Modified": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Upstream modification date, when supplied"
+                }
               }
             },
             "content": {
@@ -277,39 +263,33 @@
             }
           },
           "206": {
-            "description": "Single byte range",
             "headers": {
               "Accept-Ranges": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Range support advertised by the upstream"
+                }
               },
               "Content-Length": {
                 "schema": {
                   "type": "integer",
                   "format": "int64",
                   "minimum": 0
-                },
-                "description": "Length of this partial response, when supplied"
+                }
               },
               "Content-Range": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Inclusive byte offsets and complete representation length"
+                }
               },
               "ETag": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Upstream representation validator, when supplied"
+                }
               },
               "Last-Modified": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Upstream modification date, when supplied"
+                }
               }
             },
             "content": {
@@ -345,8 +325,7 @@
               "Allow": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Supported HTTP methods"
+                }
               }
             },
             "content": {
@@ -368,13 +347,11 @@
             }
           },
           "416": {
-            "description": "Range not satisfiable",
             "headers": {
               "Content-Range": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "bytes */length, when the upstream supplies a complete length"
+                }
               }
             }
           },
@@ -384,8 +361,7 @@
               "Retry-After": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Seconds until the client may retry"
+                }
               }
             },
             "content": {
@@ -422,8 +398,7 @@
               "Retry-After": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Upstream retry delay or HTTP date, when supplied"
+                }
               }
             },
             "content": {
@@ -439,13 +414,13 @@
     },
     "/api/posts/{id}": {
       "get": {
-        "summary": "Retrieve one post without comments or related posts",
+        "summary": "Get a post",
         "operationId": "get_post",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Post ID, as returned by the API.",
+            "description": "Post ID.",
             "required": true,
             "schema": {
               "type": "string"
@@ -454,7 +429,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A readable post",
+            "description": "Post details",
             "content": {
               "application/json": {
                 "schema": {
@@ -489,8 +464,7 @@
               "Allow": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Supported HTTP methods"
+                }
               }
             },
             "content": {
@@ -517,8 +491,7 @@
               "Retry-After": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Seconds until the client may retry"
+                }
               }
             },
             "content": {
@@ -555,8 +528,7 @@
               "Retry-After": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Upstream retry delay or HTTP date, when supplied"
+                }
               }
             },
             "content": {
@@ -572,14 +544,14 @@
     },
     "/api/posts/{id}/comments": {
       "get": {
-        "summary": "Read a post's comments or expand one selected placeholder",
-        "description": "Without a cursor, returns the initial forest. With a cursor, the returned items replace only the selected placeholder, not the whole discussion.",
+        "summary": "Get post comments",
+        "description": "With a cursor, the returned items replace only that placeholder.",
         "operationId": "get_post_comments",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Post ID, as returned by the API.",
+            "description": "Post ID.",
             "required": true,
             "schema": {
               "type": "string"
@@ -598,7 +570,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "Pass a selected placeholder's cursor unchanged with the same post and requested sort.",
+            "description": "Pass the placeholder's cursor unchanged with the same post and sort.",
             "required": false,
             "schema": {
               "type": "string"
@@ -642,8 +614,7 @@
               "Allow": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Supported HTTP methods"
+                }
               }
             },
             "content": {
@@ -670,8 +641,7 @@
               "Retry-After": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Seconds until the client may retry"
+                }
               }
             },
             "content": {
@@ -708,8 +678,7 @@
               "Retry-After": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Upstream retry delay or HTTP date, when supplied"
+                }
               }
             },
             "content": {
@@ -725,13 +694,13 @@
     },
     "/api/subreddits/{subreddit}": {
       "get": {
-        "summary": "Read community metadata without fetching its feed or assets",
+        "summary": "Get subreddit details",
         "operationId": "get_subreddit",
         "parameters": [
           {
             "name": "subreddit",
             "in": "path",
-            "description": "Community name, without the r/ prefix.",
+            "description": "Subreddit name, for example `rust`.",
             "required": true,
             "schema": {
               "type": "string"
@@ -775,8 +744,7 @@
               "Allow": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Supported HTTP methods"
+                }
               }
             },
             "content": {
@@ -803,8 +771,7 @@
               "Retry-After": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Seconds until the client may retry"
+                }
               }
             },
             "content": {
@@ -841,8 +808,7 @@
               "Retry-After": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Upstream retry delay or HTTP date, when supplied"
+                }
               }
             },
             "content": {
@@ -858,13 +824,13 @@
     },
     "/api/subreddits/{subreddit}/posts": {
       "get": {
-        "summary": "List one page of subreddit posts without fetching post details",
+        "summary": "List subreddit posts",
         "operationId": "list_subreddit_posts",
         "parameters": [
           {
             "name": "subreddit",
             "in": "path",
-            "description": "Community name, without the r/ prefix.",
+            "description": "Subreddit name, for example `rust`.",
             "required": true,
             "schema": {
               "type": "string"
@@ -937,8 +903,7 @@
               "Allow": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Supported HTTP methods"
+                }
               }
             },
             "content": {
@@ -965,8 +930,7 @@
               "Retry-After": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Seconds until the client may retry"
+                }
               }
             },
             "content": {
@@ -1003,8 +967,7 @@
               "Retry-After": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Upstream retry delay or HTTP date, when supplied"
+                }
               }
             },
             "content": {
@@ -1064,8 +1027,7 @@
           "markdown": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/Markdown",
-                "description": "Untrusted Markdown; embedded media URLs are not proxied."
+                "$ref": "#/components/schemas/Markdown"
               },
               {
                 "type": "null"
@@ -1095,7 +1057,7 @@
       },
       "CommentForest": {
         "type": "object",
-        "description": "Ordered discussion roots, or replacement items for one selected placeholder.",
+        "description": "Ordered comment trees.",
         "required": ["appliedSort", "items"],
         "properties": {
           "appliedSort": {
@@ -1144,12 +1106,12 @@
               "countHint": {
                 "type": ["integer", "null"],
                 "format": "int64",
-                "description": "Upstream hint, not an exact count.",
+                "description": "Estimated number of comments.",
                 "minimum": 0
               },
               "cursor": {
                 "type": ["string", "null"],
-                "description": "Opaque cursor for replacing this placeholder; null means no action is available."
+                "description": "Cursor for expanding this placeholder."
               },
               "kind": {
                 "type": "string",
@@ -1163,7 +1125,7 @@
             "properties": {
               "commentId": {
                 "type": ["string", "null"],
-                "description": "Anchor for the thread endpoint; null means no action is available."
+                "description": "Comment ID for opening the thread."
               },
               "kind": {
                 "type": "string",
@@ -1198,7 +1160,7 @@
         "allOf": [
           {
             "type": "object",
-            "description": "Ordered discussion roots, or replacement items for one selected placeholder.",
+            "description": "Ordered comment trees.",
             "required": ["appliedSort", "items"],
             "properties": {
               "appliedSort": {
@@ -1340,8 +1302,7 @@
               "markdown": {
                 "oneOf": [
                   {
-                    "$ref": "#/components/schemas/Markdown",
-                    "description": "Untrusted Markdown; embedded media URLs are not proxied."
+                    "$ref": "#/components/schemas/Markdown"
                   },
                   {
                     "type": "null"
@@ -1711,8 +1672,7 @@
           "markdown": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/Markdown",
-                "description": "Untrusted Markdown; embedded media URLs are not proxied."
+                "$ref": "#/components/schemas/Markdown"
               },
               {
                 "type": "null"
@@ -1902,8 +1862,7 @@
           "descriptionMarkdown": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/Markdown",
-                "description": "Untrusted long-form Markdown, not structured sidebar widgets or rules."
+                "$ref": "#/components/schemas/Markdown"
               },
               {
                 "type": "null"
@@ -1969,7 +1928,6 @@
           "weeklyActiveUserCount": {
             "type": ["integer", "null"],
             "format": "int64",
-            "description": "Weekly activity, not a count of currently online users.",
             "minimum": 0
           },
           "weeklyContributionCount": {

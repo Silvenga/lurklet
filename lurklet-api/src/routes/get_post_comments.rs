@@ -15,7 +15,7 @@ use utoipa_axum::routes;
 #[serde(rename_all = "camelCase")]
 #[into_params(parameter_in = Path)]
 struct GetPostCommentsInput {
-    /// Post ID, as returned by the API.
+    /// Post ID.
     #[param(value_type = String)]
     id: RedditId,
 }
@@ -27,7 +27,7 @@ struct GetPostCommentsQuery {
     #[serde(default)]
     #[param(inline, required = false)]
     sort: CommentSort,
-    /// Pass a selected placeholder's cursor unchanged with the same post and requested sort.
+    /// Pass the placeholder's cursor unchanged with the same post and sort.
     cursor: Option<String>,
 }
 
@@ -40,8 +40,8 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     get,
     path = "/posts/{id}/comments",
     operation_id = "get_post_comments",
-    summary = "Read a post's comments or expand one selected placeholder",
-    description = "Without a cursor, returns the initial forest. With a cursor, the returned items replace only the selected placeholder, not the whole discussion.",
+    summary = "Get post comments",
+    description = "With a cursor, the returned items replace only that placeholder.",
     params(GetPostCommentsInput, GetPostCommentsQuery),
     responses(
         ApiError,

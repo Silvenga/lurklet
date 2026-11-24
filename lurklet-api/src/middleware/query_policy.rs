@@ -10,21 +10,11 @@ use std::sync::{Arc, Mutex};
 use utoipa::openapi::path::ParameterIn;
 use utoipa::openapi::{OpenApi, RefOr};
 
-// Image keys come from captured previews, live icons/posters, and these examples:
-// https://github.com/glanceapp/glance/issues/1016 (height)
-// https://github.com/uBlockOrigin/uAssets/issues/17225 (blur)
-// https://www.reddit.com/r/help/comments/uyw5xq/ (crop)
-// MP4 parameters: https://github.com/yshui/picom/issues/1467 (m, v)
-// and https://github.com/QuantumBadger/RedReader/issues/752 (source).
 const MEDIA_CACHE_KEYS: &[&str] = &[
-    "a", "auto", "blur", "crop", "f", "format", "frame", "height", "m", "source", "v", "width",
+    "auto", "blur", "c", "crop", "f", "format", "frame", "height", "m", "source", "v", "var",
+    "width",
 ];
-// Keys signed over by Reddit on packaged-media.redd.it MP4s: s is the signature,
-// e the signing window's expiry, and c and var routing constants (wh_ben_en,
-// sgpssan) observed stable per resource and across clients since 2026-04.
-// Stripping any of them invalidates the signed query (upstream responds 403),
-// while none of them selects the served bytes, so they are excluded from identity.
-const MEDIA_FORWARD_ONLY_KEYS: &[&str] = &["c", "e", "s", "var"];
+const MEDIA_FORWARD_ONLY_KEYS: &[&str] = &["a", "e", "s"];
 const MAX_DROPPED_KEYS: usize = 1024;
 
 #[derive(Serialize)]
@@ -226,8 +216,8 @@ mod tests {
                 "/api/subreddits/{subreddit}": {"cacheKey": [], "forwardOnly": []},
                 "/api/subreddits/{subreddit}/posts": {"cacheKey": ["after", "sort", "timeRange"], "forwardOnly": []},
                 "/api/media/{origin}/{path}": {
-                    "cacheKey": ["a", "auto", "blur", "crop", "f", "format", "frame", "height", "m", "source", "v", "width"],
-                    "forwardOnly": ["c", "e", "s", "var"]
+                    "cacheKey": ["auto", "blur", "c", "crop", "f", "format", "frame", "height", "m", "source", "v", "var", "width"],
+                    "forwardOnly": ["a", "e", "s"]
                 }
             })
         );
@@ -297,7 +287,12 @@ mod tests {
             (
                 "/media/packaged-media.redd.it/file.mp4?m=DASHPlaylist.mpd&c=wh_ben_en&var=sgpssan&v=1&e=123&s=signed&unknown=x",
                 "/media/packaged-media.redd.it/file.mp4?m=DASHPlaylist.mpd&c=wh_ben_en&var=sgpssan&v=1&e=123&s=signed",
-                "/media/packaged-media.redd.it/file.mp4?m=DASHPlaylist.mpd&v=1",
+                "/media/packaged-media.redd.it/file.mp4?c=wh_ben_en&m=DASHPlaylist.mpd&v=1&var=sgpssan",
+            ),
+            (
+                "/media/v.redd.it/id/DASHPlaylist.mpd?f=hd&unused=1&a=123%2Cabc%3D&v=1",
+                "/media/v.redd.it/id/DASHPlaylist.mpd?f=hd&a=123%2Cabc%3D&v=1",
+                "/media/v.redd.it/id/DASHPlaylist.mpd?f=hd&v=1",
             ),
         ] {
             let response = app

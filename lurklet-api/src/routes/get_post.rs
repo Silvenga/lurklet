@@ -20,7 +20,7 @@ use utoipa_axum::routes;
 #[serde(rename_all = "camelCase")]
 #[into_params(parameter_in = Path)]
 struct GetPostInput {
-    /// Post ID, as returned by the API.
+    /// Post ID.
     #[param(value_type = String)]
     id: RedditId,
 }
@@ -50,7 +50,6 @@ struct Post {
     comment_count: Option<u64>,
     is_nsfw: bool,
     is_spoiler: bool,
-    /// Untrusted Markdown; embedded media URLs are not proxied.
     #[schema(required)]
     #[from(~.map(Into::into))]
     markdown: Option<Markdown>,
@@ -126,11 +125,11 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     get,
     path = "/posts/{id}",
     operation_id = "get_post",
-    summary = "Retrieve one post without comments or related posts",
+    summary = "Get a post",
     params(GetPostInput),
     responses(
         ApiError,
-        (status = 200, description = "A readable post", body = FetchedResponse<Post>)
+        (status = 200, description = "Post details", body = FetchedResponse<Post>)
     )
 )]
 async fn get_post<B: RedditBackend>(

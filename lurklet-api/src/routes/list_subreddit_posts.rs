@@ -21,7 +21,7 @@ use utoipa_axum::routes;
 #[serde(rename_all = "camelCase")]
 #[into_params(parameter_in = Path)]
 struct ListSubredditPostsInput {
-    /// Community name, without the r/ prefix.
+    /// Subreddit name, for example `rust`.
     subreddit: String,
 }
 
@@ -125,7 +125,7 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     get,
     path = "/subreddits/{subreddit}/posts",
     operation_id = "list_subreddit_posts",
-    summary = "List one page of subreddit posts without fetching post details",
+    summary = "List subreddit posts",
     params(ListSubredditPostsInput, ListSubredditPostsQuery),
     responses(
         ApiError,

@@ -216,7 +216,8 @@ mod tests {
         ));
         assert!(arguments.rate_limit.trusted_proxies.is_empty());
         assert!(arguments.cache_dir.is_none());
-        assert_eq!(arguments.api_cache.api_cache_max_age_seconds, 3600);
+        assert_eq!(arguments.api_cache.api_cache_max_age_seconds, None);
+        assert_eq!(arguments.api_cache.media_cache_max_age_seconds, None);
         assert!(arguments.state_file.is_none());
         assert!(arguments.proxy.is_none());
         assert_eq!(arguments.reddit_request_timeout_seconds, -1);
@@ -232,7 +233,7 @@ mod tests {
             ])
             .unwrap();
 
-            assert_eq!(arguments.api_cache.api_cache_max_age_seconds, seconds);
+            assert_eq!(arguments.api_cache.api_cache_max_age_seconds, Some(seconds));
         }
     }
 

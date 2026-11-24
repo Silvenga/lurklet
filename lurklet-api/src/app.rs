@@ -18,7 +18,7 @@ use utoipa::openapi::{OpenApi, OpenApiVersion};
 #[openapi(
     info(
         title = "Lurklet API",
-        description = "Internal API contract. Data and media requests use separate per-client rate limits; /api/health is exempt. Excess requests return 429 Problem Details with Retry-After. Unknown API paths return 404 Problem Details unless rate limited."
+        description = "Read-only API for the Lurklet frontend."
     ),
     components(schemas(Problem))
 )]
@@ -36,7 +36,7 @@ pub fn agents_service<B: RedditBackend + 'static>(
     let routes = if enabled {
         let routes = agents::router().fallback(|| async { ApiError::NotFound });
         // Responses contain absolute navigation links; the disk cache is host-independent.
-        let routes = data_api(routes, reddit, &rate_limits.api, None, cache_options)
+        let routes = data_api(cache_options.wrap(routes), reddit, &rate_limits.api, None)
             .layer(axum::Extension(rate_limits.forwarding.clone()))
             .layer(middleware::from_fn(response_compression));
         QueryPolicy::agents().wrap(routes)
@@ -93,21 +93,19 @@ pub fn application<B: RedditBackend + 'static>(
         .split_for_parts();
     let json_routes = json_routes.fallback(|| async { ApiError::NotFound });
     let json_api = data_api(
-        json_routes,
+        cache_options.wrap(json_routes),
         reddit.clone(),
         &rate_limits.api,
         cache,
-        cache_options,
     )
     .merge(metadata)
     .layer(middleware::from_fn(response_compression));
     let (media_routes, _) = routes::get_media().split_for_parts();
     let media_api = data_api(
-        media_routes,
+        cache_options.wrap_media(media_routes),
         reddit,
         &rate_limits.media,
         cache,
-        cache_options,
     );
     let api = json_api
         .merge(media_api)
@@ -141,15 +139,14 @@ fn data_api<B: RedditBackend + 'static>(
     reddit: RedditClient<B>,
     rate_limit: &RateLimit,
     cache: Option<&ResponseCache>,
-    cache_options: &ApiCacheOptions,
 ) -> Router {
     let api = routes
         .method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed })
         .with_state(reddit);
-    let mut api = cache_options.wrap(api);
-    if let Some(cache) = cache {
-        api = cache.wrap(api);
-    }
+    let api = match cache {
+        Some(cache) => cache.wrap(api),
+        None => api,
+    };
     api.layer(middleware::from_fn_with_state(
         rate_limit.clone(),
         limit_requests,
@@ -221,13 +218,7 @@ mod tests {
                 "/resource",
                 get(|State(_reddit): State<RedditClient>| async { StatusCode::NO_CONTENT }),
             );
-            let app = data_api(
-                routes,
-                reddit.clone(),
-                &RateLimits::default().api,
-                cache,
-                &ApiCacheOptions::default(),
-            );
+            let app = data_api(routes, reddit.clone(), &RateLimits::default().api, cache);
             let request = Request::builder()
                 .uri("/resource")
                 .extension(ConnectInfo("192.0.2.1:1234".parse::<SocketAddr>().unwrap()))
@@ -259,14 +250,15 @@ mod tests {
                         }
                     }),
                 );
+                let options = ApiCacheOptions {
+                    api_cache_max_age_seconds: Some(seconds),
+                    ..Default::default()
+                };
                 let app = data_api(
-                    routes,
+                    options.wrap(routes),
                     RedditClient::builder().build().unwrap(),
                     &RateLimits::default().api,
                     caching.then_some(&cache),
-                    &ApiCacheOptions {
-                        api_cache_max_age_seconds: seconds,
-                    },
                 );
 
                 for attempt in 0..2 {
@@ -319,7 +311,8 @@ mod tests {
             &RateLimits::default(),
             None,
             &ApiCacheOptions {
-                api_cache_max_age_seconds: 42,
+                api_cache_max_age_seconds: Some(42),
+                ..Default::default()
             },
         );
         for method in [Method::GET, Method::HEAD] {

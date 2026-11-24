@@ -49,8 +49,7 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     get,
     path = "/comments/{id}/thread",
     operation_id = "get_comment_thread",
-    summary = "Open a comment thread with ancestor context",
-    description = "The forest may include ancestors of the requested comment. It is not an inline replacement fragment, and further expansion in this view is not supported.",
+    summary = "Get a comment thread with its ancestor context",
     params(GetCommentThreadInput, GetCommentThreadQuery),
     responses(
         ApiError,

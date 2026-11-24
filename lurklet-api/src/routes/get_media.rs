@@ -23,30 +23,30 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     get,
     path = "/media/{origin}/{path}",
     operation_id = "get_media",
-    summary = "Proxy media and adaptive video manifests, optionally selecting one file byte range",
-    description = "The upstream URL uses HTTPS and an allowed origin. The path can contain multiple segments. Unknown query keys are stripped. Allowed parameters retain their original encoding and order when forwarded upstream. The s signature, the c and var routing constants, and the e expiry are forwarded but excluded from cache identity. Use export-cache-query-keys for the current per-route CDN allowlists. Single byte ranges are supported. Invalid, unsupported, and multipart Range headers are ignored. HEAD ignores Range. MP4s and ranged requests bypass persistent caching, while successful responses remain cacheable by clients and CDNs.",
+    summary = "Fetch media",
+    description = "Preserve the original media URL's path and query string, including percent escapes.",
     params(
-        ("origin" = String, Path, description = "Allowed upstream authority, such as i.redd.it"),
-        ("path" = String, Path, description = "Upstream media path, including nested segments and existing percent escapes"),
-        ("Range" = Option<String>, Header, description = "One byte range, such as bytes=0-1023. Ignored for .mpd and .m3u8 paths so manifests can be rewritten in full."),
-        ("If-Range" = Option<String>, Header, description = "Upstream entity tag or HTTP date. Sent only with a supported Range")
+        ("origin" = String, Path, description = "Allowed media host, such as i.redd.it"),
+        ("path" = String, Path, description = "Media path, which may contain slashes"),
+        ("Range" = Option<String>, Header),
+        ("If-Range" = Option<String>, Header)
     ),
     responses(
         ApiError,
-        (status = 200, description = "Complete file or a DASH/HLS manifest with local track URLs", content(("image/*"), ("video/mp4"), ("audio/mp4"), ("text/vtt"), ("application/dash+xml"), ("application/x-mpegurl"), ("application/vnd.apple.mpegurl")), headers(
-            ("Accept-Ranges" = String, description = "Range support advertised by the upstream"),
-            ("ETag" = String, description = "Upstream representation validator, when supplied"),
-            ("Last-Modified" = String, description = "Upstream modification date, when supplied")
+        (status = 200, content(("image/*"), ("video/mp4"), ("audio/mp4"), ("text/vtt"), ("application/dash+xml"), ("application/x-mpegurl"), ("application/vnd.apple.mpegurl")), headers(
+            ("Accept-Ranges" = String),
+            ("ETag" = String),
+            ("Last-Modified" = String)
         )),
-        (status = 206, description = "Single byte range", content(("image/*"), ("video/mp4"), ("audio/mp4"), ("text/vtt")), headers(
-            ("Content-Range" = String, description = "Inclusive byte offsets and complete representation length"),
-            ("Content-Length" = u64, description = "Length of this partial response, when supplied"),
-            ("Accept-Ranges" = String, description = "Range support advertised by the upstream"),
-            ("ETag" = String, description = "Upstream representation validator, when supplied"),
-            ("Last-Modified" = String, description = "Upstream modification date, when supplied")
+        (status = 206, content(("image/*"), ("video/mp4"), ("audio/mp4"), ("text/vtt")), headers(
+            ("Content-Range" = String),
+            ("Content-Length" = u64),
+            ("Accept-Ranges" = String),
+            ("ETag" = String),
+            ("Last-Modified" = String)
         )),
-        (status = 416, description = "Range not satisfiable", headers(
-            ("Content-Range" = String, description = "bytes */length, when the upstream supplies a complete length")
+        (status = 416, headers(
+            ("Content-Range" = String)
         ))
     )
 )]
@@ -259,7 +259,7 @@ mod tests {
                 calls,
                 chunks,
             }));
-        ApiCacheOptions::default().wrap(routes)
+        ApiCacheOptions::default().wrap_media(routes)
     }
 
     fn request() -> Request<Body> {
@@ -298,7 +298,7 @@ mod tests {
             assert_eq!(response.headers()[header::CONTENT_TYPE], "video/mp4");
             assert_eq!(
                 response.headers()[header::CACHE_CONTROL],
-                "public, max-age=3600"
+                "public, max-age=31536000"
             );
             assert_eq!(
                 response
@@ -345,7 +345,8 @@ mod tests {
                 &RateLimits::default(),
                 caching.then_some(&cache),
                 &ApiCacheOptions {
-                    api_cache_max_age_seconds: 42,
+                    api_cache_max_age_seconds: Some(42),
+                    ..Default::default()
                 },
             );
 
@@ -436,16 +437,13 @@ mod tests {
             ),
             (Method::HEAD, "auto=webp&width=640&new_key=3", "hit"),
             (Method::GET, "width=320&auto=webp&s=third", "miss"),
-            (
-                Method::GET,
-                "width=480&auto=webp&c=wh_ben_en&var=sgpssan&e=123&s=fourth",
-                "miss",
-            ),
-            (
-                Method::GET,
-                "auto=webp&c=wh_ben_de&var=usnycny&e=456&width=480&s=fifth",
-                "hit",
-            ),
+            (Method::GET, "width=480&a=123%2Cabc&e=123&s=fourth", "miss"),
+            (Method::GET, "width=480&a=456%2Cdef&e=123&s=fourth", "hit"),
+            (Method::GET, "width=480&a=123%2Cabc&e=456&s=fourth", "hit"),
+            (Method::GET, "width=480&a=123%2Cabc&e=123&s=fifth", "hit"),
+            (Method::GET, "width=480&var=pmp4v2", "miss"),
+            (Method::GET, "width=480&c=wh_ben_en", "miss"),
+            (Method::GET, "width=480", "hit"),
         ] {
             let request = Request::builder()
                 .method(method.clone())
@@ -486,8 +484,18 @@ mod tests {
                     None
                 ),
                 (
-                    "https://preview.redd.it/nested/file%20name.png?width=480&auto=webp&c=wh_ben_en&var=sgpssan&e=123&s=fourth"
+                    "https://preview.redd.it/nested/file%20name.png?width=480&a=123%2Cabc&e=123&s=fourth"
                         .into(),
+                    None,
+                    None
+                ),
+                (
+                    "https://preview.redd.it/nested/file%20name.png?width=480&var=pmp4v2".into(),
+                    None,
+                    None
+                ),
+                (
+                    "https://preview.redd.it/nested/file%20name.png?width=480&c=wh_ben_en".into(),
                     None,
                     None
                 ),
@@ -686,7 +694,8 @@ mod tests {
                     &RateLimits::default(),
                     caching.then_some(&cache),
                     &ApiCacheOptions {
-                        api_cache_max_age_seconds: 42,
+                        api_cache_max_age_seconds: Some(0),
+                        media_cache_max_age_seconds: Some(42),
                     },
                 );
                 let request = Request::builder()
@@ -789,6 +798,7 @@ mod tests {
                     calls: calls.clone(),
                     chunks: Arc::default(),
                 }));
+            let app = ApiCacheOptions::default().wrap_media(app);
             let target = format!("v.redd.it/asset/{name}?v=1");
             let request = Request::builder()
                 .uri(format!("/media/{target}"))
@@ -804,6 +814,10 @@ mod tests {
                 [(format!("https://{target}"), None, None)]
             );
             assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(
+                response.headers()[header::CACHE_CONTROL],
+                "public, max-age=31536000"
+            );
             assert!(!response.headers().contains_key(header::CONTENT_RANGE));
             let body = to_bytes(response.into_body(), 4096).await.unwrap();
             assert!(
@@ -893,7 +907,10 @@ mod tests {
             assert_eq!(response.status(), StatusCode::OK);
             assert_eq!(response.headers()["content-length"], "11");
             assert!(!response.headers().contains_key("x-lurklet-cache"));
-            assert_eq!(response.headers()["cache-control"], "public, max-age=3600");
+            assert_eq!(
+                response.headers()["cache-control"],
+                "public, max-age=31536000"
+            );
             assert!(!response.headers().contains_key("accept-ranges"));
             assert!(!response.headers().contains_key("content-range"));
             assert_eq!(response.bytes().await.unwrap(), b"hello world".as_slice());

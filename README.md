@@ -90,7 +90,9 @@ Options:
       --cache-dir <CACHE_DIR>
           Save a persistent API response cache (cache-on-error) [env: LURKLET_CACHE_DIR=]
       --api-cache-max-age-seconds <API_CACHE_MAX_AGE_SECONDS>
-          How long to cache successful API data and media responses [env: LURKLET_API_CACHE_MAX_AGE_SECONDS=] [default: 3600]
+          Cache lifetime for successful API data (default: 3600 seconds). If set, also applies to media unless overridden [env: LURKLET_API_CACHE_MAX_AGE_SECONDS=]
+      --media-cache-max-age-seconds <MEDIA_CACHE_MAX_AGE_SECONDS>
+          Cache lifetime for successful media (default: the explicit API lifetime, otherwise 31536000 seconds) [env: LURKLET_MEDIA_CACHE_MAX_AGE_SECONDS=]
       --enable-agents-routes
           Serve the read-only /agents routes [env: LURKLET_ENABLE_AGENTS_ROUTES=]
       --state-file <STATE_FILE>

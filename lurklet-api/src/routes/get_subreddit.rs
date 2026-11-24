@@ -20,7 +20,7 @@ use utoipa_axum::routes;
 #[serde(rename_all = "camelCase")]
 #[into_params(parameter_in = Path)]
 struct GetSubredditInput {
-    /// Community name, without the r/ prefix.
+    /// Subreddit name, for example `rust`.
     subreddit: String,
 }
 
@@ -45,13 +45,11 @@ struct SubredditDetails {
     created_at: Option<DateTime<Utc>>,
     #[schema(required)]
     short_description: Option<String>,
-    /// Untrusted long-form Markdown, not structured sidebar widgets or rules.
     #[schema(required)]
     #[from(~.map(Into::into))]
     description_markdown: Option<Markdown>,
     #[schema(required)]
     subscriber_count: Option<u64>,
-    /// Weekly activity, not a count of currently online users.
     #[schema(required)]
     weekly_active_user_count: Option<u64>,
     #[schema(required)]
@@ -126,7 +124,7 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     get,
     path = "/subreddits/{subreddit}",
     operation_id = "get_subreddit",
-    summary = "Read community metadata without fetching its feed or assets",
+    summary = "Get subreddit details",
     params(GetSubredditInput),
     responses(
         ApiError,

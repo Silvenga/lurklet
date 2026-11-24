@@ -42,12 +42,12 @@ export const handlers = [
         request.method === "HEAD"
           ? undefined
           : Uint8Array.from(atob(MEDIA_PNG_BASE64), (char) => char.charCodeAt(0)).buffer,
-        { headers: { "Content-Type": "image/png", "Cache-Control": "no-store" } },
+        { headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=31536000" } },
       );
     }
     const headers = new Headers({
       "Content-Type": "video/mp4",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": "public, max-age=31536000",
       "Accept-Ranges": "bytes",
       ETag: '"fixture-video"',
     });

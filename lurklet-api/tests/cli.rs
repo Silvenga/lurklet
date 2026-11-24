@@ -166,31 +166,42 @@ fn when_the_total_timeout_is_configured_through_the_environment_then_only_disabl
 #[test]
 fn when_api_freshness_is_configured_through_the_environment_then_the_cli_should_validate_and_override_it()
  {
-    for (value, valid) in [("0", true), ("42", true), ("-1", false), ("invalid", false)] {
+    for (flag, env) in [
+        (
+            "--api-cache-max-age-seconds",
+            "LURKLET_API_CACHE_MAX_AGE_SECONDS",
+        ),
+        (
+            "--media-cache-max-age-seconds",
+            "LURKLET_MEDIA_CACHE_MAX_AGE_SECONDS",
+        ),
+    ] {
+        for (value, valid) in [("0", true), ("42", true), ("-1", false), ("invalid", false)] {
+            let mut command = command();
+            command
+                .arg("export-openapi")
+                .env(env, value)
+                .env_remove("RUST_LOG")
+                .timeout(Duration::from_secs(5));
+
+            let assertion = command.assert();
+
+            if valid {
+                assertion.success();
+            } else {
+                assertion.failure();
+            }
+        }
+
         let mut command = command();
         command
-            .arg("export-openapi")
-            .env("LURKLET_API_CACHE_MAX_AGE_SECONDS", value)
+            .args([flag, "42", "export-openapi"])
+            .env(env, "invalid")
             .env_remove("RUST_LOG")
             .timeout(Duration::from_secs(5));
 
-        let assertion = command.assert();
-
-        if valid {
-            assertion.success();
-        } else {
-            assertion.failure();
-        }
+        command.assert().success();
     }
-
-    let mut command = command();
-    command
-        .args(["--api-cache-max-age-seconds", "42", "export-openapi"])
-        .env("LURKLET_API_CACHE_MAX_AGE_SECONDS", "invalid")
-        .env_remove("RUST_LOG")
-        .timeout(Duration::from_secs(5));
-
-    command.assert().success();
 }
 
 #[tokio::test]

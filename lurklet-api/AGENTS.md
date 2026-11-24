@@ -13,3 +13,4 @@ Supports `lurklet-web` (the SPA frontend) by hosting the frontend's static conte
 ## Conventions
 
 - Favor accepting `RedditId` directly when the backing `lurklet-reddit` API uses it.
+- Keep OpenAPI prose short. Describe only what callers need to send or interpret. Do not duplicate the CLI's cache-key export in documentation.
