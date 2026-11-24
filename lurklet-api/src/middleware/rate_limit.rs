@@ -65,9 +65,24 @@ pub enum ClientIpSource {
 }
 
 #[derive(Clone)]
-struct ClientIpKey {
+pub(crate) struct ClientIpKey {
     source: ClientIpSource,
     trusted_proxies: Vec<IpNet>,
+}
+
+impl ClientIpKey {
+    fn trusts_peer(&self, peer: IpAddr) -> bool {
+        self.trusted_proxies.is_empty()
+            || self
+                .trusted_proxies
+                .iter()
+                .any(|network| network.contains(&peer))
+    }
+
+    pub(crate) fn trusts_forwarded_scheme(&self, peer: IpAddr) -> bool {
+        (!matches!(self.source, ClientIpSource::Peer) || !self.trusted_proxies.is_empty())
+            && self.trusts_peer(peer.to_canonical())
+    }
 }
 
 impl KeyExtractor for ClientIpKey {
@@ -81,12 +96,7 @@ impl KeyExtractor for ClientIpKey {
             .0
             .ip()
             .to_canonical();
-        let trusted = self.trusted_proxies.is_empty()
-            || self
-                .trusted_proxies
-                .iter()
-                .any(|network| network.contains(&peer));
-        let ip = if trusted {
+        let ip = if self.trusts_peer(peer) {
             match self.source {
                 ClientIpSource::Peer => peer,
                 ClientIpSource::XForwardedFor => {
@@ -136,6 +146,7 @@ impl RateLimit {
 
 /// Data API and media proxy rate limiters sharing one client-identity configuration.
 pub struct RateLimits {
+    pub(crate) forwarding: ClientIpKey,
     /// Data API budget.
     pub(crate) api: RateLimit,
     /// Media proxy budget.
@@ -156,6 +167,7 @@ impl RateLimits {
             trusted_proxies: options.trusted_proxies,
         };
         Self {
+            forwarding: key.clone(),
             api: RateLimit::new(
                 options.rate_limit_rps,
                 options.rate_limit_burst,

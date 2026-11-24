@@ -91,6 +91,8 @@ Options:
           Save a persistent API response cache (cache-on-error) [env: LURKLET_CACHE_DIR=]
       --api-cache-max-age-seconds <API_CACHE_MAX_AGE_SECONDS>
           How long to cache successful API data and media responses [env: LURKLET_API_CACHE_MAX_AGE_SECONDS=] [default: 3600]
+      --enable-agents-routes
+          Serve the read-only /agents routes [env: LURKLET_ENABLE_AGENTS_ROUTES=]
       --state-file <STATE_FILE>
           Restore and save Reddit session state across restarts [env: LURKLET_STATE_FILE=]
       --proxy <URL>

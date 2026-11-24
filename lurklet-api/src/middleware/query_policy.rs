@@ -44,6 +44,33 @@ pub struct QueryPolicy {
 }
 
 impl QueryPolicy {
+    pub(crate) fn agents() -> Self {
+        let mut policy = Self {
+            routes: BTreeMap::new(),
+            dropped: Mutex::default(),
+        };
+        policy.include_agents_routes();
+        policy
+    }
+
+    /// Adds opt-in agent paths to the CDN key export without publishing them in OpenAPI.
+    pub fn include_agents_routes(&mut self) {
+        use crate::agents::{LISTING, POST, REPLIES, THREAD};
+        for route in [LISTING, POST, REPLIES, THREAD] {
+            self.routes.insert(
+                format!("/agents{route}"),
+                QueryKeys {
+                    cache_key: if route == LISTING {
+                        vec!["after".into()]
+                    } else {
+                        vec![]
+                    },
+                    forward_only: vec![],
+                },
+            );
+        }
+    }
+
     /// Derives data keys from GET parameters and adds the upstream media contract.
     pub fn from_specification(specification: &OpenApi) -> Self {
         let mut routes: BTreeMap<_, _> = specification

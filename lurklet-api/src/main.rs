@@ -3,7 +3,7 @@ use anyhow::Context;
 use clap::{Parser, Subcommand};
 use lurklet_api::{
     ApiCacheOptions, QueryPolicy, RateLimitOptions, RateLimits, ResponseCache, StaticHost,
-    application, specification,
+    agents_service, application, specification,
 };
 use lurklet_reddit::{RedditClient, Storage};
 use std::io::{self, Write};
@@ -33,6 +33,9 @@ struct Arguments {
     cache_dir: Option<PathBuf>,
     #[command(flatten)]
     api_cache: ApiCacheOptions,
+    /// Serve the read-only /agents routes.
+    #[arg(long, env = "LURKLET_ENABLE_AGENTS_ROUTES")]
+    enable_agents_routes: bool,
     /// Restore and save Reddit session state across restarts.
     #[arg(long, env = "LURKLET_STATE_FILE")]
     state_file: Option<PathBuf>,
@@ -106,7 +109,10 @@ async fn main() -> ExitCode {
             }
             Some(Command::HealthCheck) => health_check::check(arguments.bind).await,
             Some(Command::ExportCacheQueryKeys) => {
-                let policy = QueryPolicy::from_specification(&specification());
+                let mut policy = QueryPolicy::from_specification(&specification());
+                if arguments.enable_agents_routes {
+                    policy.include_agents_routes();
+                }
                 let mut output = io::stdout().lock();
                 serde_json::to_writer_pretty(&mut output, &policy)
                     .context("failed to serialize cache query keys")?;
@@ -137,7 +143,14 @@ async fn main() -> ExitCode {
                     ),
                     None => None,
                 };
-                let app = application(reddit, &rate_limits, cache.as_ref(), &arguments.api_cache);
+                let agents = agents_service(
+                    reddit.clone(),
+                    &rate_limits,
+                    &arguments.api_cache,
+                    arguments.enable_agents_routes,
+                );
+                let app = application(reddit, &rate_limits, cache.as_ref(), &arguments.api_cache)
+                    .merge(agents);
                 let static_host = StaticHost::new(&arguments.static_dir)
                     .await
                     .context("failed to initialize static hosting")?;

@@ -14,6 +14,8 @@ use utoipa::{IntoResponses, ToSchema};
 pub enum ApiError {
     #[error("bad request")]
     BadRequest,
+    #[error("agent routes are disabled")]
+    AgentsDisabled,
     #[error("resource not found")]
     NotFound,
     #[error("method not allowed")]
@@ -109,6 +111,7 @@ impl IntoResponse for ApiError {
         let cache_policy = match &self {
             Self::TooManyRequests => "no-store",
             Self::BadRequest
+            | Self::AgentsDisabled
             | Self::NotFound
             | Self::MethodNotAllowed
             | Self::NotAcceptable
@@ -118,6 +121,7 @@ impl IntoResponse for ApiError {
         };
         let (status, title, retry_after) = match self {
             Self::BadRequest => (StatusCode::BAD_REQUEST, "Bad Request", None),
+            Self::AgentsDisabled => (StatusCode::FORBIDDEN, "Forbidden", None),
             Self::NotFound => (StatusCode::NOT_FOUND, "Not Found", None),
             Self::MethodNotAllowed => (StatusCode::METHOD_NOT_ALLOWED, "Method Not Allowed", None),
             Self::NotAcceptable => (StatusCode::NOT_ACCEPTABLE, "Not Acceptable", None),

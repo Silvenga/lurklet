@@ -1,10 +1,10 @@
-use crate::ResponseCache;
 use crate::error::{ApiError, Problem};
 use crate::middleware::{
     ApiCacheOptions, QueryPolicy, RateLimit, RateLimits, access_log, api_cache_policy,
     api_content_security_policy, content_type_options, limit_requests, response_compression,
 };
 use crate::routes;
+use crate::{ResponseCache, agents};
 use axum::Router;
 use axum::body::Bytes;
 use axum::http::header;
@@ -25,6 +25,33 @@ use utoipa::openapi::{OpenApi, OpenApiVersion};
 struct ApiDoc;
 
 const API_PREFIX: &str = "/api";
+
+/// Reserves /agents, serving its JSON routes only when explicitly enabled.
+pub fn agents_service<B: RedditBackend + 'static>(
+    reddit: RedditClient<B>,
+    rate_limits: &RateLimits,
+    cache_options: &ApiCacheOptions,
+    enabled: bool,
+) -> Router {
+    let routes = if enabled {
+        let routes = agents::router().fallback(|| async { ApiError::NotFound });
+        // Responses contain absolute navigation links; the disk cache is host-independent.
+        let routes = data_api(routes, reddit, &rate_limits.api, None, cache_options)
+            .layer(axum::Extension(rate_limits.forwarding.clone()))
+            .layer(middleware::from_fn(response_compression));
+        QueryPolicy::agents().wrap(routes)
+    } else {
+        Router::new().fallback(|| async { ApiError::AgentsDisabled })
+    };
+    Router::new().nest_service(
+        "/agents",
+        routes
+            .layer(middleware::from_fn(api_cache_policy))
+            .layer(api_content_security_policy())
+            .layer(content_type_options())
+            .layer(middleware::from_fn(access_log)),
+    )
+}
 
 /// Builds the API router without starting a listener.
 pub fn application<B: RedditBackend + 'static>(

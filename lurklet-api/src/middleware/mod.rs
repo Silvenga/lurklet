@@ -15,6 +15,7 @@ pub use content_security_policy::{api_content_security_policy, content_security_
 pub use content_type_options::content_type_options;
 pub use data_cache_policy::ApiCacheOptions;
 pub use query_policy::QueryPolicy;
+pub(crate) use rate_limit::ClientIpKey;
 pub use rate_limit::{ClientIpSource, RateLimit, RateLimitOptions, RateLimits, limit_requests};
 pub use referrer_policy::referrer_policy;
 pub use response_compression::response_compression;
