@@ -227,7 +227,7 @@
           {
             "name": "Range",
             "in": "header",
-            "description": "One byte range, such as bytes=0-1023, bytes=1024-, or bytes=-1024",
+            "description": "One byte range, such as bytes=0-1023. Ignored for .mpd and .m3u8 paths so manifests can be rewritten in full.",
             "required": false,
             "schema": {
               "type": ["string", "null"]

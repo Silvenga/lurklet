@@ -28,7 +28,7 @@ pub fn router<B: RedditBackend + 'static>() -> OpenApiRouter<RedditClient<B>> {
     params(
         ("origin" = String, Path, description = "Allowed upstream authority, such as i.redd.it"),
         ("path" = String, Path, description = "Upstream media path, including nested segments and existing percent escapes"),
-        ("Range" = Option<String>, Header, description = "One byte range, such as bytes=0-1023, bytes=1024-, or bytes=-1024"),
+        ("Range" = Option<String>, Header, description = "One byte range, such as bytes=0-1023. Ignored for .mpd and .m3u8 paths so manifests can be rewritten in full."),
         ("If-Range" = Option<String>, Header, description = "Upstream entity tag or HTTP date. Sent only with a supported Range")
     ),
     responses(
@@ -61,9 +61,13 @@ async fn get_media<B: RedditBackend>(
         .and_then(|value| value.as_str().strip_prefix("/media/"))
         .ok_or(ApiError::BadRequest)?;
     let url = format!("https://{target}");
-    let range = (method == Method::GET && headers.get_all(header::RANGE).iter().count() == 1)
-        .then(|| headers.get(header::RANGE)?.to_str().ok()?.parse().ok())
-        .flatten();
+    let manifest = uri.path().rsplit_once('.').is_some_and(|(_, ext)| {
+        ext.eq_ignore_ascii_case("mpd") || ext.eq_ignore_ascii_case("m3u8")
+    });
+    let range =
+        (method == Method::GET && !manifest && headers.get_all(header::RANGE).iter().count() == 1)
+            .then(|| headers.get(header::RANGE)?.to_str().ok()?.parse().ok())
+            .flatten();
     let options = MediaOptions {
         if_range: range
             .as_ref()
@@ -751,6 +755,62 @@ mod tests {
                     0
                 );
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn when_a_cdn_requests_a_manifest_range_then_the_proxy_should_rewrite_the_complete_manifest()
+     {
+        for (name, kind, mime, body) in [
+            (
+                "DASHPlaylist.mpd",
+                MediaKind::Dash,
+                "application/dash+xml",
+                "<MPD><Representation><BaseURL>track.mp4</BaseURL></Representation></MPD>",
+            ),
+            (
+                "video.m3u8",
+                MediaKind::Hls,
+                "application/x-mpegurl",
+                "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\ntrack.mp4\n#EXT-X-ENDLIST\n",
+            ),
+        ] {
+            let calls = Calls::default();
+            let app = router()
+                .split_for_parts()
+                .0
+                .with_state(RedditClient::from_backend(FakeBackend {
+                    error: None,
+                    content_type: mime,
+                    kind,
+                    body: [body.as_bytes(), b""],
+                    length: None,
+                    content_range: None,
+                    calls: calls.clone(),
+                    chunks: Arc::default(),
+                }));
+            let target = format!("v.redd.it/asset/{name}?v=1");
+            let request = Request::builder()
+                .uri(format!("/media/{target}"))
+                .header(header::RANGE, "bytes=0-99")
+                .header(header::IF_RANGE, "\"old\"")
+                .body(Body::empty())
+                .unwrap();
+
+            let response = app.oneshot(request).await.unwrap();
+
+            assert_eq!(
+                *calls.lock().unwrap(),
+                [(format!("https://{target}"), None, None)]
+            );
+            assert_eq!(response.status(), StatusCode::OK);
+            assert!(!response.headers().contains_key(header::CONTENT_RANGE));
+            let body = to_bytes(response.into_body(), 4096).await.unwrap();
+            assert!(
+                str::from_utf8(&body)
+                    .unwrap()
+                    .contains("/api/media/v.redd.it/asset/track.mp4")
+            );
         }
     }
 
