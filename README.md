@@ -1,4 +1,4 @@
-<img src="lurklet-web/static/public/logo.svg" width="72" height="72" alt="" />
+<img src="lurklet-web/src/assets/logo.svg" width="72" height="72" alt="" />
 
 # lurklet
 

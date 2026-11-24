@@ -1,7 +1,7 @@
 import { FaGithub } from "react-icons/fa";
 import { Link, Outlet, ScrollRestoration } from "react-router";
+import logoSvg from "@/assets/logo.svg?raw";
 import { version } from "../../package.json";
-import logoSvg from "../../static/public/logo.svg?raw";
 
 export function AppLayout() {
   return (
