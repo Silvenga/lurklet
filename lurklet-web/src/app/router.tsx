@@ -71,5 +71,10 @@ export const APP_ROUTES: RouteObject[] = [
 ];
 
 export function createAppRouter() {
+  // React Router otherwise shares the "default" scroll key across fresh external visits.
+  if (!window.history.state?.key) {
+    const key = Math.random().toString(32).slice(2);
+    window.history.replaceState({ ...window.history.state, key }, "");
+  }
   return createBrowserRouter(APP_ROUTES);
 }

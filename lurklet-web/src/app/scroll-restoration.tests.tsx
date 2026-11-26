@@ -4,11 +4,15 @@ import { http, HttpResponse } from "msw/http";
 import { createMemoryRouter, parsePath } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { beforeEach, expect, onTestFinished, test, vi } from "vitest";
-import { POST_RESPONSE, SUBREDDIT_PAGE_RESPONSE } from "@/_tests/mocks/fixtures";
+import {
+  ORIGINAL_POST_RESPONSE,
+  POST_RESPONSE,
+  SUBREDDIT_PAGE_RESPONSE,
+} from "@/_tests/mocks/fixtures";
 import { server } from "@/_tests/mocks/server";
 import { DeferredScrollRestoration } from "./DeferredScrollRestoration";
 import { createQueryClient } from "./query-client";
-import { APP_ROUTES } from "./router";
+import { APP_ROUTES, createAppRouter } from "./router";
 
 let scrollY = 0;
 let maximumScroll = Infinity;
@@ -47,10 +51,15 @@ beforeEach(() => {
 });
 
 function renderPath(path: string) {
+  return renderRouter(
+    createMemoryRouter(APP_ROUTES, {
+      initialEntries: [{ ...parsePath(path), key: crypto.randomUUID() }],
+    }),
+  );
+}
+
+function renderRouter(router: ReturnType<typeof createAppRouter>) {
   const queryClient = createQueryClient();
-  const router = createMemoryRouter(APP_ROUTES, {
-    initialEntries: [{ ...parsePath(path), key: crypto.randomUUID() }],
-  });
   const { unmount } = render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
@@ -62,8 +71,30 @@ function renderPath(path: string) {
     router.dispose();
     queryClient.clear();
   });
-  return { router, queryClient };
+  return { router, queryClient, unmount };
 }
+
+test("When opening a second post from outside the app then it should start at the top", async () => {
+  const { href } = window.location;
+  const state = window.history.state;
+  onTestFinished(() => {
+    window.history.replaceState(state, "", href);
+    window.sessionStorage.clear();
+  });
+  window.history.replaceState(null, "", POST_RESPONSE.permalink);
+  const first = renderRouter(createAppRouter());
+  await screen.findByText(POST_RESPONSE.title);
+  window.scrollTo(0, 900);
+  window.dispatchEvent(new Event("pagehide"));
+  first.unmount();
+
+  window.history.replaceState(null, "", ORIGINAL_POST_RESPONSE.permalink);
+  window.scrollTo(0, 0);
+  renderRouter(createAppRouter());
+  await screen.findByText(ORIGINAL_POST_RESPONSE.title);
+
+  expect(window.scrollY).toBe(0);
+});
 
 test("When navigating and traversing history then each entry should reset or restore its own scroll position", async () => {
   const { router } = renderPath("/r/rust");
