@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.0](https://github.com/Silvenga/lurklet/compare/v0.4.0...v0.5.0) (2026-11-26)
+
+
+### Features
+
+* added agents endpoints ([916a410](https://github.com/Silvenga/lurklet/commit/916a41007cf0f43bc85b9ed173ffee3707d5a5d2))
+* added dash and hls support ([7278cb3](https://github.com/Silvenga/lurklet/commit/7278cb3b8a9bf324eb91377a27d6afeb08a65546))
+
+
+### Bug Fixes
+
+* fixed leaking scroll position across pages ([2727126](https://github.com/Silvenga/lurklet/commit/2727126b161276c481f2d0672402406dfbf6813a))
+* fixed stale cdn handling, fixed cached of openapi.json ([ee63514](https://github.com/Silvenga/lurklet/commit/ee6351489e67c311b07575c10c6e1cde7f8e23cc))
+* fixed vary query keys again, simplified openapi docs ([8620c33](https://github.com/Silvenga/lurklet/commit/8620c33795263651ba59744787baaae8ab6d24d7))
+
 ## [0.4.0](https://github.com/Silvenga/lurklet/compare/v0.3.0...v0.4.0) (2026-11-23)
 
 
