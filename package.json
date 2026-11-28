@@ -16,8 +16,8 @@
     "fmt": "oxfmt"
   },
   "devDependencies": {
-    "oxfmt": "^0.78.0",
-    "oxlint": "^1.93.0",
+    "oxfmt": "^0.80.0",
+    "oxlint": "^1.95.0",
     "typescript": "^6.0.3"
   },
   "devEngines": {
