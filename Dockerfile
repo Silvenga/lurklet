@@ -31,7 +31,7 @@ RUN set -xe \
     && pnpm test \
     && pnpm publish:web
 
-FROM rust:1-slim-trixie@sha256:6f14b2b4b278ec0d50aa1d69541c304ce0f95e0f6268487aa9924af1c2e9aebe AS backend-chef
+FROM rust:1-slim-trixie@sha256:3b199fd6db7d709274df56565b8f4003f9e30d7bfcff9d53148c86053b7855e2 AS backend-chef
 
 RUN set -xe \
     && apt-get update \
