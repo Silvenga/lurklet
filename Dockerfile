@@ -86,7 +86,7 @@ RUN set -xe \
 
 RUN install -d -m 0755 /cache
 
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:cb87acc574abe719b6e5c547384defa2f7b1f24af9605d3f618cf852495d8be2 AS backend-runtime
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:29ee70762214fe8190cea04ef1c0a84a8365879e047ce8f911ae5a5ab2355fa2 AS backend-runtime
 
 COPY --from=backend-builder --chmod=0555 /app/target/release/lurklet-api /usr/local/bin/lurklet-api
 COPY --from=frontend-build /app/lurklet-web/dist/ /app/static/
